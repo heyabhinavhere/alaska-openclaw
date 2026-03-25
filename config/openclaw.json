@@ -1,18 +1,13 @@
 {
-  "ai": {
-    "provider": "anthropic",
-    "model": "anthropic/claude-sonnet-4-6",
-    "authChoice": "apiKey"
-  },
   "gateway": {
     "port": 18789,
-    "bind": "loopback",
-    "authMode": "token"
+    "bind": "loopback"
   },
   "channels": {
     "slack": {
       "enabled": true,
       "dmPolicy": "open",
+      "allowFrom": ["*"],
       "groupPolicy": "open",
       "streaming": false,
       "nativeStreaming": false
@@ -21,16 +16,6 @@
   "tools": {
     "agentToAgent": {
       "enabled": true
-    }
-  },
-  "mcp": {
-    "servers": {
-      "notion": {
-        "command": "notion-mcp-server",
-        "env": {
-          "OPENAPI_MCP_HEADERS": "{\"Authorization\": \"Bearer ${NOTION_API_KEY}\", \"Notion-Version\": \"2022-06-28\"}"
-        }
-      }
     }
   }
 }
