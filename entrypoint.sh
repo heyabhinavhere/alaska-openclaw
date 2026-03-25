@@ -3,34 +3,11 @@ set -e
 
 echo "[alaska] Starting Alaska AI Project Manager..."
 
-# First deploy: copy default config if none exists
-# Subsequent deploys: preserve Alaska's live config (dashboard changes, runtime settings)
-if [ ! -f /data/.openclaw/openclaw.json ]; then
-  echo "[alaska] First deploy detected. Copying default config..."
-  mkdir -p /data/.openclaw
-  cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
-  echo "[alaska] Default config copied to /data/.openclaw/openclaw.json"
-else
-  echo "[alaska] Existing config found at /data/.openclaw/openclaw.json."
-  # Ensure gateway.mode is set (required by OpenClaw, missing in older configs)
-  if ! grep -q '"mode"' /data/.openclaw/openclaw.json 2>/dev/null; then
-    echo "[alaska] Patching: adding gateway.mode=local to existing config..."
-    cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
-  else
-    echo "[alaska] Config looks good. Preserving it."
-  fi
-  # Always ensure bind is 0.0.0.0 (not loopback) so Railway proxy can reach the gateway
-  # Ensure bind is "lan" (not loopback or 0.0.0.0) so Railway proxy can reach the gateway
-  if grep -q '"loopback"\|"0.0.0.0"' /data/.openclaw/openclaw.json 2>/dev/null; then
-    echo "[alaska] Patching: changing bind to lan..."
-    sed -i 's/"loopback"/"lan"/g; s/"0.0.0.0"/"lan"/g' /data/.openclaw/openclaw.json
-  fi
-  # Ensure controlUi.allowedOrigins is set for Railway dashboard access
-  if ! grep -q 'controlUi' /data/.openclaw/openclaw.json 2>/dev/null; then
-    echo "[alaska] Patching: adding controlUi.allowedOrigins for Railway..."
-    cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
-  fi
-fi
+# Always use config from git (source of truth)
+# Dashboard/runtime changes should be committed back to git, not preserved on volume
+mkdir -p /data/.openclaw
+cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
+echo "[alaska] Config synced from git to /data/.openclaw/openclaw.json"
 
 # Ensure queue directory exists for SQLite local queue
 mkdir -p /data/queue
@@ -48,5 +25,4 @@ echo "[alaska] Starting OpenClaw gateway..."
 
 # exec replaces this shell with the gateway process
 # This ensures Railway's SIGTERM reaches the gateway directly for clean shutdown
-# bind 0.0.0.0 so Railway's reverse proxy can reach the gateway (loopback blocked external access)
 exec openclaw gateway run --port 18789 --allow-unconfigured
