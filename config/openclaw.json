@@ -1,7 +1,8 @@
 {
   "gateway": {
     "port": 18789,
-    "bind": "loopback"
+    "bind": "loopback",
+    "mode": "local"
   },
   "channels": {
     "slack": {

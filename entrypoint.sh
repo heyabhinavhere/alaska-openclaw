@@ -11,7 +11,14 @@ if [ ! -f /data/.openclaw/openclaw.json ]; then
   cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
   echo "[alaska] Default config copied to /data/.openclaw/openclaw.json"
 else
-  echo "[alaska] Existing config found at /data/.openclaw/openclaw.json. Preserving it."
+  echo "[alaska] Existing config found at /data/.openclaw/openclaw.json."
+  # Ensure gateway.mode is set (required by OpenClaw, missing in older configs)
+  if ! grep -q '"mode"' /data/.openclaw/openclaw.json 2>/dev/null; then
+    echo "[alaska] Patching: adding gateway.mode=local to existing config..."
+    cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
+  else
+    echo "[alaska] Config looks good. Preserving it."
+  fi
 fi
 
 # Ensure queue directory exists for SQLite local queue
@@ -30,4 +37,4 @@ echo "[alaska] Starting OpenClaw gateway..."
 
 # exec replaces this shell with the gateway process
 # This ensures Railway's SIGTERM reaches the gateway directly for clean shutdown
-exec openclaw gateway run --bind loopback --port 18789
+exec openclaw gateway run --bind loopback --port 18789 --allow-unconfigured
