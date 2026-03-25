@@ -2,7 +2,7 @@
   "gateway": {
     "port": 18789,
     "bind": "lan",
-    "mode": "proxy",
+    "mode": "remote",
     "trustedProxies": ["0.0.0.0/0"],
     "controlUi": {
       "allowedOrigins": ["https://alaska-openclaw-production.up.railway.app"]
