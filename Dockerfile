@@ -2,7 +2,8 @@
 # Custom OpenClaw setup: Slack + Notion MCP pre-installed
 # Pinned version — no surprise auto-updates
 
-FROM ghcr.io/openclaw/openclaw:2026.3.13
+# 1panel/openclaw mirrors the official OpenClaw with confirmed version tags on Docker Hub
+FROM 1panel/openclaw:2026.3.13
 
 USER root
 
