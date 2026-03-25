@@ -19,6 +19,11 @@ else
   else
     echo "[alaska] Config looks good. Preserving it."
   fi
+  # Always ensure bind is 0.0.0.0 (not loopback) so Railway proxy can reach the gateway
+  if grep -q '"loopback"' /data/.openclaw/openclaw.json 2>/dev/null; then
+    echo "[alaska] Patching: changing bind from loopback to 0.0.0.0..."
+    sed -i 's/"loopback"/"0.0.0.0"/g' /data/.openclaw/openclaw.json
+  fi
 fi
 
 # Ensure queue directory exists for SQLite local queue
@@ -37,4 +42,5 @@ echo "[alaska] Starting OpenClaw gateway..."
 
 # exec replaces this shell with the gateway process
 # This ensures Railway's SIGTERM reaches the gateway directly for clean shutdown
-exec openclaw gateway run --bind loopback --port 18789 --allow-unconfigured
+# bind 0.0.0.0 so Railway's reverse proxy can reach the gateway (loopback blocked external access)
+exec openclaw gateway run --port 18789 --allow-unconfigured
