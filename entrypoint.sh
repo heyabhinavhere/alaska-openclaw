@@ -25,6 +25,11 @@ else
     echo "[alaska] Patching: changing bind to lan..."
     sed -i 's/"loopback"/"lan"/g; s/"0.0.0.0"/"lan"/g' /data/.openclaw/openclaw.json
   fi
+  # Ensure controlUi.allowedOrigins is set for Railway dashboard access
+  if ! grep -q 'controlUi' /data/.openclaw/openclaw.json 2>/dev/null; then
+    echo "[alaska] Patching: adding controlUi.allowedOrigins for Railway..."
+    cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
+  fi
 fi
 
 # Ensure queue directory exists for SQLite local queue
