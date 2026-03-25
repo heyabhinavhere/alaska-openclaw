@@ -20,9 +20,10 @@ else
     echo "[alaska] Config looks good. Preserving it."
   fi
   # Always ensure bind is 0.0.0.0 (not loopback) so Railway proxy can reach the gateway
-  if grep -q '"loopback"' /data/.openclaw/openclaw.json 2>/dev/null; then
-    echo "[alaska] Patching: changing bind from loopback to 0.0.0.0..."
-    sed -i 's/"loopback"/"0.0.0.0"/g' /data/.openclaw/openclaw.json
+  # Ensure bind is "lan" (not loopback or 0.0.0.0) so Railway proxy can reach the gateway
+  if grep -q '"loopback"\|"0.0.0.0"' /data/.openclaw/openclaw.json 2>/dev/null; then
+    echo "[alaska] Patching: changing bind to lan..."
+    sed -i 's/"loopback"/"lan"/g; s/"0.0.0.0"/"lan"/g' /data/.openclaw/openclaw.json
   fi
 fi
 
