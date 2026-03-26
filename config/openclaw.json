@@ -26,5 +26,14 @@
     "agentToAgent": {
       "enabled": true
     }
+  },
+  "mcpServers": {
+    "notion": {
+      "command": "npx",
+      "args": ["-y", "@notionhq/notion-mcp-server"],
+      "env": {
+        "NOTION_API_KEY": "${NOTION_API_KEY}"
+      }
+    }
   }
 }
