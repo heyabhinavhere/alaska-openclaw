@@ -8,8 +8,7 @@
       "mode": "token"
     },
     "controlUi": {
-      "allowedOrigins": ["https://alaska-openclaw-production.up.railway.app"],
-      "dangerouslyDisableDeviceAuth": true
+      "allowedOrigins": ["https://alaska-openclaw-production.up.railway.app"]
     }
   },
   "channels": {
