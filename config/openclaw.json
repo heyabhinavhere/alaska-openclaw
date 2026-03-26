@@ -26,5 +26,10 @@
     "agentToAgent": {
       "enabled": true
     }
+  },
+  "hooks": {
+    "enabled": true,
+    "token": "${HOOKS_TOKEN}",
+    "path": "/hooks"
   }
 }

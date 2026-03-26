@@ -5,14 +5,38 @@ echo "[alaska] Starting Alaska AI Project Manager..."
 
 mkdir -p /data/.openclaw
 
-# First deploy: copy default config from git
-# Subsequent deploys: preserve runtime config (Notion MCP, device approvals, etc.)
-# To force a config reset, set FORCE_CONFIG_RESET=true in Railway env vars
-if [ ! -f /data/.openclaw/openclaw.json ] || [ "$FORCE_CONFIG_RESET" = "true" ]; then
+if [ ! -f /data/.openclaw/openclaw.json ]; then
+  # First deploy: copy git config directly
   cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
-  echo "[alaska] Config initialized from git (first deploy or forced reset)"
+  echo "[alaska] First deploy — config initialized from git"
 else
-  echo "[alaska] Preserving runtime config (Notion MCP, device approvals intact)"
+  # Subsequent deploys: merge git config INTO runtime config
+  # Git config updates (new keys, changed values) apply
+  # Runtime-only keys (Notion MCP, device approvals) are preserved
+  echo "[alaska] Merging git config into runtime config..."
+  node -e "
+    const fs = require('fs');
+    const git = JSON.parse(fs.readFileSync('/opt/default-config/openclaw.json', 'utf8'));
+    const runtime = JSON.parse(fs.readFileSync('/data/.openclaw/openclaw.json', 'utf8'));
+
+    // Deep merge: git values win, but runtime-only keys are kept
+    function merge(target, source) {
+      const result = { ...target };
+      for (const key of Object.keys(source)) {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])
+            && target[key] && typeof target[key] === 'object' && !Array.isArray(target[key])) {
+          result[key] = merge(target[key], source[key]);
+        } else {
+          result[key] = source[key];
+        }
+      }
+      return result;
+    }
+
+    const merged = merge(runtime, git);
+    fs.writeFileSync('/data/.openclaw/openclaw.json', JSON.stringify(merged, null, 2));
+    console.log('[alaska] Config merged successfully');
+  "
 fi
 
 # Ensure queue directory exists for SQLite local queue
@@ -30,5 +54,4 @@ fi
 echo "[alaska] Starting OpenClaw gateway..."
 
 # exec replaces this shell with the gateway process
-# This ensures Railway's SIGTERM reaches the gateway directly for clean shutdown
 exec openclaw gateway run --port 18789 --allow-unconfigured
