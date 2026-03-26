@@ -114,16 +114,18 @@ Create one entry with:
 - Open Questions: formatted list of unresolved questions
 - Meeting ID: Fireflies transcript ID
 
-### 4b. Sprint Board (one entry per action item)
-For each action item extracted, create a task:
-- Task Name: clear, actionable title
-- Status: "Backlog"
-- Priority: P0-P3 based on context
-- Effort: S/M/L/XL (use your engineering judgment)
-- Owner: person mentioned, or leave blank if [UNASSIGNED]
-- Source: "meeting"
-- Notes: context from the transcript about this task
-- Task ID: auto-generated
+### 4b. Proposals Database (proposed tasks — NOT Sprint Board)
+**CRITICAL: Do NOT write directly to Sprint Board.** Nothing enters the sprint without team confirmation. Instead, create a Proposal entry:
+- Proposal (title): "Meeting: [meeting name] — [count] proposed tasks"
+- Proposed By: "Meeting Intelligence"
+- Status: "pending"
+- Proposed Tasks: formatted list of extracted action items with owner, effort, priority, due date
+- Scope Changes: any scope changes detected
+- Team Feedback: empty (filled by Proposal Loop after team responds)
+- Confirmation Deadline: 4 hours from now
+- Proposal ID: auto-generated
+
+The Proposal Loop (Agent 2) will pick this up, post it to Slack for team confirmation, and only after approval will the Sprint Operator write tasks to the Sprint Board.
 
 ### 4c. Decision Log (one entry per decision)
 - Decision: the decision made
@@ -150,15 +152,15 @@ Send a structured summary to Slack:
 📋 Meeting Processed: [Meeting Name] ([Date])
 Attendees: [list]
 
-✅ DECISIONS ([count]):
+✅ DECISIONS LOGGED ([count]):
 1. [Decision] — by [who]
-2. ...
 
-📌 ACTION ITEMS ([count]):
+📌 PROPOSED TASKS ([count]) — awaiting team confirmation:
 1. [Task] — @[owner] — [effort] — [priority]
 2. ...
+(These will be posted as a formal proposal for team review)
 
-🚫 BLOCKERS ([count]):
+🚫 BLOCKERS LOGGED ([count]):
 1. [Blocker] — blocking [what] — owner: [who]
 
 ❓ OPEN QUESTIONS ([count]):
