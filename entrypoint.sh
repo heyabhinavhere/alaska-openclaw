@@ -34,6 +34,13 @@ else
     }
 
     const merged = merge(runtime, git);
+    // Remove keys that exist in runtime but NOT in git (stale/broken keys)
+    for (const key of Object.keys(merged)) {
+      if (!(key in git)) {
+        console.log('[alaska] Removing stale key: ' + key);
+        delete merged[key];
+      }
+    }
     fs.writeFileSync('/data/.openclaw/openclaw.json', JSON.stringify(merged, null, 2));
     console.log('[alaska] Config merged successfully');
   "
