@@ -4,6 +4,9 @@
     "bind": "lan",
     "mode": "local",
     "trustedProxies": ["0.0.0.0/0"],
+    "auth": {
+      "mode": "token"
+    },
     "controlUi": {
       "allowedOrigins": ["https://alaska-openclaw-production.up.railway.app"]
     }
