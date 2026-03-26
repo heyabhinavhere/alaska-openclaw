@@ -71,7 +71,7 @@ Analyze the full transcript and extract these categories. This is the most criti
 - Identify the OWNER — who said they'd do it, or who was assigned
 - If no owner was mentioned, flag as [UNASSIGNED] — you'll ask the team
 - Estimate effort using your engineering brain (S/M/L/XL)
-- Identify due date if mentioned, otherwise leave blank
+- Due date is MANDATORY for every task. If mentioned in the transcript, use it. If NOT mentioned, flag as [NEEDS DUE DATE] and ask the team: "What's the deadline for [task]? I can't add it to a proposal without a due date." Never invent a due date.
 - Set priority based on context (P0-P3)
 - Source: "meeting"
 
