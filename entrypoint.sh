@@ -3,10 +3,17 @@ set -e
 
 echo "[alaska] Starting Alaska AI Project Manager..."
 
-# Always use config from git (source of truth)
 mkdir -p /data/.openclaw
-cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
-echo "[alaska] Config synced from git to /data/.openclaw/openclaw.json"
+
+# First deploy: copy default config from git
+# Subsequent deploys: preserve runtime config (Notion MCP, device approvals, etc.)
+# To force a config reset, set FORCE_CONFIG_RESET=true in Railway env vars
+if [ ! -f /data/.openclaw/openclaw.json ] || [ "$FORCE_CONFIG_RESET" = "true" ]; then
+  cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
+  echo "[alaska] Config initialized from git (first deploy or forced reset)"
+else
+  echo "[alaska] Preserving runtime config (Notion MCP, device approvals intact)"
+fi
 
 # Ensure queue directory exists for SQLite local queue
 mkdir -p /data/queue
