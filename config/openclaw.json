@@ -30,7 +30,6 @@
   "hooks": {
     "enabled": true,
     "path": "/hooks",
-    "token": "__HOOKS_TOKEN__",
     "mappings": [
       {
         "id": "fireflies-transcript",
