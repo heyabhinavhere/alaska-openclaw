@@ -51,6 +51,12 @@ else
   echo "[alaska] SQLite queue already exists."
 fi
 
+# Substitute env vars into config (OpenClaw doesn't do this natively)
+if [ -n "$HOOKS_TOKEN" ]; then
+  sed -i "s/__HOOKS_TOKEN__/$HOOKS_TOKEN/g" /data/.openclaw/openclaw.json
+  echo "[alaska] Hooks token injected into config"
+fi
+
 echo "[alaska] Starting OpenClaw gateway..."
 
 # exec replaces this shell with the gateway process
