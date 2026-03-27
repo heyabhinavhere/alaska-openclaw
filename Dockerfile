@@ -32,8 +32,8 @@ COPY --chown=node:node config/openclaw.json /opt/default-config/openclaw.json
 COPY --chown=node:node entrypoint.sh /opt/entrypoint.sh
 RUN chmod +x /opt/entrypoint.sh
 
-# Copy custom skills (agents will go here as they're built)
-COPY --chown=node:node skills/ /data/skills/
+# Copy custom skills to staging (volume mount hides /data/skills/)
+COPY --chown=node:node skills/ /opt/default-skills/
 
 USER node
 

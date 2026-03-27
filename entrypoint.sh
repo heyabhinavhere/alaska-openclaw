@@ -46,6 +46,12 @@ else
   "
 fi
 
+# Sync skills from git to volume on every deploy
+# Skills are always overwritten from git (source of truth — no runtime edits)
+mkdir -p /data/skills
+cp -r /opt/default-skills/* /data/skills/ 2>/dev/null || true
+echo "[alaska] Skills synced from git to /data/skills/"
+
 # Ensure queue directory exists for SQLite local queue
 mkdir -p /data/queue
 
