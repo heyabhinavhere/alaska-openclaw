@@ -47,43 +47,42 @@ sqlite3 /data/queue/alaska.db "INSERT INTO proposals (proposal_id, notion_id, st
 
 ## Step 3: Post Structured Proposal to Slack
 
-Post to the team's primary Slack channel:
+Post to the team's primary Slack channel. Follow these formatting rules strictly:
+
+**Slack formatting rules:**
+- Use Slack mrkdwn: `*bold*` (single asterisks), NOT `**double**`
+- Use first names from Team Roster, NEVER raw emails
+- One task per line, compact format — no multi-line descriptions
+- If total message exceeds 3000 characters, split into 2 messages: tasks in first, context in second
+- Never truncate a line mid-sentence — shorten the description instead
+- No timestamps from transcript (like 27:06) — they mean nothing in Slack
 
 ```
-#P-[id] | Meeting: [Meeting Name] ([Date])
+*#P-[id] | [Meeting Name] ([Date])*
 
-DECISIONS MADE (already logged):
-  1. [Decision] — by [who]
-  2. [Decision] — by [who]
+*Proposed Tasks:*
+1. [Short task description] | @[Name] | [effort] | [priority] | due [date]
+2. [Short task description] | @[Name] | [effort] | [priority] | due [date]
 
-PROPOSED SPRINT ADDITIONS:
-  1. [Task] — @[owner] — [effort] — [priority] — due [date]
-  2. [Task] — @[owner] — [effort] — [priority] — due [date]
-  ...
+*Scope Changes:*
+- [One-liner per change]
 
-SCOPE CHANGES:
-  [If any — what's changing and why]
+*Capacity Impact:*
+Current sprint: [X]% | After these tasks: [Y]%
+[If overloaded]: _@[Name] would be at [Z]%. Suggest deferring [task]._
 
-CAPACITY IMPACT:
-  Current sprint: [X]% loaded
-  After adding these tasks: [Y]% loaded
-  [If over 100%]: I'd suggest deferring [lowest priority task] to keep the sprint realistic.
-  [Per-person breakdown if anyone is overloaded]
+*Blockers:* [count] logged | *Decisions:* [count] logged
 
-OPEN QUESTIONS:
-  1. [Question needing answer]
+Reply in this thread:
+• approve — _"looks good" or "approved"_
+• modify — _"change owner of X to Y" or "X should be L not M"_
+• remove — _"remove X" or "skip X"_
+• add — _"also add [task]"_
 
-NEEDS CLARIFICATION:
-  1. [Ambiguous item — what's unclear]
-
-Reply to this thread to:
-  - Approve: "looks good", "approved", "go ahead"
-  - Modify: "change owner of X to Y", "push deadline to Z", "effort should be L not M"
-  - Remove: "remove task X", "skip this one", "not now"
-  - Add: "also add [new task]"
-
-I'll finalize in 4 hours. No objections = approved.
+Auto-confirms in 4 hours if no objections.
 ```
+
+**Message length:** If more than 15 tasks, split by person across multiple messages. Each message must be under 3000 characters. Never truncate mid-word or mid-sentence.
 
 Record the Slack message timestamp for thread tracking:
 ```bash
