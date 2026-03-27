@@ -146,31 +146,50 @@ The Proposal Loop (Agent 2) will pick this up, post it to Slack for team confirm
 
 ## Step 5: Post Summary to Slack
 
-Send a structured summary to Slack:
+Post a clean, scannable summary. Use NAMES (not emails). Keep it tight — no walls of text.
+
+**Formatting rules:**
+- Use first names, never emails (Darwin, not darwin@bonhq.com)
+- Summary bullets: max 1 line each, no bold within bullets
+- Action items: one line per task, compact format
+- Use Slack's mrkdwn: `*bold*`, `_italic_`, backticks for code
+- Separate sections with blank lines, not dividers
+- If no items in a section, skip the section entirely
 
 ```
-📋 Meeting Processed: [Meeting Name] ([Date])
-Attendees: [list]
+*Meeting: [Meeting Name]*
+[Date] | [First names of attendees]
 
-✅ DECISIONS LOGGED ([count]):
-1. [Decision] — by [who]
+*Summary*
+- [One-liner about topic 1]
+- [One-liner about topic 2]
+- [One-liner about topic 3]
 
-📌 PROPOSED TASKS ([count]) — awaiting team confirmation:
-1. [Task] — @[owner] — [effort] — [priority]
-2. ...
-(These will be posted as a formal proposal for team review)
+*Proposed Tasks* ([count]) — _awaiting team confirmation_
+1. [Task] | @[Name] | [effort] | [priority] | due [date]
+2. [Task] | @[Name] | [effort] | [priority] | due [date]
 
-🚫 BLOCKERS LOGGED ([count]):
-1. [Blocker] — blocking [what] — owner: [who]
+*Decisions* ([count])
+1. [Decision] — [who]
 
-❓ OPEN QUESTIONS ([count]):
+*Blockers* ([count])
+1. [Blocker] — blocking [what] — @[owner]
+
+*Open Questions*
 1. [Question]
 
-⚠️ NEEDS CLARIFICATION:
-1. [Ambiguous item] — [what's unclear]
+*Needs Clarification*
+1. [Item] — [what's unclear]
 
-📝 Full meeting note: [Notion link]
+Proposal #P-[id] will be posted shortly for team confirmation.
 ```
+
+**What NOT to do:**
+- Don't show raw email addresses — map them to first names from Team Roster
+- Don't include timestamps like (08:07) — those are transcript references, not useful in Slack
+- Don't truncate action items mid-sentence — either include the full item or summarize it shorter
+- Don't use `**markdown bold**` — Slack uses `*single asterisks*` for bold
+- Don't dump all action items in one flat list — group by person only if there are 5+ people, otherwise just list them
 
 ## Step 6: Proactive Intelligence
 
