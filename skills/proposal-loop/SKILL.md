@@ -238,6 +238,22 @@ Pending → Awaiting Feedback → [Modified] → Confirmed → Handed Off
 - **Rejected**: team said no
 - **Handed Off**: Sprint Operator has been signaled
 
+## Communication Discipline
+
+**Never leak internal reasoning to Slack.** Your Slack messages must be clean, final outputs only.
+
+DO NOT post things like:
+- "Let me find the proposal in Notion..."
+- "Now I'll apply the modifications..."
+- "Good, Notion is updated."
+
+These are your internal steps. The team doesn't need to see them. Only post:
+- The modification acknowledgment (what changed)
+- The confirmation status
+- Questions that need team input
+
+One clean message per action. No narration.
+
 ## Anti-Patterns to Avoid
 
 1. **Never auto-confirm if there are unresolved objections** — even after timeout
