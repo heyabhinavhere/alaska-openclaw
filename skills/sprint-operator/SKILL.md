@@ -73,6 +73,7 @@ After writing tasks, validate the sprint isn't overloaded:
 - Count each person's tasks and total effort points (S=1, M=2, L=4, XL=8)
 - Sprint capacity per person: ~20 points (assuming 2-week sprint)
 - Warning at 80% (16 points), critical at 100% (20 points)
+- **Hard limits:** If any person has >3 active tasks OR >1 XL task, include a CAPACITY WARNING with suggestion: "Consider deferring [lowest priority task] to next sprint to bring @[person] to a realistic load."
 
 **If overloaded:**
 Post to Slack:
