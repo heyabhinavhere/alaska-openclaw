@@ -82,29 +82,23 @@ This helps me give better sprint estimates and catch blockers early. No rush —
 
 ### For AI Engineers (Sandeep, Shailesh — Extended)
 
+**Post this IN THE CHANNEL as part of the welcome (not just DM).** The team should see what Alaska needs from AI engineers — it's important context for everyone.
+
+Channel message (append to the welcome greeting):
 ```
-Hey [Name], quick setup so I can track your work properly:
+I need your help to track AI/ML work properly:
+1. Which GitHub repos do you primarily commit to? I might be missing AI/ML repos.
+2. Do you use LangGraph, LangSmith, or other orchestration/observability tools? Can I get read access?
+3. Where do experiments and results live? (W&B, MLflow, Notion?)
+4. What's your deploy workflow for AI changes — same pipeline or separate?
+5. Any recurring processes (retraining, data pipelines, eval cycles) I should track?
 
-1. Which GitHub repos do you primarily commit to? I'm monitoring the main app repos but might be missing AI/ML ones.
-2. Do you use LangGraph, LangSmith, or any other orchestration/observability tools? If so, can I get read access to dashboards?
-3. Where do your model experiments and results live? (Weights & Biases, MLflow, Notion, spreadsheets?)
-4. What's your current workflow for deploying AI changes? Does it go through the same pipeline or a separate one?
-5. Any recurring processes (model retraining, data pipeline runs, evaluation cycles) I should track?
-
-This helps me give you better sprint estimates and catch blockers early. Can you reply when you get a chance?
+Reply here or DM me — this helps me give better sprint estimates and catch blockers early.
 ```
 
 ### For Founders
 
-```
-Hey [Name], quick things so I can serve you better:
-
-1. What's the best way to reach you for urgent decisions — Slack DM or something else?
-2. Are there any recurring meetings or deadlines I should have on my radar that aren't in Fireflies?
-3. Anything specific you want in the morning Daily Pulse that I should add?
-
-I'll keep you updated on sprint progress and flag anything that needs your attention. No noise, just signal.
-```
+**No DM follow-up for founders.** The channel welcome is enough. They'll interact naturally — don't ask them questions about how they want to be served.
 
 ### For New Hires (First Week)
 
