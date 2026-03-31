@@ -60,13 +60,17 @@ mkdir -p "$WORKSPACE_DIR/memory"
 if [ -d /opt/default-workspace ]; then
   for f in /opt/default-workspace/*; do
     fname=$(basename "$f")
+    # Skip directories (memory/ handled separately below)
+    [ -d "$f" ] && continue
     if [ ! -f "$WORKSPACE_DIR/$fname" ]; then
       cp "$f" "$WORKSPACE_DIR/$fname"
       echo "[alaska] Workspace: initialized $fname from git"
     fi
   done
-  # Always sync memory/ directory (merge, don't overwrite)
-  cp -n /opt/default-workspace/memory/* "$WORKSPACE_DIR/memory/" 2>/dev/null || true
+  # Sync memory/ directory (copy only files that don't exist yet)
+  if [ -d /opt/default-workspace/memory ]; then
+    cp -n /opt/default-workspace/memory/* "$WORKSPACE_DIR/memory/" 2>/dev/null || true
+  fi
   echo "[alaska] Workspace files ready at $WORKSPACE_DIR"
 fi
 
