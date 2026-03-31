@@ -139,31 +139,41 @@ Impact: [what this agent does that isn't happening]
 
 ## 4. logTokenUsage — Budget Tracking & Enforcement
 
-### Monthly Budget: $800–1,200/month (~$33/day)
+### Monthly Budget: $800–1,200/month (~$30-40/day)
 
-Track every LLM API call. Log after each call:
+**Token usage is tracked at the OpenClaw platform level** (per-cron-run metrics in the gateway). Agents do not self-report token usage — the platform records `usage.input_tokens` and `usage.output_tokens` per run automatically.
+
+When checking costs manually, query the token_usage table:
 ```bash
 sqlite3 /data/queue/alaska.db "INSERT INTO token_usage (agent, input_tokens, output_tokens, estimated_cost) VALUES ('<agent_name>', <input>, <output>, <cost>);"
 ```
 
-### Cost Estimation (Claude Sonnet 4.6)
+### Cost Estimation
+
+**Primary model: Claude Opus 4 (most agents)**
+- Input: $15 per 1M tokens
+- Output: $75 per 1M tokens
+
+**Routine/lightweight agents (if switched to Sonnet):**
 - Input: $3 per 1M tokens
 - Output: $15 per 1M tokens
+- Candidates for Sonnet: Doc Keeper (event-driven), Pre-Call Brief (mostly no-ops), Sprint Operator (weekly)
 
 ### Daily Budget Caps
 
 | Agent | Daily Cap | Alert at 80% |
 |---|---|---|
-| Thinker | $10 | $8 |
-| Meeting Intelligence | $5 | $4 |
-| Follow-Through | $4 | $3.20 |
-| Daily Pulse | $3 | $2.40 |
-| Risk Radar | $3 | $2.40 |
-| Proposal Loop | $3 | $2.40 |
+| Thinker | $12 | $9.60 |
+| Meeting Intelligence | $8 | $6.40 |
+| Follow-Through (3 runs) | $6 | $4.80 |
+| Daily Pulse | $4 | $3.20 |
+| Risk Radar | $4 | $3.20 |
 | Slack Commands | $3 | $2.40 |
+| Proposal Loop | $3 | $2.40 |
 | Doc Keeper | $2 | $1.60 |
 | Sprint Operator | $2 | $1.60 |
-| **Total** | **$35** | **$28** |
+| Pre-Call Brief | $1 | $0.80 |
+| **Total** | **$45** | **$36** |
 
 ### Budget Queries
 
@@ -195,7 +205,7 @@ sqlite3 /data/queue/alaska.db "SELECT agent, ROUND(SUM(estimated_cost), 2) as co
    - Event-driven agents: process only P0/P1 priority items
    - Thinker: pause hourly batches, resume next day
 
-3. **At 100% of total daily cap ($35):** Pause ALL non-critical agents. DM Abhinav:
+3. **At 100% of total daily cap ($45):** Pause ALL non-critical agents. DM Abhinav:
    ```
    *Daily budget cap reached ($35)*
    Breakdown: [per-agent costs]
