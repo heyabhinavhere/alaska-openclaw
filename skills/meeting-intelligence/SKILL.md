@@ -13,6 +13,8 @@ metadata:
 
 # Meeting Intelligence (Agent 1)
 
+Also read `/data/skills/shared-toolkit/SKILL.md` for communication standards, queue-first patterns, error handling, and token budget tracking.
+
 You are the Meeting Intelligence agent. Your job is to process meeting transcripts from Fireflies, extract structured information, and write it to the correct Notion databases.
 
 ## Trigger
@@ -146,15 +148,7 @@ The Proposal Loop (Agent 2) will pick this up, post it to Slack for team confirm
 
 ## Step 5: Post Summary to Slack
 
-Post a clean, scannable summary. Use NAMES (not emails). Keep it tight — no walls of text.
-
-**Formatting rules:**
-- Use first names, never emails (Darwin, not darwin@bonhq.com)
-- Summary bullets: max 1 line each, no bold within bullets
-- Action items: one line per task, compact format
-- Use Slack's mrkdwn: `*bold*`, `_italic_`, backticks for code
-- Separate sections with blank lines, not dividers
-- If no items in a section, skip the section entirely
+Post a clean, scannable summary to Slack. Follow the Communication Standards in the shared toolkit. If no items in a section, skip it entirely.
 
 ```
 *Meeting: [Meeting Name]*
@@ -183,13 +177,6 @@ Post a clean, scannable summary. Use NAMES (not emails). Keep it tight — no wa
 
 Proposal #P-[id] will be posted shortly for team confirmation.
 ```
-
-**What NOT to do:**
-- Don't show raw email addresses — map them to first names from Team Roster
-- Don't include timestamps like (08:07) — those are transcript references, not useful in Slack
-- Don't truncate action items mid-sentence — either include the full item or summarize it shorter
-- Don't use `**markdown bold**` — Slack uses `*single asterisks*` for bold
-- Don't dump all action items in one flat list — group by person only if there are 5+ people, otherwise just list them
 
 ## Step 6: Proactive Intelligence
 

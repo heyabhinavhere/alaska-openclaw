@@ -35,6 +35,9 @@ RUN chmod +x /opt/entrypoint.sh
 # Copy custom skills to staging (volume mount hides /data/skills/)
 COPY --chown=node:node skills/ /opt/default-skills/
 
+# Copy workspace files to staging (SOUL.md, USER.md, MEMORY.md, etc.)
+COPY --chown=node:node workspace/ /opt/default-workspace/
+
 USER node
 
 # Environment variables

@@ -132,8 +132,7 @@ When someone leaves the Slack workspace or is deactivated:
    ```
 4. Do NOT reassign tasks yourself — wait for Abhinav's direction
 
-## Communication Rules
-
+Follow the Communication Standards in the shared toolkit. Additionally:
 - Channel welcome: always #project-management
 - DM follow-up: always private DM to the person
 - Never leak that you're "running an onboarding script" — just be natural

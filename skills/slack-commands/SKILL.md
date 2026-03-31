@@ -139,10 +139,7 @@ For anything not matching a specific command, use your judgment:
 4. Respond with data, not guesses
 5. If you don't know: "I don't have data on that. Want me to check [specific source]?"
 
-## Communication Rules
-
+Follow the Communication Standards in the shared toolkit. Additionally:
 - Always respond within the same channel/thread you were asked in
-- Use first names, Slack mrkdwn
 - Keep responses concise — data, not paragraphs
-- Never leak internal reasoning
 - If a question requires checking multiple sources, just do it — don't narrate each step

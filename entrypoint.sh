@@ -52,6 +52,24 @@ mkdir -p /data/skills
 cp -r /opt/default-skills/* /data/skills/ 2>/dev/null || true
 echo "[alaska] Skills synced from git to /data/skills/"
 
+# Sync workspace files from git (SOUL.md, USER.md, MEMORY.md, etc.)
+# These define Alaska's personality, identity, and memory
+# Only copy if workspace doesn't already have them (preserve runtime edits)
+WORKSPACE_DIR="/root/.openclaw/workspace"
+mkdir -p "$WORKSPACE_DIR/memory"
+if [ -d /opt/default-workspace ]; then
+  for f in /opt/default-workspace/*; do
+    fname=$(basename "$f")
+    if [ ! -f "$WORKSPACE_DIR/$fname" ]; then
+      cp "$f" "$WORKSPACE_DIR/$fname"
+      echo "[alaska] Workspace: initialized $fname from git"
+    fi
+  done
+  # Always sync memory/ directory (merge, don't overwrite)
+  cp -n /opt/default-workspace/memory/* "$WORKSPACE_DIR/memory/" 2>/dev/null || true
+  echo "[alaska] Workspace files ready at $WORKSPACE_DIR"
+fi
+
 # Ensure queue directory exists for SQLite local queue
 mkdir -p /data/queue
 

@@ -143,10 +143,8 @@ Track patterns across recurring meetings:
 If Google Calendar isn't connected yet, the manual trigger still works:
 - "brief me for the team call" → Alaska pulls context based on the typical attendees and recent data
 
-## Communication Rules
-
+Follow the Communication Standards in the shared toolkit. Additionally:
 - PRIVATE DM to Abhinav only — never channel
-- No internal reasoning ("Let me check the sprint board...")
 - Concise — this is a prep doc, not a report
 - Opinionated — suggest what to discuss, don't just list data
 - If you don't have enough context for a good brief, say so: "I don't have much context on this meeting's attendees. Want to tell me what it's about?"
