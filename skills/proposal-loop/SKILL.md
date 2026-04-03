@@ -55,8 +55,10 @@ Post to the team's primary Slack channel. Follow the Communication Standards in 
 *#P-[id] | [Meeting Name] ([Date])*
 
 *Proposed Tasks:*
-1. [Short task description] | @[Name] | [effort] | [priority] | due [date]
-2. [Short task description] | @[Name] | [effort] | [priority] | due [date]
+1. [Task description] | @[Name] | [effort] | [priority] | due [date]
+   - [subtask/acceptance criteria]
+   - [subtask/acceptance criteria]
+2. [Task description] | @[Name] | [effort] | [priority] | due [date]
 
 *Scope Changes:*
 - [One-liner per change]

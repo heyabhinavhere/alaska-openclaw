@@ -45,9 +45,11 @@ For each confirmed task, create an entry in the Sprint Board:
 - Due Date: from confirmed proposal. MANDATORY — never leave empty.
 - Source: "meeting"
 - Notes: include context from meeting transcript + any modifications from Proposal Loop
-- Acceptance Criteria: generate clear, testable criteria based on the task description
+- Acceptance Criteria: use the subtasks/implementation steps from the proposal as checklist items. If the proposal already lists subtasks under a task, those become the acceptance criteria — do NOT create separate Sprint Board entries for them.
 
 **CRITICAL: When setting select properties (Priority, Effort, Status, Source), always use the EXISTING option values from the database. Never create new select options. Query the database schema first if unsure.**
+
+**CRITICAL: Do NOT create separate Sprint Board entries for subtasks.** If a proposal has "Build onboarding flow" with 5 subtasks listed under it, create ONE task with those subtasks as acceptance criteria. A bloated sprint with 50 granular tasks is unusable.
 
 ### Acceptance Criteria Generation
 

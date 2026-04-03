@@ -77,6 +77,14 @@ Analyze the full transcript and extract these categories. This is the most criti
 - Set priority based on context (P0-P3)
 - Source: "meeting"
 
+**Task vs Subtask — DO NOT bloat the sprint:**
+- A **task** is an independently deliverable unit of work with its own owner and deadline. It gets its own Sprint Board entry.
+- A **subtask** is an implementation step within a task. It goes into the task's Acceptance Criteria as a checklist item — NOT as a separate Sprint Board entry.
+- If a meeting discusses "build the onboarding flow" and mentions 8 steps (design screens, API endpoints, validation, error handling, testing, etc.), that is **1 task with 8 acceptance criteria**, not 8 tasks.
+- **Rule of thumb:** If multiple items share the same owner, same deadline, and are all part of delivering one feature/outcome — they are subtasks of one task.
+- Only create separate tasks when items have **different owners**, **different deadlines**, or are **independently shippable**.
+- When unsure, default to fewer tasks with richer acceptance criteria. A sprint with 15 focused tasks is better than 50 granular ones.
+
 **Blockers (things preventing progress):**
 - Something explicitly blocking work: "can't proceed until X", "waiting on Y"
 - Include what it's blocking and who owns resolving it
