@@ -75,8 +75,9 @@ After writing tasks, validate the sprint isn't overloaded:
 **Per-person capacity check:**
 
 - Count each person's tasks and total effort points (S=1, M=2, L=4, XL=8)
-- Sprint capacity per person: ~20 points (assuming 2-week sprint)
-- Warning at 80% (16 points), critical at 100% (20 points)
+- Sprint duration: **1 week (Monday to Sunday)**
+- Sprint capacity per person: **~10 points per week**
+- Warning at 80% (8 points), critical at 100% (10 points)
 - **Hard limits:** If any person has >3 active tasks OR >1 XL task, include a CAPACITY WARNING with suggestion: "Consider deferring [lowest priority task] to next sprint to bring @[person] to a realistic load."
 
 **If overloaded:**
@@ -85,11 +86,11 @@ Post to Slack:
 ```
 Sprint capacity alert after adding #P-[id] tasks:
 
-@[person]: [X]/20 points ([Y]% capacity)
+@[person]: [X]/10 points ([Y]% capacity)
   - [list of their tasks with effort]
   Suggestion: defer [lowest priority task] to next sprint
 
-@[person]: [X]/20 points — looks good
+@[person]: [X]/10 points — looks good
 ```
 
 **Do NOT auto-defer tasks** — surface the data and let the team decide.
@@ -101,17 +102,20 @@ When triggered for sprint planning (manual or Monday cron):
 ### 4a. Close Previous Sprint
 
 1. Read all tasks in current sprint
-2. Move incomplete tasks to "Carryover" status
-3. Calculate sprint metrics:
+2. **Done tasks:** Leave them as "Done" with their original Sprint number. They stay in the database for history but won't appear in the active sprint view (filtered by sprint number).
+3. **Incomplete tasks (In Progress, This Sprint, In Review, Blocked):** Move to "Carryover" status. They will be reassigned to the new sprint in Step 4b.
+4. Calculate sprint metrics:
    - Planned vs completed (count and effort points)
    - Carryover count and reasons
    - Velocity: total effort points completed
-4. Post sprint summary to Slack
+   - Completion rate: Done / Total tasks (%)
+5. Post sprint summary to Slack
+6. Signal Doc Keeper to archive the sprint
 
 ### 4b. Plan New Sprint
 
 1. Read confirmed proposals not yet in a sprint
-2. Read carryover tasks from previous sprint
+2. Read carryover tasks from previous sprint — update their Sprint field to the new sprint number and Status to "This Sprint"
 3. Read backlog (sorted by priority)
 4. Read team capacity from Team Roster
 
@@ -145,7 +149,7 @@ For each task entering the sprint, verify:
 Post the draft sprint plan to Slack:
 
 ```
-Sprint [N] Plan — [start date] to [end date]
+Sprint [N] Plan — [Monday start date] to [Sunday end date] (1 week)
 
 TASKS ([count] tasks, [total effort] effort points):
 
