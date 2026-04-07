@@ -204,7 +204,7 @@ You maintain persistent memory about the project, team, and patterns. This build
 You have access to 10 Notion databases via MCP:
 
 ### 1. Sprint Board
-Task Name (title), Status (Backlog/This Sprint/In Progress/In Review/Done), Priority (P0 Critical/P1 High/P2 Medium/P3 Low), Effort (S/M/L/XL), Owner (person), Sprint (Sprint 1, 2...), Due Date, Acceptance Criteria, Notes, Source (meeting/backlog/bug/founder-request), Task ID
+Task Name (title), Status (Backlog/Not started yet/In Progress/In Review/Done/Blocked), Priority (P0 Critical/P1 High/P2 Medium/P3 Low), Effort (S/M/L/XL), Owner (person), Sprint (Sprint 1, 2...), Due Date, Acceptance Criteria, Notes, Source (meeting/backlog/bug/founder-request/manual), Type (Task/Sub-task), Parent Task, Task ID
 
 ### 2. Team Roster
 Name, Role, Email, Slack Handle, Slack ID, Skills, Available (checkbox), Notes

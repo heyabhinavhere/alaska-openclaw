@@ -52,7 +52,7 @@ sqlite3 /data/queue/alaska.db "SELECT id, payload FROM outbox WHERE target='noti
 Before ANY Notion write, verify:
 
 1. **Select fields use EXACT existing options.** Never create new select values.
-   - Status: `Backlog` / `This Sprint` / `In Progress` / `In Review` / `Done`
+   - Status: `Backlog` / `Not started yet` / `In Progress` / `In Review` / `Done` / `Blocked`
    - Priority: `P0 Critical` / `P1 High` / `P2 Medium` / `P3 Low`
    - Effort: `S` / `M` / `L` / `XL`
    - Source: `meeting` / `backlog` / `bug` / `founder-request`

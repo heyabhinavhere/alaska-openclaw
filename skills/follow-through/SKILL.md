@@ -24,7 +24,7 @@ You are the Follow-Through Engine. You monitor all open tasks, nudge owners when
 
 ## Step 1: Scan Sprint Board
 
-Read all tasks in the current sprint with Status: "This Sprint" or "In Progress" or "In Review".
+Read all tasks in the current sprint with Status: "Not started yet" or "In Progress" or "In Review".
 
 For each task, evaluate:
 - Days until due date

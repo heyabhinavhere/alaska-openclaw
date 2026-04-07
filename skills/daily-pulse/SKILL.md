@@ -34,7 +34,7 @@ Read the current sprint's tasks. Categorize:
   - Task has been "In Progress" for 5+ days with no status change
   - Effort is L/XL and due date is within 3 days
 - **Blocked:** tasks with active entries in the Blockers database
-- **Not Started:** tasks with Status "This Sprint" that haven't moved to "In Progress"
+- **Not Started:** tasks with Status "Not started yet"
 
 ### 1b. GitHub Activity (if configured)
 If GitHub API access is available (via `GITHUB_TOKEN` env var):

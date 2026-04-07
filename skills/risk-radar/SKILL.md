@@ -37,7 +37,7 @@ Read from all available sources:
 ### 2a. Timeline Risk
 **What to check:**
 - Tasks on the critical path that are behind schedule
-- Tasks due within 3 days that are still "This Sprint" (not In Progress)
+- Tasks due within 3 days that are still "Not started yet" (not In Progress)
 - Tasks overdue and not Done
 - Sprint completion rate vs days remaining (e.g., 20% done with 40% of sprint elapsed = risk)
 

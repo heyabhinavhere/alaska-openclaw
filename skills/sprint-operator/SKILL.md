@@ -37,7 +37,7 @@ When triggered by Proposal Loop:
 For each confirmed task, create an entry in the Sprint Board:
 
 - Task Name: from confirmed proposal
-- Status: "This Sprint" (if current sprint has capacity) or "Backlog" (if overloaded)
+- Status: "Not started yet" (if current sprint has capacity) or "Backlog" (if overloaded)
 - Priority: MUST use existing select options exactly — "P0 Critical", "P1 High", "P2 Medium", "P3 Low". Never create new options like "High", "P1", etc.
 - Effort: from confirmed proposal (respecting engineer overrides from Proposal Loop). Use existing options: "S", "M", "L", "XL".
 - Owner: MANDATORY — assign the Person from the proposal. Look up the person in Notion's Team Roster and use their Notion user ID. Never leave Owner empty.
@@ -103,7 +103,7 @@ When triggered for sprint planning (manual or Monday cron):
 
 1. Read all tasks in current sprint
 2. **Done tasks:** Leave them as "Done" with their original Sprint number. They stay in the database for history but won't appear in the active sprint view (filtered by sprint number).
-3. **Incomplete tasks (In Progress, This Sprint, In Review, Blocked):** Move to "Carryover" status. They will be reassigned to the new sprint in Step 4b.
+3. **Incomplete tasks (In Progress, Not started yet, In Review, Blocked):** Move to "Carryover" status. They will be reassigned to the new sprint in Step 4b.
 4. Calculate sprint metrics:
    - Planned vs completed (count and effort points)
    - Carryover count and reasons
@@ -115,7 +115,7 @@ When triggered for sprint planning (manual or Monday cron):
 ### 4b. Plan New Sprint
 
 1. Read confirmed proposals not yet in a sprint
-2. Read carryover tasks from previous sprint — update their Sprint field to the new sprint number and Status to "This Sprint"
+2. Read carryover tasks from previous sprint — update their Sprint field to the new sprint number and Status to "Not started yet"
 3. Read backlog (sorted by priority)
 4. Read team capacity from Team Roster
 
@@ -175,7 +175,7 @@ Wait for Abhinav's approval before activating the sprint.
 
 Once approved:
 
-1. Update all sprint tasks to Status: "This Sprint"
+1. Update all sprint tasks to Status: "Not started yet"
 2. Set Sprint field to current sprint number
 3. Post to Slack: "Sprint [N] is live. [count] tasks, [effort] points. Let's go."
 4. Update the sprint tracker in SQLite:

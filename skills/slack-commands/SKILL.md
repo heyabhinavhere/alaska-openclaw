@@ -65,7 +65,7 @@ Effort: [effort] | Due: [date] | Sprint: [N]
 **Response:**
 1. Read Sprint Board for current sprint
 2. Calculate:
-   - Tasks by status (Done / In Progress / In Review / This Sprint / Backlog)
+   - Tasks by status (Done / In Progress / In Review / Not started yet / Backlog)
    - Effort points completed vs planned
    - Days remaining
    - Per-person load
