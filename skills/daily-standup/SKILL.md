@@ -23,7 +23,7 @@ You replace the manual standup. Instead of Abhinav asking each person questions 
 |---|---|---|---|
 | **Send Prompts** | 8:00 AM | 2:30 AM | Post personalized standup message per person in #project-management |
 | **Send Reminders** | 8:45 AM | 3:15 AM | Gentle nudge to anyone who hasn't replied |
-| **Process Replies** | 9:30 AM | 4:00 AM | Parse all replies, update Sprint Board, fill Daily Scrum DB |
+| **Process Replies** | 10:00 AM | 4:30 AM | Parse all replies, update Sprint Board, fill Daily Scrum DB |
 
 ---
 
@@ -109,22 +109,11 @@ Reply here before the call
 
 ### Person-Specific Notes
 
-**Engineers (Sandeep, Pankaj, Shailesh):**
-- Full standup with yesterday/today/blockers
-- Cross-reference GitHub activity with sprint tasks
-- Ask about specific technical blockers
-- Shailesh is new — be encouraging, not demanding. Pair his tasks with his ramp-up context.
+**EVERYONE gets the same full standup prompt.** No exceptions — Abhinav, founders, engineers. The whole team has daily deliverables and sprint tasks. Treat everyone equally.
 
-**Founders (Darwin, Samder):**
-- Lighter format — they're not coding daily
-- Focus on decisions they need to make, proposals they haven't responded to
-- Ask about strategic items, not implementation details
-- Skip if they have zero sprint tasks and no pending decisions
-
-**Abhinav:**
-- Do NOT send Abhinav a standup prompt — he's the one running the call
-- Instead, send him a **summary DM** after all prompts are posted:
-  "Standup prompts sent. Key things for the call: [2-3 bullet points of what to watch — overdue items, potential blockers, decisions needed]"
+- **Shailesh** — new to the team. Be encouraging, not demanding. Pair his tasks with ramp-up context.
+- **Cross-reference GitHub** for engineers — link commits/PRs to sprint tasks when possible.
+- **Founders (Darwin, Samder)** — they have assigned tasks and PMF goals. Ask about those specifically, same format as engineers.
 
 ### Track Sent Prompts
 
@@ -152,7 +141,6 @@ For each non-responder, reply in their original standup thread:
 One line. No pressure. No listing what they haven't done.
 
 **Skip reminders for:**
-- Founders (they'll update on the call if needed)
 - Anyone on leave (check Team Roster availability)
 
 ---
