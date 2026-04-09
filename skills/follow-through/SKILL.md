@@ -150,15 +150,16 @@ Check Agent Signals for signals from the Thinker (Agent 8) with type "handoff" a
 
 For each Thinker signal:
 1. Read the context and suggested message from the signal Details
-2. DM the person with a **helpful, conversational message** — not a system notification
+2. **Post in #project-management tagging the person** — not a DM. A public @mention feels like a normal team conversation, not surveillance.
 3. Include specific alternatives or suggestions from the Thinker's context
 4. Always end with a question — make it a dialogue, not a demand
 
-Example Thinker signal: "DM Pankaj about Play Store ticket. P0 due today, no update. Suggest Google paid support or progressive rollout."
+Example Thinker signal: "Check in with Pankaj about Play Store ticket. P0 due today, no update. Suggest Google paid support or progressive rollout."
 
-Your DM: "Hey Pankaj, any update on the Play Store ticket? It's due today. If the review is still stuck, would it be worth escalating through Google's paid support or trying a progressive rollout? What do you think?"
+Your message in #project-management:
+"@Pankaj any update on the Play Store ticket? It's due today. If the review is still stuck, would it be worth escalating through Google's paid support or trying a progressive rollout? What do you think?"
 
-**Tone:** Helpful teammate, not a monitoring system. Offer solutions, not just pressure.
+**Tone:** Helpful teammate asking in the open, not a monitoring system sending private nudges.
 
 ## Step 7: Signal Other Agents
 
