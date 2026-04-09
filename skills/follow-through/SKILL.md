@@ -144,7 +144,23 @@ Every Friday at 6 PM IST, compile a private report for Abhinav (Slack DM, not ch
 
 **This report is PRIVATE to Abhinav only.** Never post individual performance data to the team channel. Public channel only gets positive updates (shipped items) and unresolved blockers.
 
-## Step 6: Signal Other Agents
+## Step 6: Handle Thinker Signals (Proactive Check-Ins)
+
+Check Agent Signals for signals from the Thinker (Agent 8) with type "handoff" and subject containing "Proactive check-in needed". These are situations where the Thinker identified something actionable for a specific person but can't/shouldn't post publicly.
+
+For each Thinker signal:
+1. Read the context and suggested message from the signal Details
+2. DM the person with a **helpful, conversational message** — not a system notification
+3. Include specific alternatives or suggestions from the Thinker's context
+4. Always end with a question — make it a dialogue, not a demand
+
+Example Thinker signal: "DM Pankaj about Play Store ticket. P0 due today, no update. Suggest Google paid support or progressive rollout."
+
+Your DM: "Hey Pankaj, any update on the Play Store ticket? It's due today. If the review is still stuck, would it be worth escalating through Google's paid support or trying a progressive rollout? What do you think?"
+
+**Tone:** Helpful teammate, not a monitoring system. Offer solutions, not just pressure.
+
+## Step 7: Signal Other Agents
 
 - If a blocker is created → signal Risk Radar (Agent 7) via Agent Signals
 - If a task is marked Done → signal Doc Keeper (Agent 6) to update Changelog

@@ -43,15 +43,34 @@ curl -s -X POST https://api.fireflies.ai/graphql \
   -d '{"query": "{ transcript(id: \"<TRANSCRIPT_ID>\") { id title date duration organizer_email participants speakers { name } summary { overview shorthand_bullet action_items } sentences { text speaker_name } } }"}'
 ```
 
-## Step 2: Track Processed Transcripts
+## Step 2: Deduplication (TWO levels)
 
-Before processing, check if you've already handled this transcript:
+### Level 1: Transcript ID dedup
+Check if you've already processed this exact transcript:
 ```bash
 sqlite3 /data/queue/alaska.db "CREATE TABLE IF NOT EXISTS processed_meetings (id TEXT PRIMARY KEY, title TEXT, processed_at DATETIME DEFAULT CURRENT_TIMESTAMP);"
 sqlite3 /data/queue/alaska.db "SELECT id FROM processed_meetings WHERE id='<transcript_id>';"
 ```
+If the ID exists, skip it.
 
-If the ID exists, skip it. If not, process it and mark as done:
+### Level 2: Content-level dedup (catches duplicate Fireflies bots)
+Sometimes two Fireflies bots join the same call, creating two different transcript IDs for the same meeting. Before processing, check:
+```bash
+sqlite3 /data/queue/alaska.db "SELECT id, title FROM processed_meetings WHERE processed_at > datetime('now', '-24 hours');"
+```
+Compare the new transcript against recently processed ones:
+- **Same meeting title** (or very similar — ignore minor differences like "Team Call" vs "Team Call 2026-04-07")
+- **Same date** (within 1 hour)
+- **>50% attendee overlap**
+
+If ANY of these match → this is a duplicate recording of an already-processed meeting. **Skip it entirely.** Do not process, do not create proposals.
+
+Mark as processed with a note:
+```bash
+sqlite3 /data/queue/alaska.db "INSERT INTO processed_meetings (id, title) VALUES ('<transcript_id>', 'DUPLICATE of <original_id> — skipped');"
+```
+
+### After passing both dedup checks, mark as processed:
 ```bash
 sqlite3 /data/queue/alaska.db "INSERT INTO processed_meetings (id, title) VALUES ('<transcript_id>', '<meeting_title>');"
 ```
@@ -84,6 +103,12 @@ Analyze the full transcript and extract these categories. This is the most criti
 - **Rule of thumb:** If multiple items share the same owner, same deadline, and are all part of delivering one feature/outcome — they are subtasks of one task.
 - Only create separate tasks when items have **different owners**, **different deadlines**, or are **independently shippable**.
 - When unsure, default to fewer tasks with richer acceptance criteria. A sprint with 15 focused tasks is better than 50 granular ones.
+
+**Recurring/Daily Tasks — DO NOT add to sprint:**
+- If a task is daily or recurring ("daily deploy check", "daily standup update", "review PRs every morning", "weekly deployment"), it is NOT a sprint task.
+- Recurring tasks belong in the Notes section of the meeting summary, not in Proposed Tasks.
+- Flag them: "Recurring item noted: [task]. Not added to sprint — this is an ongoing practice, not a deliverable."
+- If the team explicitly asks to track a recurring task ("add daily code review to the sprint"), create it as a single task with a note "Recurring — resets weekly" rather than creating 5 separate tasks for each day.
 
 **Blockers (things preventing progress):**
 - Something explicitly blocking work: "can't proceed until X", "waiting on Y"

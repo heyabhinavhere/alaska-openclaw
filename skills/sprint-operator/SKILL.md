@@ -34,18 +34,28 @@ When triggered by Proposal Loop:
 
 ## Step 2: Write Confirmed Tasks to Sprint Board
 
-For each confirmed task, create an entry in the Sprint Board:
+For each confirmed task, create an entry in the Sprint Board. **ALL fields below are MANDATORY** — missing any field means the task won't appear in the right views:
 
 - Task Name: from confirmed proposal
+- **Type: "Task"** (MANDATORY — tasks that don't have this set disappear from filtered views)
 - Status: "Not started yet" (if current sprint has capacity) or "Backlog" (if overloaded)
-- Priority: MUST use existing select options exactly — "P0 Critical", "P1 High", "P2 Medium", "P3 Low". Never create new options like "High", "P1", etc.
-- Effort: from confirmed proposal (respecting engineer overrides from Proposal Loop). Use existing options: "S", "M", "L", "XL".
+- Priority: MUST use existing select options exactly — "P0 Critical", "P1 High", "P2 Medium", "P3 Low". Never create new options.
+- Effort: from confirmed proposal (respecting engineer overrides). Use existing options: "S", "M", "L", "XL".
 - Owner: MANDATORY — assign the Person from the proposal. Look up the person in Notion's Team Roster and use their Notion user ID. Never leave Owner empty.
-- Sprint: current active sprint number
+- **Sprint: current active sprint number** (MANDATORY — e.g., "Sprint 2". Tasks without a Sprint value are invisible in the Active Sprint view)
 - Due Date: from confirmed proposal. MANDATORY — never leave empty.
-- Source: "meeting"
+- Source: "meeting" (or "backlog", "bug", "founder-request", "manual" as appropriate)
 - Notes: include context from meeting transcript + any modifications from Proposal Loop
 - Acceptance Criteria: use the subtasks/implementation steps from the proposal as checklist items. If the proposal already lists subtasks under a task, those become the acceptance criteria — do NOT create separate Sprint Board entries for them.
+
+**CHECKLIST before creating any task — verify ALL are set:**
+- [ ] Type = "Task"
+- [ ] Sprint = current sprint number
+- [ ] Owner = valid person from Team Roster
+- [ ] Due Date = set
+- [ ] Priority = set
+- [ ] Status = "Not started yet"
+If ANY of these are missing, the task will be invisible in the board views and the team won't see it.
 
 **CRITICAL: When setting select properties (Priority, Effort, Status, Source), always use the EXISTING option values from the database. Never create new select options. Query the database schema first if unsure.**
 
