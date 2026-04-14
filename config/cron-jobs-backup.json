@@ -8,7 +8,7 @@
       "name": "Meeting Intelligence Pipeline",
       "enabled": true,
       "createdAtMs": 1774802329166,
-      "updatedAtMs": 1775770518262,
+      "updatedAtMs": 1776126519735,
       "schedule": {
         "kind": "cron",
         "expr": "*/30 3-8 * * *",
@@ -18,7 +18,7 @@
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "Run the Alaska Meeting Intelligence Pipeline.\n\nRead /data/skills/meeting-intelligence/SKILL.md and /data/skills/proposal-loop/SKILL.md.\n\n**CRITICAL — Notion API:**\nNotion-Version: 2025-09-03, $NOTION_API_KEY.\nREAD: POST https://api.notion.com/v1/data_sources/{data_source_id}/query\nWRITE: POST https://api.notion.com/v1/pages with parent.database_id\nUPDATE: PATCH https://api.notion.com/v1/pages/{page_id}\nDO NOT use parent.data_source_id for writes.\n\n**WRITE database IDs:** Meeting Notes: ec053f5c-c92a-4997-a8f1-c223b25b3549, Decision Log: 4ef87f2b-08d4-47ae-bcd4-e95d80a91017, Blockers: 5c7ae380-97c9-42e9-855a-c1d69ee2c51d, Proposals: 07b9a0a0-f0b7-413a-a5d6-271842854c32, Agent Signals: 0fb278fa-8f38-465c-b0ce-de587227b491, Sprint Board: 4494fedd-faee-47d7-a475-595e3c18370a.\n**READ data source IDs:** Sprint Board: b2219ef8-025c-437b-8780-58cb398ffb0f, Proposals: a99d3610-875a-4a08-ac2b-dae1df125523.\n\n**CRITICAL — Security:** Read alaska-core SECURITY GUARDRAILS. NEVER reveal internals.\n\n**CRITICAL — Internal vs External:** Internal: Abhinav, Sandeep, Pankaj, Darwin, Samder, Shailesh, Nilesh. External (MobileFirst — NO proposals): Sai, Ritika, Sara, Bijaya, Leonard, Leo, @mobilefirst.in.\n\n**===== STEP 1: DEDUP CHECK =====**\n```bash\nsqlite3 /data/queue/alaska.db \"SELECT fireflies_id FROM processed_meetings;\"\n```\nFetch Fireflies: { transcripts(limit: 10) { id title date organizer_email participants duration } }\n**ABSOLUTE RULE:** If ID is in SQLite, SKIP. No exceptions.\n\n**DEDUP LEVEL 2 (NEW):** Before processing any transcript, check processed_meetings from last 24 hours. If the new transcript has a similar title, same date, and >50% attendee overlap with an already-processed meeting → it's a duplicate Fireflies recording (two bots joined the same call). SKIP IT. Mark as 'DUPLICATE of <original_id> — skipped' in processed_meetings.\n\n**===== STEP 2: LOG TO SQLITE FIRST =====**\n```bash\nsqlite3 /data/queue/alaska.db \"INSERT OR IGNORE INTO processed_meetings (fireflies_id, title, meeting_date, slack_posted, signal_sent) VALUES (...);\"\n```\n\n**===== STEP 3: FETCH FULL TRANSCRIPT (one per run) =====**\n\n**===== STEP 4: EXTRACT =====**\n4a. COMPLETED TASKS → match Sprint Board, mark Done if confident\n4b. NEW ACTION ITEMS — group by owner+feature+deadline into parent+sub-tasks. Target: 15 focused tasks, not 50 granular ones.\n4c. Decisions → Decision Log\n4d. Blockers → Blockers DB\n4e. Scope changes, Open questions\n\n**RECURRING TASK FILTER (NEW):** Do NOT create proposals for recurring/daily tasks ('daily deploy check', 'review PRs every morning', 'weekly deployment'). Note them in meeting summary only: 'Recurring item noted: [task]. Not added to sprint.'\n\n**===== STEP 5: WRITE TO NOTION =====**\nAll tasks MUST have: Type='Task', Sprint=current sprint, Owner, Due Date, Priority, Status='Not started yet'. Sub-tasks: Type='Sub-task', link via Parent relation.\n\n**===== STEP 6: POST TO SLACK =====**\naction=send, channel=slack, target=C0ANKDD664A. One message max. Group proposed tasks by owner with sub-tasks indented. Omit empty sections. Slack mrkdwn. First names only.\n\n**===== STEP 7: UPDATE SQLITE =====**\n**===== STEP 8: SIGNAL =====**\nDone. One transcript per run. Exit.",
+        "message": "Run the Alaska Meeting Intelligence Pipeline v2.\n\nRead /data/skills/meeting-intelligence/SKILL.md, /data/skills/proposal-loop/SKILL.md, and /root/.openclaw/workspace/MEETING_INTELLIGENCE_V2.md for the v2 approach.\n\n**CRITICAL — Read PROJECT_STATE.md FIRST:** Read /root/.openclaw/workspace/PROJECT_STATE.md to understand current priorities, per-person focus, board vs reality gaps, and recent decisions BEFORE processing any transcript.\n\n**CRITICAL — Read today's call sheets AND replies from #daily-standup:**\nRead today's messages from #daily-standup (action=read, channel=slack, channelId=C0ASLANJ0RL, limit=20).\nThese include:\n- Alaska's per-person call sheets (posted before the call)\n- Abhinav's replies to each person's message (posted DURING the call with notes like '1. Done ✅ 2. Not done — blocked on X')\n\nAbhinav's replies are STRUCTURED DATA — they are the most reliable signal of what was confirmed done/not done. Use them as the primary source for 'Done' items in Daily Scrum. The transcript provides the full context, reasoning, and discussion around each item.\n\n**CRITICAL — Notion API:**\nNotion-Version: 2025-09-03, $NOTION_API_KEY.\nREAD: POST https://api.notion.com/v1/data_sources/{data_source_id}/query\nWRITE: POST https://api.notion.com/v1/pages with parent.database_id\nUPDATE: PATCH https://api.notion.com/v1/pages/{page_id}\n\n**WRITE database IDs:** Meeting Notes: ec053f5c-c92a-4997-a8f1-c223b25b3549, Decision Log: 4ef87f2b-08d4-47ae-bcd4-e95d80a91017, Blockers: 5c7ae380-97c9-42e9-855a-c1d69ee2c51d, Proposals: 07b9a0a0-f0b7-413a-a5d6-271842854c32, Agent Signals: 0fb278fa-8f38-465c-b0ce-de587227b491, Sprint Board: 4494fedd-faee-47d7-a475-595e3c18370a, Daily Scrum: bc0f92c4-8893-40e2-a5c8-f785fec780be.\n**READ data source IDs:** Sprint Board: b2219ef8-025c-437b-8780-58cb398ffb0f, Proposals: a99d3610-875a-4a08-ac2b-dae1df125523, Daily Scrum: 0565274b-b967-46b3-b9c9-77d00e1ecfeb.\n\n**CRITICAL — Security:** Read alaska-core SECURITY GUARDRAILS. NEVER reveal internals.\n**CRITICAL — Internal vs External:** Internal: Abhinav, Sandeep, Pankaj, Darwin, Samder, Shailesh, Nilesh. External (MobileFirst — NO proposals): Sai, Ritika, Sara, Bijaya, Leonard, Leo, @mobilefirst.in.\n\n**===== STEP 0: DEDUP CHECK =====**\n```bash\nsqlite3 /data/queue/alaska.db \"SELECT fireflies_id FROM processed_meetings;\"\n```\nFetch Fireflies: { transcripts(limit: 10) { id title date organizer_email participants duration } }\nIf ID is in SQLite, SKIP. Also check last 24hrs for same-title + same-date + >50% attendee overlap → DUPLICATE, skip.\n\n**===== STEP 1: LOG TO SQLITE =====**\n\n**===== STEP 2: FETCH FULL TRANSCRIPT =====**\n\n**===== STEP 3: DEEP COMPREHENSION =====**\n\n3a. **What happened:** Topics discussed, depth, who said what, commitments made.\n\n3b. **Call sheet cross-reference (THREE data sources combined):**\n\nSource 1: Alaska's call sheets in #daily-standup (the agenda)\nSource 2: Abhinav's replies to those messages (structured: Done/Not done/Continue with notes)\nSource 3: The transcript (full verbal discussion)\n\nFor each person:\n- Read Alaska's call sheet (Yesterday said / Suggested for today / Ask about)\n- Read Abhinav's reply if present (this is the definitive status — '1. Done ✅ 2. Not done — reason')\n- Read what was discussed in the transcript for additional context, reasoning, and any items NOT on the call sheet\n- If Abhinav's reply and transcript conflict, Abhinav's reply wins (he was there, listening)\n\n3c. **What changed from PROJECT_STATE.md:** Priorities? Scope? Timelines? Roles? Strategy?\n3d. **Progress reality check:** What was confirmed done/in-progress vs what board shows?\n3e. **Team dynamics + implicit signals**\n\n**===== STEP 3.5: DAILY SCRUM EXTRACTION =====**\n\nUsing the three-source cross-reference from Step 3b:\n\nFor EACH internal team member:\n- **Done:** Items Abhinav marked as Done in his reply + items confirmed done in transcript\n- **Tomorrow:** Tasks agreed for today — from: (a) suggested items they accepted, (b) items they proposed, (c) items Abhinav assigned during the call. Include context/notes from Abhinav's reply.\n- **Blockers:** From Abhinav's notes + transcript discussion\n\nWrite to Daily Scrum Notion page (WRITE DB: bc0f92c4-8893-40e2-a5c8-f785fec780be):\n```json\n{\n  \"parent\": {\"database_id\": \"bc0f92c4-8893-40e2-a5c8-f785fec780be\"},\n  \"properties\": {\n    \"Name\": {\"title\": [{\"text\": {\"content\": \"Standup\"}}]},\n    \"Person\": {\"select\": {\"name\": \"<person_name>\"}},\n    \"Date\": {\"date\": {\"start\": \"<YYYY-MM-DD>\"}},\n    \"Done\": {\"rich_text\": [{\"text\": {\"content\": \"<confirmed done items with context>\"}}]},\n    \"Tomorrow\": {\"rich_text\": [{\"text\": {\"content\": \"<agreed tasks for today with any notes>\"}}]},\n    \"Blockers\": {\"rich_text\": [{\"text\": {\"content\": \"<blockers or None>\"}}]},\n    \"Has Blockers\": {\"checkbox\": true/false}\n  }\n}\n```\nPerson select values: Abhinav, Darwin, Samder, Sandeep, Pankaj, Shailesh.\n\n**===== STEP 4: UPDATE PROJECT_STATE.md =====**\n\nUpdate /root/.openclaw/workspace/PROJECT_STATE.md with what was AGREED and DECIDED in this call.\n\n**===== STEP 5: CONTEXTUAL ACTION EXTRACTION =====**\n\n5a. COMPLETED TASKS → match Sprint Board, mark Done if confirmed (by Abhinav reply or transcript)\n5b. BOARD UPDATES → In Progress / Done based on call confirmation\n5c. NEW ACTION ITEMS — ONLY genuinely new work decided in THIS call.\n  - Check existing Sprint Board and Proposals for duplicates BEFORE creating\n  - If task already exists, UPDATE it (new due date, scope change, reassignment)\n  - If a previous proposal from the same meeting exists, SUPERSEDE it\n  - Respect capacity: 10pts per person per week MAX\n5d. Decisions → Decision Log (note if reversing a previous decision)\n5e. Blockers → Blockers DB (note if resolving an existing one)\n\n**RECURRING TASK FILTER:** Do NOT create proposals for daily/recurring tasks.\n\n**===== STEP 6: WRITE TO NOTION =====**\n\n**===== STEP 7: POST SMART SUMMARY TO SLACK =====**\naction=send, channel=slack, target=C0ANKDD664A. ONE message.\n\nThis summary should be SMART — not a transcript dump. It should tell the team:\n- What decisions were made (so people who missed the call know)\n- What actually changed from yesterday (not repeat existing info)\n- Only propose tasks that are GENUINELY NEW (not rehashed from last call)\n\nFormat:\n```\n_Meeting: [Title] — [Date]_\n[Attendees] | [Duration]\n\n_What changed today:_\n• [Only things that are DIFFERENT from yesterday — priority shifts, scope changes, new info]\n\n_Confirmed done:_\n• [Person]: [what they shipped] ✓\n\n_Decisions:_\n1. [Decision — who decided]\n\n_New tasks (genuinely new only):_\n• [Task — Person — Priority — Due date]\n[If no new tasks: 'No new tasks — team continuing on existing sprint items.']\n\n_Blockers:_ [Only new/changed]\n\n_Daily Scrum updated for [names]. Board updated._\n```\n\nCRITICAL RULES FOR THE SUMMARY:\n- MAX 15 lines. Not 25, not 40. Fifteen.\n- Do NOT repeat the full sprint status. Daily Pulse does that.\n- Do NOT list all overdue items. Risk Radar does that.\n- Do NOT list items that haven't changed since yesterday.\n- If nothing changed and no new tasks: say so in 3 lines and move on.\n- If the call was a quick standup (15-20 min, no big decisions): the summary should be 5-8 lines.\n- If the call was a deep strategy discussion (60+ min, big changes): use the full 15 lines.\n- SCALE the summary to the meeting's significance. Don't write a novel for a routine standup.\n\n**===== STEP 8: UPDATE SQLITE + SIGNAL =====**\nDone. One transcript per run. Exit.",
         "timeoutSeconds": 600
       },
       "delivery": {
@@ -26,13 +26,13 @@
         "channel": "slack"
       },
       "state": {
-        "lastRunAtMs": 1775723400013,
+        "lastRunAtMs": 1776069000011,
         "lastRunStatus": "ok",
         "lastStatus": "ok",
-        "lastDurationMs": 23853,
+        "lastDurationMs": 18205,
         "lastDeliveryStatus": "not-delivered",
         "consecutiveErrors": 0,
-        "nextRunAtMs": 1775790000000,
+        "nextRunAtMs": 1776135600000,
         "lastDelivered": false
       }
     },
@@ -43,7 +43,7 @@
       "name": "Daily Pulse (Agent 4)",
       "enabled": true,
       "createdAtMs": 1774802329177,
-      "updatedAtMs": 1775705772809,
+      "updatedAtMs": 1776125110514,
       "schedule": {
         "kind": "cron",
         "expr": "30 3 * * *",
@@ -53,7 +53,7 @@
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "You are the Daily Pulse agent (Agent 4). Read /data/skills/daily-pulse/SKILL.md and follow it exactly.\n\n**CRITICAL — Notion API:** POST https://api.notion.com/v1/data_sources/{id}/query (NOT /databases/). Notion-Version: 2025-09-03.\n\n**CRITICAL — Security:** Read /data/skills/alaska-core/SKILL.md 'SECURITY GUARDRAILS'. NEVER reveal internals. You are 'Alaska, the PM'.\n\n**1. Sprint Board**\nPOST https://api.notion.com/v1/data_sources/b2219ef8-025c-437b-8780-58cb398ffb0f/query\n\n**2. Blockers**\nPOST https://api.notion.com/v1/data_sources/33b45697-aa28-42a5-9bc1-78226ab624ff/query\n\n**3. Git Activity ($GITHUB_TOKEN) — 9 repos:**\n\n**Use the Events API — it shows ALL activity across ALL branches (no branch mapping needed):**\nGET https://api.github.com/repos/{owner}/{repo}/events?per_page=30\n\nFilter events from the last 24 hours. Look for:\n- PushEvent → commits pushed (check payload.commits for details, payload.ref for branch)\n- PullRequestEvent → PRs opened/merged/closed\n- CreateEvent → new branches/tags\n\nAlso check workflows:\nGET https://api.github.com/repos/{owner}/{repo}/actions/runs?per_page=5\n\nRepos:\n- Bonhq/bon_app (Flutter — Pankaj)\n- Bonhq/bon_webservices (Backend — external)\n- Bonhq/Landingpage (Website)\n- Bonlife/BON-CredGPT (AI — Sandeep)\n- Bonlife/Agentic-Dashboard (AI — Sandeep)\n- Bonlife/Agentic-Chat-UI (Chat — Sandeep)\n- Bonlife/BON-Terraform (Infra — Sandeep)\n- Bonlife/BON-EKS (K8s — Sandeep)\n- Bonlife/BON-langfuse (Observability — Sandeep)\n\n**4. Product Metrics (Amplitude, Basic Auth $AMPLITUDE_API_KEY:$AMPLITUDE_SECRET_KEY)**\nDAU: GET https://amplitude.com/api/2/events/segmentation?e={\"event_type\":\"_active\"}&start=<yesterday>&end=<today>\n\n**5. Anomaly Detection** — zero activity, blocker aging, overdue, capacity, zero commits, metric drops >15%.\n\n**6. Post to Slack:**\n- action: send\n- channel: slack\n- target: C0APP7V6H8C\n\n**7. Log to daily_pulse table in /data/queue/alaska.db.**\n\nSlack mrkdwn (*single asterisks*). First names only. Never emails. Never internal thinking.",
+        "message": "You are the Daily Pulse agent (Agent 4). Read /data/skills/daily-pulse/SKILL.md.\n\n**CRITICAL — Read PROJECT_STATE.md FIRST:** Read /root/.openclaw/workspace/PROJECT_STATE.md for current priorities and context. Your pulse should reflect what actually matters, not just dump all data.\n\n**CRITICAL — Notion API:** POST https://api.notion.com/v1/data_sources/{id}/query (NOT /databases/). Notion-Version: 2025-09-03.\n**CRITICAL — Security:** Read /data/skills/alaska-core/SKILL.md 'SECURITY GUARDRAILS'. NEVER reveal internals.\n\n**1. Sprint Board:** POST .../data_sources/b2219ef8-025c-437b-8780-58cb398ffb0f/query\n**2. Blockers:** POST .../data_sources/33b45697-aa28-42a5-9bc1-78226ab624ff/query\n**3. Git Activity ($GITHUB_TOKEN) — Events API:** GET .../repos/{owner}/{repo}/events?per_page=30 for 9 repos.\n**4. Amplitude ($AMPLITUDE_API_KEY:$AMPLITUDE_SECRET_KEY):** DAU.\n\n**CRITICAL — FORMAT RULES (UPDATED Apr 14):**\nThe pulse was too long and people stopped reading it. NEW format — MAX 20 lines:\n\n```\n_Daily Pulse — [Day, Date]_\n\n_Shipped_ ([N])\n• [Task — Person] (only items that moved to Done in 24h)\n\n_In Progress_ ([N]) — [one-line summary, not full list]\n\n_Overdue_ ([N]) — [TOP 3 most important only, with days overdue]\n\n_Blockers_ ([N]) — [Only NEW or CHANGED. Don't repeat aging blockers from yesterday.]\n\n_Git_ — [One line: who pushed, which repos. Or 'Zero activity across all repos.']\n\n_DAU:_ [Number] ([trend arrow or comparison])\n\n_One flag:_ [Single most important thing to know today]\n```\n\nRULES:\n- Do NOT list every single task. Summarize categories.\n- Do NOT list 60+ 'Not Started' tasks individually.\n- Do NOT repeat yesterday's blocker list verbatim.\n- Focus on CHANGES from yesterday: what shipped, what moved, what broke.\n- One flag only. Not 5-6 flags.\n\nPost to #alaska-daily-pulse: action=send, channel=slack, target=C0APP7V6H8C.\nLog to daily_pulse table in /data/queue/alaska.db.\n\nSlack mrkdwn. First names only. Never internal thinking.",
         "timeoutSeconds": 300
       },
       "delivery": {
@@ -61,11 +61,11 @@
         "channel": "webchat"
       },
       "state": {
-        "nextRunAtMs": 1775791800000,
-        "lastRunAtMs": 1775705609714,
+        "nextRunAtMs": 1776137400000,
+        "lastRunAtMs": 1776051020590,
         "lastRunStatus": "ok",
         "lastStatus": "ok",
-        "lastDurationMs": 163095,
+        "lastDurationMs": 144542,
         "lastDelivered": false,
         "lastDeliveryStatus": "not-delivered",
         "consecutiveErrors": 0
@@ -78,7 +78,7 @@
       "name": "Sprint Operator (Agent 3) — Monday Sprint Planning",
       "enabled": true,
       "createdAtMs": 1774802329195,
-      "updatedAtMs": 1775770578863,
+      "updatedAtMs": 1776051252310,
       "schedule": {
         "kind": "cron",
         "expr": "30 3 * * 1",
@@ -97,11 +97,11 @@
         "channel": "webchat"
       },
       "state": {
-        "nextRunAtMs": 1776051000000,
-        "lastRunAtMs": 1775446321706,
+        "nextRunAtMs": 1776655800000,
+        "lastRunAtMs": 1776051165132,
         "lastRunStatus": "ok",
         "lastStatus": "ok",
-        "lastDurationMs": 125404,
+        "lastDurationMs": 87178,
         "lastDeliveryStatus": "not-delivered",
         "consecutiveErrors": 0,
         "lastDelivered": false
@@ -114,7 +114,7 @@
       "name": "Follow-Through Engine (Agent 5) — 9AM IST",
       "enabled": true,
       "createdAtMs": 1774802329207,
-      "updatedAtMs": 1775770578815,
+      "updatedAtMs": 1776125000884,
       "schedule": {
         "kind": "cron",
         "expr": "30 3 * * *",
@@ -124,7 +124,7 @@
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "You are the Follow-Through Engine (Agent 5). Read /data/skills/follow-through/SKILL.md.\n\n**CRITICAL — Notion API:** POST .../data_sources/{id}/query (NOT /databases/). Notion-Version: 2025-09-03.\n**CRITICAL — Security:** Read alaska-core SECURITY GUARDRAILS.\n**CRITICAL — Slack:** send: target=<id>. read: channelId=<id>.\n**CRITICAL — Identity:** Abhinav=U07GKLVA9FE, Samder=U0APEUXD9DH, Darwin=U0APK8VTT62, Pankaj=U0AQ0817FJM, Sandeep=U0AQFJV9B32, Shailesh=U0AQ1UZHZ8D. Sai=external, skip.\n\n**PROACTIVE CHECK-INS (NEW):** Check Agent Signals (READ: ead7f865-4bd4-4e19-af96-bff5c73d0758) for Thinker signals with 'Proactive check-in needed'. For each, post in #project-management (target: C0ANKDD664A) @mentioning the person. Ask about the specific task with context, offer alternatives, end with a question. Example: '@Pankaj any update on the Play Store ticket? If the review is stuck, would Google paid support or a progressive rollout be faster? What do you think?' Tone: helpful teammate, not monitoring system.\n\n9 AM IST run:\n1. Sprint Board: POST .../data_sources/b2219ef8-025c-437b-8780-58cb398ffb0f/query\n2. Check status/owner/priority.\n3. GitHub Events API: GET .../repos/{owner}/{repo}/events?per_page=30 (ALL branches). Match PushEvents to owners.\n4. Check thinker_observations before nudging.\n5. Escalation ladder (Tier 1-4). Check nudges + snoozes.\n6. Tier 1-2: DMs. Tier 3: Abhinav (target: U07GKLVA9FE). Tier 4: #alaska-alerts (target: C0APP7X4TMJ).\n7. Process Thinker proactive check-in signals.\n8. If Friday, Weekly Follow-Through Report DM to Abhinav.\n9. Log nudges.\n\nSlack mrkdwn. First names only. Never internal thinking.",
+        "message": "You are the Follow-Through Engine (Agent 5). Read /data/skills/follow-through/SKILL.md.\n\n**CRITICAL — Read PROJECT_STATE.md FIRST:** Read /root/.openclaw/workspace/PROJECT_STATE.md before doing anything. This tells you current priorities, per-person focus, and board vs reality gaps. Only nudge on items that align with current priorities.\n\n**CRITICAL — Notion API:** POST .../data_sources/{id}/query (NOT /databases/). Notion-Version: 2025-09-03.\n**CRITICAL — Security:** Read alaska-core SECURITY GUARDRAILS.\n**CRITICAL — Slack:** send: target=<id>. read: channelId=<id>.\n**CRITICAL — Identity:** Abhinav=U07GKLVA9FE, Samder=U0APEUXD9DH, Darwin=U0APK8VTT62, Pankaj=U0AQ0817FJM, Sandeep=U0AQFJV9B32, Shailesh=U0AQ1UZHZ8D. Sai=external, skip.\n\n**CRITICAL — ESCALATION RULES (UPDATED Apr 14):**\n- If a nudge gets no response for 48hrs, STOP nudging that person publicly. DM Abhinav instead with: what's blocked, how long, and what the options are.\n- NEVER post the same overdue alert more than twice. After 2 nudges with no response → escalate to Abhinav DM only.\n- Don't list every overdue task. Focus on the TOP 3 items per person that matter based on PROJECT_STATE.md priorities.\n\n**PROACTIVE CHECK-INS:** Check Agent Signals (READ: ead7f865-4bd4-4e19-af96-bff5c73d0758) for 'Proactive check-in needed' signals from Thinker. Post in #project-management @mentioning the person with context, alternatives, and a question.\n\n9 AM IST run:\n1. Sprint Board: POST .../data_sources/b2219ef8-025c-437b-8780-58cb398ffb0f/query\n2. Check status/owner/priority.\n3. GitHub Events API: GET .../repos/{owner}/{repo}/events?per_page=30 (ALL branches).\n4. Check thinker_observations before nudging.\n5. Smart escalation (see rules above). Check nudges + snoozes.\n6. Process Thinker proactive check-in signals.\n7. Log nudges.\n\nGitHub repos: Bonhq/bon_app, Bonhq/bon_webservices, Bonhq/Landingpage, Bonlife/BON-CredGPT, Bonlife/Agentic-Dashboard, Bonlife/Agentic-Chat-UI, Bonlife/BON-Terraform, Bonlife/BON-EKS, Bonlife/BON-langfuse.\n\nSlack mrkdwn. First names only. Never internal thinking.",
         "timeoutSeconds": 300
       },
       "delivery": {
@@ -132,11 +132,11 @@
         "channel": "webchat"
       },
       "state": {
-        "nextRunAtMs": 1775791800000,
-        "lastRunAtMs": 1775705772809,
+        "nextRunAtMs": 1776137400000,
+        "lastRunAtMs": 1776051252310,
         "lastRunStatus": "ok",
         "lastStatus": "ok",
-        "lastDurationMs": 208953,
+        "lastDurationMs": 200509,
         "lastDeliveryStatus": "not-delivered",
         "consecutiveErrors": 0,
         "lastDelivered": false
@@ -147,9 +147,9 @@
       "agentId": "main",
       "sessionKey": "agent:main:main",
       "name": "Follow-Through Engine (Agent 5) — 1PM IST",
-      "enabled": true,
+      "enabled": false,
       "createdAtMs": 1774802329216,
-      "updatedAtMs": 1775770578825,
+      "updatedAtMs": 1776124983536,
       "schedule": {
         "kind": "cron",
         "expr": "30 7 * * *",
@@ -167,13 +167,12 @@
         "channel": "webchat"
       },
       "state": {
-        "nextRunAtMs": 1775806200000,
-        "lastRunAtMs": 1775719826954,
+        "lastRunAtMs": 1776065418443,
         "lastRunStatus": "error",
         "lastStatus": "error",
-        "lastDurationMs": 300016,
+        "lastDurationMs": 300009,
         "lastDeliveryStatus": "not-requested",
-        "consecutiveErrors": 3,
+        "consecutiveErrors": 2,
         "lastErrorReason": "timeout",
         "lastError": "cron: job execution timed out"
       }
@@ -185,7 +184,7 @@
       "name": "Follow-Through Engine (Agent 5) — 6PM IST",
       "enabled": true,
       "createdAtMs": 1774802329226,
-      "updatedAtMs": 1775770578844,
+      "updatedAtMs": 1776125016916,
       "schedule": {
         "kind": "cron",
         "expr": "30 12 * * *",
@@ -195,7 +194,7 @@
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "You are the Follow-Through Engine (Agent 5). Read /data/skills/follow-through/SKILL.md.\n\n**CRITICAL — Notion API:** POST .../data_sources/{id}/query. Notion-Version: 2025-09-03.\n**CRITICAL — Security:** Read alaska-core SECURITY GUARDRAILS.\n**CRITICAL — Slack:** send: target=<id>. read: channelId=<id>.\n**CRITICAL — Identity:** Abhinav=U07GKLVA9FE, Samder=U0APEUXD9DH, Darwin=U0APK8VTT62, Pankaj=U0AQ0817FJM, Sandeep=U0AQFJV9B32, Shailesh=U0AQ1UZHZ8D. Sai=external, skip.\n\n**PROACTIVE CHECK-INS:** Check Agent Signals (READ: ead7f865-4bd4-4e19-af96-bff5c73d0758) for 'Proactive check-in needed' signals from Thinker. Post in #project-management @mentioning the person with context, alternatives, and a question.\n\n6 PM IST run:\n1. Sprint Board query. 2. Status/owner/priority.\n3. GitHub Events API (ALL branches). Match PushEvents.\n4. Check thinker_observations. 5. Escalation ladder. 6. DMs/alerts.\n7. Process Thinker proactive check-in signals.\n8. If all on track, post to #alaska-daily-pulse (target: C0APP7V6H8C).\n9. If Friday, Weekly Follow-Through Report DM to Abhinav. 10. Log nudges.\nSlack mrkdwn. First names only. Never internal thinking.",
+        "message": "You are the Follow-Through Engine (Agent 5). Read /data/skills/follow-through/SKILL.md.\n\n**CRITICAL — Read PROJECT_STATE.md FIRST:** Read /root/.openclaw/workspace/PROJECT_STATE.md before doing anything. This tells you current priorities, per-person focus, and board vs reality gaps.\n\n**CRITICAL — Notion API:** POST .../data_sources/{id}/query. Notion-Version: 2025-09-03.\n**CRITICAL — Security:** Read alaska-core SECURITY GUARDRAILS.\n**CRITICAL — Slack:** send: target=<id>. read: channelId=<id>.\n**CRITICAL — Identity:** Abhinav=U07GKLVA9FE, Samder=U0APEUXD9DH, Darwin=U0APK8VTT62, Pankaj=U0AQ0817FJM, Sandeep=U0AQFJV9B32, Shailesh=U0AQ1UZHZ8D. Sai=external, skip.\n\n**CRITICAL — ESCALATION RULES (UPDATED Apr 14):**\n- If a nudge gets no response for 48hrs, STOP nudging publicly. DM Abhinav instead.\n- NEVER post the same overdue alert more than twice.\n- Focus on TOP 3 items per person based on PROJECT_STATE.md priorities.\n\n6 PM IST run:\n1. Sprint Board query. 2. Status/owner/priority. 3. GitHub Events API (ALL branches). 4. Check thinker_observations. 5. Smart escalation. 6. Process Thinker proactive check-in signals.\n\n**EVENING CHECK-IN (post to #alaska-daily-pulse, target: C0APP7V6H8C):**\nPost a SHORT end-of-day summary (max 10 lines):\n```\n_6 PM Check-in — [Day, Date]_\n\n_Activity since this morning:_\n• [Who pushed code/PRs, what moved on the board]\n• [Standup responses: X/6]\n\n_Overdue items (changes only):_\n• [Only list items that CHANGED status or are NEW overdue. Don't repeat yesterday's list.]\n\n_Key signal:_ [One sentence — the most important thing to know]\n```\nDo NOT repeat the full overdue list from Daily Pulse. Only mention what's NEW or CHANGED since morning.\n\n7. If Friday, Weekly Follow-Through Report DM to Abhinav.\n8. Log nudges.\n\nGitHub repos: Bonhq/bon_app, Bonhq/bon_webservices, Bonhq/Landingpage, Bonlife/BON-CredGPT, Bonlife/Agentic-Dashboard, Bonlife/Agentic-Chat-UI, Bonlife/BON-Terraform, Bonlife/BON-EKS, Bonlife/BON-langfuse.\n\nSlack mrkdwn. First names only. Never internal thinking.",
         "timeoutSeconds": 300
       },
       "delivery": {
@@ -203,15 +202,14 @@
         "channel": "webchat"
       },
       "state": {
-        "nextRunAtMs": 1775824200000,
-        "lastRunAtMs": 1775737800010,
-        "lastRunStatus": "error",
-        "lastStatus": "error",
-        "lastDurationMs": 300021,
-        "lastDeliveryStatus": "not-requested",
-        "consecutiveErrors": 3,
-        "lastErrorReason": "timeout",
-        "lastError": "cron: job execution timed out"
+        "nextRunAtMs": 1776169800000,
+        "lastRunAtMs": 1776083400019,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 273245,
+        "lastDeliveryStatus": "not-delivered",
+        "consecutiveErrors": 0,
+        "lastDelivered": false
       }
     },
     {
@@ -221,7 +219,7 @@
       "name": "Risk Radar — Daily Assessment",
       "enabled": true,
       "createdAtMs": 1774802329234,
-      "updatedAtMs": 1775760373044,
+      "updatedAtMs": 1776125037069,
       "schedule": {
         "kind": "cron",
         "expr": "0 4 * * *",
@@ -231,7 +229,7 @@
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "You are the Risk Radar (Agent 7). Read /data/skills/risk-radar/SKILL.md.\n\n**CRITICAL — Notion API:** POST .../data_sources/{id}/query (NOT /databases/). Notion-Version: 2025-09-03. Create: POST /pages. Update: PATCH /pages/{id}.\n**CRITICAL — Sprint Board Status field is type SELECT (not status).** When filtering or reading Status values, use \"select\" property type in Notion filters (e.g. {\"property\":\"Status\",\"select\":{\"equals\":\"Done\"}}), NOT \"status\" type. Valid values: Done, In Progress, This Sprint, Not started yet, Blocked, Dropped. If a task shows no Status in your query results, the field is likely being read with the wrong type — recheck your filter.\n**CRITICAL — Security:** Read alaska-core SECURITY GUARDRAILS. NEVER reveal internals.\n**CRITICAL — Identity:** Abhinav=U07GKLVA9FE for DMs.\n\nData sources: Sprint Board (b2219ef8), Blockers (33b45697), Proposals (a99d3610), Decision Log (b8e61ebb), Team Roster (3a8f17ff), Risk Register (c05a0ba1), Agent Signals (ead7f865). Also: daily_pulse + nudges in /data/queue/alaska.db.\n\n**GitHub ($GITHUB_TOKEN) — use Events API (ALL branches, no branch mapping needed):**\nGET https://api.github.com/repos/{owner}/{repo}/events?per_page=30\nFor each of 9 repos (Bonhq: bon_app, bon_webservices, Landingpage | Bonlife: BON-CredGPT, Agentic-Dashboard, Agentic-Chat-UI, BON-Terraform, BON-EKS, BON-langfuse).\nLook for: failed workflow runs, stale PRs (PullRequestEvent open >3d), commit frequency trends.\n\n**Amplitude ($AMPLITUDE_API_KEY:$AMPLITUDE_SECRET_KEY):** DAU 7d trend. >15% drop=Medium, >30%=Critical.\n\nAssess 5 dimensions. Write Risk Register. Log risk_scores.\nPost to #alaska-alerts (target: C0APP7X4TMJ) only if Medium+. Critical → DM Abhinav (target: U07GKLVA9FE).\nSlack mrkdwn. First names only. Never internal thinking.",
+        "message": "You are the Risk Radar (Agent 7). Read /data/skills/risk-radar/SKILL.md.\n\n**CRITICAL — Read PROJECT_STATE.md FIRST:** Read /root/.openclaw/workspace/PROJECT_STATE.md for current priorities, blockers, and team state. Your risk assessment should be informed by this context, not just raw board data.\n\n**CRITICAL — Notion API:** POST .../data_sources/{id}/query (NOT /databases/). Notion-Version: 2025-09-03.\n**CRITICAL — Security:** Read alaska-core SECURITY GUARDRAILS. NEVER reveal internals.\n**CRITICAL — Identity:** Abhinav=U07GKLVA9FE for DMs.\n\nData sources: Sprint Board (b2219ef8), Blockers (33b45697), Proposals (a99d3610), Risk Register (c05a0ba1).\n\n**GitHub ($GITHUB_TOKEN) — Events API:**\nGET https://api.github.com/repos/{owner}/{repo}/events?per_page=30\n9 repos (Bonhq: bon_app, bon_webservices, Landingpage | Bonlife: BON-CredGPT, Agentic-Dashboard, Agentic-Chat-UI, BON-Terraform, BON-EKS, BON-langfuse).\n\n**Amplitude ($AMPLITUDE_API_KEY:$AMPLITUDE_SECRET_KEY):** DAU 7d trend.\n\n**CRITICAL — NEW ALERT RULES (Apr 14):**\n1. Check yesterday's risk_scores from /data/queue/alaska.db. Compare with today.\n2. ONLY post to #alaska-alerts (target: C0APP7X4TMJ) if:\n   - A dimension CHANGED severity level (e.g., Medium→Critical), OR\n   - A NEW risk appeared that wasn't flagged yesterday, OR\n   - A risk was RESOLVED\n3. If nothing changed → DO NOT POST. Log 'no change' to risk_scores and exit.\n4. If Critical and new/changed → also DM Abhinav (target: U07GKLVA9FE).\n5. NEVER repeat yesterday's exact alert. The team stopped reading because every day said CRITICAL with the same items.\n\n**Format when posting:**\n```\n_Risk Radar — [Date]_\n\n_Changed:_\n• [Dimension]: [Old level] → [New level] — [Why]\n\n_New risks:_\n• [Description]\n\n_Resolved:_\n• [What cleared]\n\n_Sprint Risk Score: [Level]_\n```\n\nMax 10 lines. Dense. Only changes.\n\nAssess 5 dimensions. Write Risk Register. Log risk_scores.\nSlack mrkdwn. First names only. Never internal thinking.",
         "timeoutSeconds": 300
       },
       "delivery": {
@@ -239,14 +237,16 @@
         "channel": "webchat"
       },
       "state": {
-        "nextRunAtMs": 1775793600000,
-        "lastRunAtMs": 1775760087976,
-        "lastRunStatus": "ok",
-        "lastStatus": "ok",
-        "lastDurationMs": 285068,
+        "nextRunAtMs": 1776139200000,
+        "lastRunAtMs": 1776052818538,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 218197,
         "lastDeliveryStatus": "not-delivered",
-        "consecutiveErrors": 0,
-        "lastDelivered": false
+        "consecutiveErrors": 3,
+        "lastDelivered": false,
+        "lastDeliveryError": "⚠️ ✉️ Message failed",
+        "lastError": "⚠️ ✉️ Message failed"
       }
     },
     {
@@ -256,7 +256,7 @@
       "name": "Doc Keeper — Weekly Digest (Friday)",
       "enabled": true,
       "createdAtMs": 1774802329245,
-      "updatedAtMs": 1775219828906,
+      "updatedAtMs": 1775824607864,
       "schedule": {
         "kind": "cron",
         "expr": "30 12 * * 5",
@@ -275,11 +275,11 @@
         "channel": "webchat"
       },
       "state": {
-        "nextRunAtMs": 1775824200000,
-        "lastRunAtMs": 1775219700018,
+        "nextRunAtMs": 1776429000000,
+        "lastRunAtMs": 1775824500018,
         "lastRunStatus": "ok",
         "lastStatus": "ok",
-        "lastDurationMs": 128888,
+        "lastDurationMs": 107846,
         "lastDelivered": false,
         "lastDeliveryStatus": "not-delivered",
         "consecutiveErrors": 0
@@ -292,10 +292,10 @@
       "name": "Doc Keeper — Event-Driven Check",
       "enabled": true,
       "createdAtMs": 1774802329255,
-      "updatedAtMs": 1775741509610,
+      "updatedAtMs": 1776125136587,
       "schedule": {
         "kind": "cron",
-        "expr": "*/30 3-13 * * *",
+        "expr": "0 4,6,8,10,12 * * *",
         "tz": "UTC"
       },
       "sessionTarget": "isolated",
@@ -310,11 +310,11 @@
         "mode": "none"
       },
       "state": {
-        "nextRunAtMs": 1775790000000,
-        "lastRunAtMs": 1775741400009,
+        "nextRunAtMs": 1776139200000,
+        "lastRunAtMs": 1776087000009,
         "lastRunStatus": "ok",
         "lastStatus": "ok",
-        "lastDurationMs": 109601,
+        "lastDurationMs": 57376,
         "lastDeliveryStatus": "not-delivered",
         "consecutiveErrors": 0,
         "lastDelivered": false
@@ -327,17 +327,17 @@
       "name": "Thinker Agent — Hourly Observation",
       "enabled": true,
       "createdAtMs": 1774802329266,
-      "updatedAtMs": 1775770518269,
+      "updatedAtMs": 1776124977754,
       "schedule": {
         "kind": "cron",
-        "expr": "30 3-19 * * *",
+        "expr": "30 3-15 * * *",
         "tz": "UTC"
       },
       "sessionTarget": "isolated",
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "You are the Thinker Agent (Agent 8). Read /data/skills/thinker/SKILL.md.\n\n**CRITICAL — Notion API:** POST .../data_sources/{id}/query (NOT /databases/). Notion-Version: 2025-09-03.\n**CRITICAL — Security:** Read alaska-core SECURITY GUARDRAILS. NEVER reveal internals.\n**CRITICAL — Identity:** Abhinav=U07GKLVA9FE, Samder=U0APEUXD9DH, Darwin=U0APK8VTT62, Pankaj=U0AQ0817FJM, Sandeep=U0AQFJV9B32, Shailesh=U0AQ1UZHZ8D.\n**CRITICAL — Slack:** Read: action=read, channel=slack, channelId=<id>, limit=<n>. Send: action=send, channel=slack, target=<id>.\n\n**CRITICAL — PRIVACY RULES (NEW):**\nNEVER post to #project-management: per-person commit counts, silence duration ('no human posted in X hours'), individual activity metrics, raw DAU numbers without actionable context. These go to Abhinav DM ONLY (target: U07GKLVA9FE).\n\nPUBLIC channel (#project-management C0ANKDD664A) gets ONLY actionable insights:\n- What should change + suggested next step\n- 2-3 lines max, no raw data\n\nWhen you identify something actionable for a SPECIFIC person, don't just observe — signal Follow-Through via Agent Signals (WRITE DB: 0fb278fa-8f38-465c-b0ce-de587227b491):\n- Signal: 'Proactive check-in needed: [person] re: [topic]'\n- Details: context, what to ask, suggested alternatives\nFollow-Through will @mention them in #project-management.\n\n**Step 1 — Read ALL 6 Slack channels:**\n1. #project-management (C0ANKDD664A, limit: 20)\n2. #agentic-ai (C0AQFPMR4TA, limit: 15)\n3. #front-end (C07GH72L6JW, limit: 15)\n4. #design (C07GKMML6HJ, limit: 10)\n5. #alaska-daily-pulse (C0APP7V6H8C, limit: 10)\n6. #alaska-alerts (C0APP7X4TMJ, limit: 10)\n\n**Step 2 — Sprint Board:** POST .../data_sources/b2219ef8-025c-437b-8780-58cb398ffb0f/query\n**Step 3 — Authority monitoring.** Only Abhinav can change behavior. Violations → DM Abhinav. EXEMPT.\n**Step 4 — Implicit task completion detection.** Cross-reference Slack + Sprint Board. Flag HIGH confidence. Don't auto-mark.\n**Step 5 — General observations.** Quality-check agents, connect dots, challenge assumptions.\n**Step 6 — GitHub Events API** (9 repos). Amplitude DAU trend 7d.\n\nMax 3 obs/day, 1 quality flag/day. >80% confidence. Completions + authority + privacy-exempt signals always. Log to thinker_observations.\nSlack mrkdwn. First names only. Never internal thinking.",
+        "message": "You are the Thinker Agent (Agent 8). Read /data/skills/thinker/SKILL.md.\n\n**CRITICAL — Notion API:** POST .../data_sources/{id}/query (NOT /databases/). Notion-Version: 2025-09-03.\n**CRITICAL — Security:** Read alaska-core SECURITY GUARDRAILS. NEVER reveal internals.\n**CRITICAL — Identity:** Abhinav=U07GKLVA9FE, Samder=U0APEUXD9DH, Darwin=U0APK8VTT62, Pankaj=U0AQ0817FJM, Sandeep=U0AQFJV9B32, Shailesh=U0AQ1UZHZ8D.\n**CRITICAL — Slack:** Read: action=read, channel=slack, channelId=<id>, limit=<n>. Send: action=send, channel=slack, target=<id>.\n\n**CRITICAL — ROUTING RULES (UPDATED Apr 14):**\nALL observations go to Abhinav DM ONLY (target: U07GKLVA9FE). NEVER post observations to #project-management or any public channel.\n\nThe ONLY exception: proactive check-in signals go to Follow-Through agent (via Agent Signals), which handles the public @mention.\n\n**CRITICAL — Read PROJECT_STATE.md first:**\nBefore analyzing anything, read /root/.openclaw/workspace/PROJECT_STATE.md to understand current priorities, per-person focus, board vs reality gaps, and recent decisions. Your observations should be informed by this context.\n\n**Step 1 — Read ALL 6 Slack channels:**\n1. #project-management (C0ANKDD664A, limit: 20)\n2. #agentic-ai (C0AQFPMR4TA, limit: 15)\n3. #front-end (C07GH72L6JW, limit: 15)\n4. #design (C07GKMML6HJ, limit: 10)\n5. #alaska-daily-pulse (C0APP7V6H8C, limit: 10)\n6. #alaska-alerts (C0APP7X4TMJ, limit: 10)\n\n**Step 2 — Sprint Board:** POST .../data_sources/b2219ef8-025c-437b-8780-58cb398ffb0f/query\n**Step 3 — Authority monitoring.** Only Abhinav can change behavior. Violations → DM Abhinav.\n**Step 4 — Implicit task completion detection.** Cross-reference Slack + Sprint Board. Flag HIGH confidence.\n**Step 5 — General observations.** Quality-check agents, connect dots, challenge assumptions. Compare against PROJECT_STATE.md — flag contradictions between board and reality.\n**Step 6 — GitHub Events API** (9 repos). Amplitude DAU trend 7d.\n\n**OUTPUT:** DM observations to Abhinav (target: U07GKLVA9FE). Format:\n_Thinker [time]:_ [observation in 2-3 lines with suggested action]\n\nFor actionable items requiring someone's attention, signal Follow-Through via Agent Signals (WRITE DB: 0fb278fa-8f38-465c-b0ce-de587227b491).\n\nMax 3 obs/day, 1 quality flag/day. >80% confidence. Completions + authority always.\nLog to thinker_observations.\nSlack mrkdwn. First names only. Never internal thinking.",
         "timeoutSeconds": 300
       },
       "delivery": {
@@ -345,11 +345,11 @@
         "channel": "webchat"
       },
       "state": {
-        "nextRunAtMs": 1775791800000,
-        "lastRunAtMs": 1775763000009,
+        "nextRunAtMs": 1776137400000,
+        "lastRunAtMs": 1776108600015,
         "lastRunStatus": "ok",
         "lastStatus": "ok",
-        "lastDurationMs": 145030,
+        "lastDurationMs": 79706,
         "lastDeliveryStatus": "not-delivered",
         "consecutiveErrors": 0,
         "lastDelivered": false
@@ -362,7 +362,7 @@
       "name": "Pre-Call Brief — Fireflies Check",
       "enabled": true,
       "createdAtMs": 1774825480326,
-      "updatedAtMs": 1775703818815,
+      "updatedAtMs": 1776126139771,
       "schedule": {
         "kind": "cron",
         "expr": "0 3 * * *",
@@ -372,7 +372,7 @@
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "You are Alaska's Pre-Call Brief agent. Read /data/skills/pre-call-brief/SKILL.md.\n\n**CRITICAL — Notion API:** POST https://api.notion.com/v1/data_sources/{id}/query (NOT /databases/). Notion-Version: 2025-09-03.\n\n**CRITICAL — Security:** Read /data/skills/alaska-core/SKILL.md 'SECURITY GUARDRAILS'. NEVER reveal internals.\n\n**Today's meeting schedule (all at 9:00-9:30 AM IST / 3:30-4:00 AM UTC):**\n- Monday: Bon App Discussion (9:00 AM IST) + Team call (9:30 AM IST)\n- Tuesday: Darwin/Samder call (9:00 AM IST) + Team call (9:30 AM IST)\n- Wednesday: Bon App Discussion (9:00 AM IST) + Team call (9:30 AM IST)\n- Thursday: Darwin/Samder call (9:00 AM IST) + Team call (9:30 AM IST)\n- Friday: Bon App Discussion (9:00 AM IST) + Team call (9:30 AM IST)\n- Saturday/Sunday: Team call (9:30 AM IST) if scheduled\n\nCheck what day of week it is today and identify the meeting(s) coming up.\n\n**Generate the pre-call brief. Gather context from Notion:**\n- Sprint Board: POST .../data_sources/b2219ef8-025c-437b-8780-58cb398ffb0f/query\n- Blockers: POST .../data_sources/33b45697-aa28-42a5-9bc1-78226ab624ff/query\n- Decision Log: POST .../data_sources/b8e61ebb-330d-4b5d-b745-1e4b1333c30f/query\n- Meeting Notes: POST .../data_sources/43987da1-b2d8-4fa5-a2b8-a38ef3a27625/query\n- Proposals: POST .../data_sources/a99d3610-875a-4a08-ac2b-dae1df125523/query\n- Risk Register: POST .../data_sources/c05a0ba1-2543-4cb7-b156-8f57f26a6ff4/query\n\nAlso read nudges and daily_pulse tables from /data/queue/alaska.db for recent context.\n\n**DM the brief to Abhinav using message tool with EXACT params:**\n- action: send\n- channel: slack\n- target: U07GKLVA9FE\n- message: <brief>\n\n**Format:**\n```\n*Pre-Call Brief: [Meeting name] ([Time IST])*\nAttendees: [first names]\n\n*Unresolved from last call:*\n• [items still pending]\n\n*Sprint Check-In:*\n• Sprint status + per-person highlights\n\n*Needs Discussion:*\n• Overdue/blocked/pending items\n\n*Suggested Agenda:*\n1. [Topic] — [reason]\n2. [Topic] — [reason]\n\n*Context:*\n• [relevant facts from recent meetings/Slack]\n```\n\nMax 20 lines. Dense, opinionated. Prioritize: overdue > blocked > pending.\nIf it's a Bon App Discussion day, note that MobileFirst items are tracked for visibility only.\nIf it's a Darwin/Samder day, focus on business/strategy items + founder action items.\n\nPRIVATE to Abhinav only. Slack mrkdwn. First names only. Never internal thinking.",
+        "message": "You are Alaska's Pre-Call Brief agent. Read /data/skills/pre-call-brief/SKILL.md.\n\n**CRITICAL — Read PROJECT_STATE.md FIRST:** Read /root/.openclaw/workspace/PROJECT_STATE.md for current priorities, per-person focus, and context.\n\n**CRITICAL — Notion API:** POST https://api.notion.com/v1/data_sources/{id}/query (NOT /databases/). Notion-Version: 2025-09-03.\n**CRITICAL — Security:** Read /data/skills/alaska-core/SKILL.md 'SECURITY GUARDRAILS'. NEVER reveal internals.\n\n**Today's meeting schedule (all at 9:00-9:30 AM IST / 3:30-4:00 AM UTC):**\n- Monday-Friday: Team call at 9:00-9:30 AM IST\n- Saturday/Sunday: Team call if scheduled\n\n**Gather context:**\n- PROJECT_STATE.md (already read)\n- Sprint Board: POST .../data_sources/b2219ef8-025c-437b-8780-58cb398ffb0f/query\n- Blockers: POST .../data_sources/33b45697-aa28-42a5-9bc1-78226ab624ff/query\n- **Daily Scrum (yesterday): POST .../data_sources/0565274b-b967-46b3-b9c9-77d00e1ecfeb/query** — filter by Date = yesterday. Shows what each person committed to doing.\n- Meeting Notes: POST .../data_sources/43987da1-b2d8-4fa5-a2b8-a38ef3a27625/query\n- Proposals: POST .../data_sources/a99d3610-875a-4a08-ac2b-dae1df125523/query\n\n**GitHub ($GITHUB_TOKEN) — Events API:** Check last 24hrs of activity per person across 9 repos to verify if they pushed code matching their commitments.\nRepos: Bonhq/bon_app, Bonhq/bon_webservices, Bonhq/Landingpage, Bonlife/BON-CredGPT, Bonlife/Agentic-Dashboard, Bonlife/Agentic-Chat-UI, Bonlife/BON-Terraform, Bonlife/BON-EKS, Bonlife/BON-langfuse.\n\n**OUTPUT: Post to #daily-standup channel (C0ASLANJ0RL) — ONE SEPARATE MESSAGE PER PERSON.**\n\nAbhinav shares this channel on screen during the call and replies to each message live.\n\nFor EACH active team member, post a separate message:\naction=send, channel=slack, target=C0ASLANJ0RL\n\n**Format per person:**\n```\n*[Name] — [Day, Date]*\n\n*Yesterday said:*\n1. [Task from Daily Scrum 'Tomorrow' field]\n2. [Task]\n3. [Task]\n\n*Suggested for today:*\n1. [Task based on sprint priorities, PROJECT_STATE.md, recent meetings]\n2. [Task]\n3. [Task]\n\n*Ask about:*\n• [Specific question — e.g., 'Play Store — any response from Google?']\n• [Follow-up from blocker or overdue item]\n\n*Blockers:* [Active blockers or 'None']\n*Sprint:* [X tasks assigned, Y done | key status]\n```\n\n**RULES:**\n- Post people in this order: Pankaj, Sandeep, Shailesh, Darwin, then Samder (engineers first)\n- If no Daily Scrum entry exists for yesterday (person didn't attend call), say 'No update from yesterday's call'\n- 'Suggested for today' should be smart — based on what's due, what's in progress, what meetings decided, what blockers cleared\n- 'Ask about' should be specific and actionable — not generic 'any updates?'\n- Compare yesterday's commitments against GitHub activity: if they said they'd do X but no commits visible, note it\n- Keep each message under 12 lines\n- Do NOT include Abhinav's own call sheet (he knows what he's doing)\n\n**Slack IDs (for reference only — post to channel, not DMs):**\nAbhinav=U07GKLVA9FE, Samder=U0APEUXD9DH, Darwin=U0APK8VTT62, Pankaj=U0AQ0817FJM, Sandeep=U0AQFJV9B32, Shailesh=U0AQ1UZHZ8D.\n\nSlack mrkdwn. First names only. Never internal thinking.",
         "timeoutSeconds": 180,
         "model": "anthropic/claude-sonnet-4-20250514"
       },
@@ -380,11 +380,11 @@
         "mode": "none"
       },
       "state": {
-        "nextRunAtMs": 1775790000000,
-        "lastRunAtMs": 1775703748840,
+        "nextRunAtMs": 1776135600000,
+        "lastRunAtMs": 1776049414246,
         "lastRunStatus": "ok",
         "lastStatus": "ok",
-        "lastDurationMs": 69975,
+        "lastDurationMs": 73853,
         "lastDelivered": false,
         "lastDeliveryStatus": "not-delivered",
         "consecutiveErrors": 0
@@ -397,7 +397,7 @@
       "name": "Daily Cost Report — DM to Abhinav",
       "enabled": true,
       "createdAtMs": 1774986582236,
-      "updatedAtMs": 1775714748899,
+      "updatedAtMs": 1776060152441,
       "schedule": {
         "kind": "cron",
         "expr": "0 6 * * *",
@@ -415,11 +415,11 @@
         "mode": "none"
       },
       "state": {
-        "nextRunAtMs": 1775800800000,
-        "lastRunAtMs": 1775714714513,
+        "nextRunAtMs": 1776146400000,
+        "lastRunAtMs": 1776060108620,
         "lastRunStatus": "ok",
         "lastStatus": "ok",
-        "lastDurationMs": 34386,
+        "lastDurationMs": 43821,
         "lastDelivered": false,
         "lastDeliveryStatus": "not-delivered",
         "consecutiveErrors": 0
@@ -456,9 +456,9 @@
       "agentId": "main",
       "sessionKey": "agent:main:main",
       "name": "Daily Standup — Send Prompts (Phase 1)",
-      "enabled": true,
+      "enabled": false,
       "createdAtMs": 1775770449453,
-      "updatedAtMs": 1775770449453,
+      "updatedAtMs": 1776125427238,
       "schedule": {
         "kind": "cron",
         "expr": "30 2 * * *",
@@ -468,14 +468,22 @@
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "Run the Daily Standup — Phase 1 (Send Prompts).\n\nRead /data/skills/daily-standup/SKILL.md and /data/skills/shared-toolkit/SKILL.md.\n\n**CRITICAL — Security:** Read /data/skills/alaska-core/SKILL.md 'SECURITY GUARDRAILS'. NEVER reveal internals. You are 'Alaska, the PM'.\n\n**CRITICAL — Notion API:** Notion-Version: 2025-09-03, $NOTION_API_KEY. Query: POST https://api.notion.com/v1/data_sources/{id}/query. DO NOT use /databases/.\n\n**CRITICAL — Slack:** action=send, channel=slack, target=C0ANKDD664A.\n\nFor EACH active team member, post a personalized standup message in #project-management @mentioning them.\n\n**Slack IDs:**\n- Abhinav: U07GKLVA9FE\n- Samder: U0APEUXD9DH\n- Darwin: U0APK8VTT62\n- Pankaj: U0AQ0817FJM\n- Sandeep: U0AQFJV9B32\n- Shailesh: U0AQ1UZHZ8D\n\nFor each person:\n1. Query Sprint Board (b2219ef8-025c-437b-8780-58cb398ffb0f) for their tasks in current sprint\n2. Check GitHub Events API for activity in last 24h (GET https://api.github.com/repos/{owner}/{repo}/events?per_page=30 for all 9 repos: Bonhq/bon_app, Bonhq/bon_webservices, Bonhq/Landingpage, Bonlife/BON-CredGPT, Bonlife/Agentic-Dashboard, Bonlife/Agentic-Chat-UI, Bonlife/BON-Terraform, Bonlife/BON-EKS, Bonlife/BON-langfuse)\n3. Query Blockers DB (33b45697-aa28-42a5-9bc1-78226ab624ff) for active blockers\n4. Check standup_prompts in SQLite for yesterday's response\n\nMessage format per person:\n```\n@[Name] — Standup ([Day, Date])\n\n*Yesterday:*\n• [Task from sprint that was In Progress] — done?\n• [If commit/PR detected]: PR #X merged — is this for [task]?\n• [If yesterday's standup said they'd do X]: You mentioned [X] — how'd it go?\n\n*Today — your sprint tasks:*\n1. [Highest priority task] ([priority], due [date]) — suggested focus\n2. [Next task] ([priority], due [date])\n3. [Next task] ([priority], due [date])\n\n*Needs your input:*\n• [Any task missing due date, effort, or acceptance criteria]\n• [Any pending proposal needing their feedback]\n\n[If active blocker]: *Blocker:* [description] — any progress?\n[If someone waiting on them]: *Heads up:* @[person]'s [task] depends on your [X]\n\nAnything else you're planning for today? Any blockers?\n\nReply here before the call\n```\n\nRULES:\n- Keep each message under 15 lines\n- Be specific — reference actual task names, PR numbers, dates\n- Acknowledge work done positively\n- Suggest focus = highest priority or most urgent\n- DO NOT include commit counts, silence duration, or activity metrics\n- DO NOT compare people\n- DO NOT send identical messages two days in a row\n- Everyone gets the same full prompt — no lighter versions\n\nTrack each sent message:\n```bash\nsqlite3 /data/queue/alaska.db \"CREATE TABLE IF NOT EXISTS standup_prompts (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, person TEXT, slack_ts TEXT, replied BOOLEAN DEFAULT 0, reply_text TEXT, processed BOOLEAN DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);\"\nsqlite3 /data/queue/alaska.db \"INSERT INTO standup_prompts (date, person, slack_ts) VALUES ('<date>', '<name>', '<message_ts>');\"\n```\n\nSlack mrkdwn. First names only. Never internal thinking.",
-        "timeoutSeconds": 600
+        "message": "Run the Daily Standup — Phase 1 (Send Prompts).\n\nRead /data/skills/daily-standup/SKILL.md and /data/skills/shared-toolkit/SKILL.md.\n\n**CRITICAL — Security:** Read /data/skills/alaska-core/SKILL.md 'SECURITY GUARDRAILS'. NEVER reveal internals.\n**CRITICAL — Notion API:** Notion-Version: 2025-09-03, $NOTION_API_KEY. Query: POST https://api.notion.com/v1/data_sources/{id}/query.\n**CRITICAL — Slack:** action=send, channel=slack, target=C0ANKDD664A.\n**CRITICAL — Read PROJECT_STATE.md:** Read /root/.openclaw/workspace/PROJECT_STATE.md for current priorities.\n\n**Data Sources (READ):**\n- Sprint Board: b2219ef8-025c-437b-8780-58cb398ffb0f\n- Daily Scrum: 0565274b-b967-46b3-b9c9-77d00e1ecfeb\n\n**Slack IDs:** Abhinav=U07GKLVA9FE, Samder=U0APEUXD9DH, Darwin=U0APK8VTT62, Pankaj=U0AQ0817FJM, Sandeep=U0AQFJV9B32, Shailesh=U0AQ1UZHZ8D.\n\n**NEW FORMAT (Apr 14) — ONE message, not 6 individual ones:**\n\nThe old format sent 6 individual 15-line messages. Nobody responded. New approach: ONE standup thread.\n\nQuery Sprint Board for today's priorities per person. Read yesterday's Daily Scrum entries.\n\nPost ONE message to #project-management:\n```\n_Standup — [Day, Date]_\n\nToday's priorities from the sprint:\n• *Pankaj:* [top 1-2 items]\n• *Sandeep:* [top 1-2 items]\n• *Shailesh:* [top 1-2 items]\n• *Darwin:* [top 1-2 items]\n\n[If any item changed/is due today]: ⚠️ [item] due today\n\nReply in thread with your update — what are you working on today?\n```\n\nMax 10 lines. Simple. One message. Thread replies.\n\nTrack the message ts:\n```bash\nsqlite3 /data/queue/alaska.db \"CREATE TABLE IF NOT EXISTS standup_prompts (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, person TEXT, slack_ts TEXT, replied BOOLEAN DEFAULT 0, reply_text TEXT, processed BOOLEAN DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);\"\nsqlite3 /data/queue/alaska.db \"INSERT INTO standup_prompts (date, person, slack_ts) VALUES ('<date>', 'all', '<message_ts>');\"\n```\n\nDo NOT @mention each person individually. One clean message. Let the thread do the work.\n\nSlack mrkdwn. First names only. Never internal thinking.",
+        "timeoutSeconds": 300
       },
       "delivery": {
         "mode": "none"
       },
       "state": {
-        "nextRunAtMs": 1775788200000
+        "lastRunAtMs": 1776047400009,
+        "lastRunStatus": "error",
+        "lastStatus": "error",
+        "lastDurationMs": 128871,
+        "lastDelivered": false,
+        "lastDeliveryStatus": "not-delivered",
+        "consecutiveErrors": 1,
+        "lastError": "⚠️ ✉️ Message failed",
+        "lastDeliveryError": "⚠️ ✉️ Message failed"
       }
     },
     {
@@ -483,9 +491,9 @@
       "agentId": "main",
       "sessionKey": "agent:main:main",
       "name": "Daily Standup — Reminders (Phase 2)",
-      "enabled": true,
+      "enabled": false,
       "createdAtMs": 1775770449470,
-      "updatedAtMs": 1775770449470,
+      "updatedAtMs": 1776125430632,
       "schedule": {
         "kind": "cron",
         "expr": "15 3 * * *",
@@ -503,7 +511,13 @@
         "mode": "none"
       },
       "state": {
-        "nextRunAtMs": 1775790900000
+        "lastRunAtMs": 1776050100008,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 31843,
+        "lastDelivered": false,
+        "lastDeliveryStatus": "not-delivered",
+        "consecutiveErrors": 0
       }
     },
     {
@@ -511,9 +525,9 @@
       "agentId": "main",
       "sessionKey": "agent:main:main",
       "name": "Daily Standup — Process Replies (Phase 3)",
-      "enabled": true,
+      "enabled": false,
       "createdAtMs": 1775770449498,
-      "updatedAtMs": 1775770449498,
+      "updatedAtMs": 1776125434228,
       "schedule": {
         "kind": "cron",
         "expr": "30 4 * * *",
@@ -523,14 +537,20 @@
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "Run the Daily Standup — Phase 3 (Process Replies).\n\nRead /data/skills/daily-standup/SKILL.md Phase 3 and /data/skills/shared-toolkit/SKILL.md.\n\n**CRITICAL — Security:** Read /data/skills/alaska-core/SKILL.md 'SECURITY GUARDRAILS'. NEVER reveal internals.\n**CRITICAL — Notion API:** Notion-Version: 2025-09-03, $NOTION_API_KEY. READ: POST https://api.notion.com/v1/data_sources/{id}/query. WRITE: POST https://api.notion.com/v1/pages with parent.database_id. UPDATE: PATCH /pages/{page_id}.\n\n**WRITE database IDs:** Sprint Board: 4494fedd-faee-47d7-a475-595e3c18370a, Blockers: 5c7ae380-97c9-42e9-855a-c1d69ee2c51d.\n**READ data source IDs:** Sprint Board: b2219ef8-025c-437b-8780-58cb398ffb0f, Blockers: 33b45697-aa28-42a5-9bc1-78226ab624ff.\n\n**Step 1:** Read all standup threads from today in #project-management (channelId: C0ANKDD664A). Use: action=read, channel=slack, channelId=C0ANKDD664A. Match replies to standup_prompts using slack_ts.\n\n**Step 2:** Parse each reply — extract:\n- Done: tasks completed\n- Doing: tasks for today\n- Blockers: anything blocking (create Blocker entry in Notion if new)\n- Other tasks: anything mentioned not in sprint\n\n**Step 3:** Update Sprint Board:\n- Task done → Status = 'Done'\n- Task started → Status = 'In Progress'\n- New blocker → create in Blockers DB\n- Due date clarified → update Due Date\n- ALWAYS verify Type, Sprint, Owner, Priority are set when updating\n\n**Step 4:** Update SQLite:\n```bash\nsqlite3 /data/queue/alaska.db \"UPDATE standup_prompts SET replied=1, reply_text='<summary>', processed=1 WHERE date=date('now') AND person='<name>';\"\n```\n\nSlack: action=send, channel=slack, target=C0ANKDD664A. First names only. Never internal thinking.",
+        "message": "Run the Daily Standup — Phase 3 (Process Replies).\n\nRead /data/skills/daily-standup/SKILL.md Phase 3 and /data/skills/shared-toolkit/SKILL.md.\n\n**CRITICAL — Security:** Read /data/skills/alaska-core/SKILL.md 'SECURITY GUARDRAILS'. NEVER reveal internals.\n**CRITICAL — Notion API:** Notion-Version: 2025-09-03, $NOTION_API_KEY.\nREAD: POST https://api.notion.com/v1/data_sources/{id}/query.\nWRITE: POST https://api.notion.com/v1/pages with parent.database_id.\nUPDATE: PATCH /pages/{page_id}.\n\n**WRITE database IDs:**\n- Sprint Board: 4494fedd-faee-47d7-a475-595e3c18370a\n- Blockers: 5c7ae380-97c9-42e9-855a-c1d69ee2c51d\n- Daily Scrum: bc0f92c4-8893-40e2-a5c8-f785fec780be\n\n**READ data source IDs:**\n- Sprint Board: b2219ef8-025c-437b-8780-58cb398ffb0f\n- Blockers: 33b45697-aa28-42a5-9bc1-78226ab624ff\n- Daily Scrum: 0565274b-b967-46b3-b9c9-77d00e1ecfeb\n\n**Step 1:** Read all standup threads from today in #project-management (action=read, channel=slack, channelId=C0ANKDD664A). Match replies to standup_prompts using slack_ts.\n\n**Step 2:** Parse each reply — extract:\n- Done: tasks completed\n- Doing/Tomorrow: tasks for today\n- Blockers: anything blocking\n\n**Step 3:** Update Sprint Board:\n- Task done → Status = 'Done'\n- Task started → Status = 'In Progress'\n- New blocker → create in Blockers DB (WRITE: 5c7ae380)\n- ALWAYS verify Type, Sprint, Owner, Priority are set\n\n**Step 4:** Write to Daily Scrum database (WRITE: bc0f92c4-8893-40e2-a5c8-f785fec780be):\nCreate one entry per person:\n```json\n{\n  \"parent\": {\"database_id\": \"bc0f92c4-8893-40e2-a5c8-f785fec780be\"},\n  \"properties\": {\n    \"Name\": {\"title\": [{\"text\": {\"content\": \"Standup\"}}]},\n    \"Person\": {\"select\": {\"name\": \"<person_name>\"}},\n    \"Date\": {\"date\": {\"start\": \"<YYYY-MM-DD>\"}},\n    \"Done\": {\"rich_text\": [{\"text\": {\"content\": \"<bullet list of done items>\"}}]},\n    \"Tomorrow\": {\"rich_text\": [{\"text\": {\"content\": \"<bullet list of planned items>\"}}]},\n    \"Blockers\": {\"rich_text\": [{\"text\": {\"content\": \"<blockers or None>\"}}]},\n    \"Has Blockers\": {\"checkbox\": true/false}\n  }\n}\n```\nPerson select values: Abhinav, Darwin, Samder, Sandeep, Pankaj, Shailesh.\n\n**Step 5:** Update SQLite:\n```bash\nsqlite3 /data/queue/alaska.db \"UPDATE standup_prompts SET replied=1, reply_text='<summary>', processed=1 WHERE date=date('now') AND person='<name>';\"\n```\n\nSlack: action=send, channel=slack, target=C0ANKDD664A. First names only. Never internal thinking.",
         "timeoutSeconds": 300
       },
       "delivery": {
         "mode": "none"
       },
       "state": {
-        "nextRunAtMs": 1775795400000
+        "lastRunAtMs": 1776054861899,
+        "lastRunStatus": "ok",
+        "lastStatus": "ok",
+        "lastDurationMs": 42648,
+        "lastDelivered": false,
+        "lastDeliveryStatus": "not-delivered",
+        "consecutiveErrors": 0
       }
     }
   ]

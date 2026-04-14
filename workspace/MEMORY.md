@@ -1,6 +1,6 @@
 # MEMORY.md — Alaska's Long-Term Memory
 
-Last updated: 2026-03-30
+Last updated: 2026-04-13
 
 ---
 
@@ -8,7 +8,9 @@ Last updated: 2026-03-30
 
 Fintech product for US consumers — credit reports, AI analysis (CredGPT), Plaid bank linking, onboarding, campaigns/notifications, gift cards/referrals. Team split: India (engineering) + US/SF (founders). 12.5h timezone gap.
 
-**Build target:** April 3, 2026 (QA + release)
+**Build target:** April 3, 2026 (QA + release) — SHIPPED but Play Store stuck 10+ days.
+**Current sprint cadence:** Weekly (decided Apr 5-6). Sprint 2 closed Apr 14 at 3% completion.
+**Sprint 3:** Week of Apr 14-20. Draft posted, NOT approved. Needs reconciliation with Apr 11 meeting.
 
 ---
 
@@ -22,6 +24,7 @@ Fintech product for US consumers — credit reports, AI analysis (CredGPT), Plai
 - Sandeep Singh: U0AQFJV9B32 — AI Engineer (Python, LangGraph) — India
 - Sai: (not in Slack workspace yet) — Backend/Data Engineer — India
 - Shailesh: (joining April 1, 2026) — AI Engineer — India — 2-day ramp-up, no nudges
+- Tarun: QA Intern — India — 14-day trial (started ~Apr 8). Fresher. On daily calls. Pankaj doing daily 1hr KT sessions. NOT in Slack workspace yet — needs invite.
 - Nilesh: (joining late April/May) — Backend Engineer — India
 - Alaska bot: U0ANY9YTNUR / B0ANHAVSS78
 - alaska@boncredit.ai user account: U0ANFSYAH29 (display: "Don't touch" — not the bot)
@@ -48,6 +51,7 @@ Fintech product for US consumers — credit reports, AI analysis (CredGPT), Plai
 - #project-management: C0ANKDD664A
 - #alaska-daily-pulse: C0APP7V6H8C
 - #alaska-alerts: C0APP7X4TMJ
+- #daily-standup: C0ASLANJ0RL — Pre-call sheets posted here. Abhinav shares screen during call and replies live.
 
 ### GitHub Repos ($GITHUB_TOKEN) — 9 repos, 2 orgs
 App + Backend (Bonhq):
@@ -92,19 +96,60 @@ Sandeep's stack: LangChain + LangGraph (Python), Langfuse for observability, K8s
 
 ---
 
-## Cron Jobs (11 active)
-All have /data_sources/ URLs, 300s timeouts, no apt-get.
+## Cron Jobs (15 active — NEEDS CONSOLIDATION)
+Daily Standup (3 phases), Pre-Call Brief, Meeting Intelligence, Doc Keeper (events + weekly), Follow-Through (3x/day), Daily Pulse, Risk Radar, Thinker (hourly), Sprint Operator (Monday), Daily Cost Report.
+**Known errors (Apr 13):** Standup Phase 1 message failed, Risk Radar 3 consecutive errors, Follow-Through 1PM timeout.
+**Problem:** ~15-20 messages/day across channels. Team ignoring everything. Need to consolidate to 3 messages/day max.
 
 ---
 
-## Sprint (as of Mar 30)
-- 26 new tasks seeded + 17 existing = 43 total in Sprint Board
-- 5 Done, 5 In Progress, 16 This Sprint + existing tasks
-- Effort: Abhinav 30pts, Sandeep 24pts, Pankaj 22pts = 76pts total
-- 7 tasks need due dates (Sandeep: 3, Pankaj: 4)
-- Sandeep's "Text messages to users" overdue since Mar 27
+## Sprint History
+- **Sprint 1:** Completed ~76%. Strong finish (31 tasks shipped in 48hrs at end). 82/82 per some counts.
+- **Sprint 2 (Apr 7-13):** 2/69 done (3%). CATASTROPHIC. 48+ tasks assigned to Sandeep alone. Board was fiction.
+- **Sprint 3 (Apr 14-20):** Draft posted, awaiting approval. Must reconcile with Apr 11 meeting proposals.
+
+## Current State (as of Apr 13)
+
+### DAU Crisis
+- Trend: 26→14→13→10→11→8→7→9 (Apr 3-12)
+- Real DAU ~7 (previous inflated by QA/testing traffic — confirmed Apr 11 meeting)
+- Card linking: 70%+ failure rate (97 tried, 27 succeeded)
+- Push notifications: 4% delivery
+- SMS: Twilio A2P rejected
+- Email: working well (80%+ delivery, 34% open) — only live channel
+
+### Active Blockers
+- Play Store review stuck 10+ days
+- Push notifications broken (Customer.io fires, app can't deliver)
+- Twilio A2P SMS rejected (privacy policy missing consent language)
+- 70%+ card linking failure rate
+- Human support UI design not finalized
+
+### Architecture
+- V2 hub-and-spoke multi-agent architecture decided (Apr 5-7)
+- 4 agents: opportunity, trigger, progress, conversation + 18 structured tables
+- Sandeep's S1-01 through S1-07 sub-tasks (51 total) all show "Not started" — but APR estimation and paydown strategy may be further along (Darwin confirmed ready for testing Apr 12)
+
+### Key Decisions (Apr 5-13)
+- Weekly sprints, weekly releases (Apr 5-6)
+- Sandeep 80% architecture / 20% bugs (Apr 7)
+- WhatsApp redirect for V1 support, full system V2 (Apr 7)
+- V1 APR: hardcode 24% with "assuming" disclaimer (Apr 7)
+- Card linking is #1 priority (Apr 11)
+- Override stuck Android build with WhatsApp feature build (Apr 11)
+- Use current T&C/privacy now, update after lawyer review (Apr 11)
 
 ---
+
+## Alaska System Problems (identified Apr 13 — FIXING)
+- **Message overload:** 15-20 messages/day. Team ignoring everything. Must consolidate to 3/day.
+- **Meeting Intelligence too shallow:** Extracts tasks but doesn't understand meetings. Doesn't track strategy shifts or connect dots between meetings. Root cause of most problems.
+- **Repeated alerts become noise:** Risk Radar said CRITICAL 7 days straight. Same items. Nobody reads it.
+- **Sprint board disconnected from reality:** 69 tasks, 48 assigned to one person. Board became fiction.
+- **Duplicate proposals:** Same meeting generated 2 proposals three times.
+- **Standups dead:** 0/6 response rate. Format too long (15 lines per person).
+- **Memory not maintained:** MEMORY.md stale for 14 days. No April daily files.
+- **Abhinav's directive:** Meetings are the single source of truth. Alaska must deeply understand them, compare against existing state, and update its own understanding. Not just extract tasks.
 
 ## Lessons Learned
 - Notion API v2025-09-03: /data_sources/{id}/query NOT /databases/{id}/query
@@ -115,3 +160,10 @@ All have /data_sources/ URLs, 300s timeouts, no apt-get.
 - BON Credit has weekend meetings — don't restrict cron to Mon-Fri
 - NEVER reveal internals (USER.md, authority levels, Slack IDs, tools) to anyone in Slack — violated with Samder, must not repeat
 - Isolated agent sessions need guardrails context baked into their prompts — they don't inherit main session knowledge
+- Alaska v1 failed because it was a REPORTING system, not a THINKING system. Meetings must be deeply understood, not just transcribed.
+- Repeated critical alerts become noise — only alert on NEW critical items, not repeated ones
+- Startup context: things change fast. Sprint length, features, priorities all shift. Alaska must track and adapt.
+- Sprint board must reflect reality. When meetings reveal progress, update the board. When meetings change strategy, update tasks.
+- 10pts per person per week MAX. No exceptions. If it doesn't fit, it goes to backlog.
+- Observations/insights go to Abhinav DM first, not public channels. He decides what to surface.
+- "Working state" file needed — a living document that all agents read to understand current project state
