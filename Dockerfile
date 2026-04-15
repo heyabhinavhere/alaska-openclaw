@@ -3,7 +3,7 @@
 # Pinned version — no surprise auto-updates
 
 # 1panel/openclaw mirrors the official OpenClaw with confirmed version tags on Docker Hub
-FROM 1panel/openclaw:2026.3.13
+FROM 1panel/openclaw:2026.4.14
 
 USER root
 
