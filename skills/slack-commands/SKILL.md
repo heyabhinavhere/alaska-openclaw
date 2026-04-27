@@ -130,14 +130,37 @@ Here's what you can ask me:
 Or just ask me anything about the project — I'll pull from Notion, Fireflies, and sprint data to answer.
 ```
 
+## Analytics & Campaign Queries
+
+**Metric questions** — read `/data/skills/amplitude-analyst/SKILL.md` and query Amplitude:
+- "what's DAU?" / "show me retention" / "conversion funnel" / "who are our power users?"
+- "compare this week vs last week" / "what happened to DAU on [date]?"
+- "distribution of credit scores" / "user property breakdown"
+
+**Campaign questions** — read `/data/skills/customerio-ops/SKILL.md` and query Customer.io:
+- "list active campaigns" / "what's push delivery rate?" / "campaign metrics for [name]"
+- "pause [campaign]" / "resume [campaign]"
+- "create a push campaign for [segment]" → drafts for Abhinav approval
+- "what messages did user [X] receive?"
+
+**User lookup** — queries BOTH Amplitude + Customer.io:
+- "tell me about user [X]" → Amplitude events + CIO messages + Notion context in one answer
+- Uses the same user_id across both systems
+
+**Cross-system questions:**
+- "did users who got [campaign] open the app?" → CIO recipients + Amplitude app_opens
+- "is the push fix working?" → CIO delivery rate + Amplitude push-attributed events
+
 ## General Questions
 
 For anything not matching a specific command, use your judgment:
 1. Search relevant Notion databases
 2. Check recent meeting notes
 3. Check Fireflies transcripts if relevant
-4. Respond with data, not guesses
-5. If you don't know: "I don't have data on that. Want me to check [specific source]?"
+4. **Query Amplitude** for metric questions (read amplitude-analyst skill)
+5. **Query Customer.io** for campaign/messaging questions (read customerio-ops skill)
+6. Respond with data, not guesses
+7. If you don't know: "I don't have data on that. Want me to check [specific source]?"
 
 Follow the Communication Standards in the shared toolkit. Additionally:
 - Always respond within the same channel/thread you were asked in

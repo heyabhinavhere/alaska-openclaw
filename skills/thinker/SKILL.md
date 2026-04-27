@@ -64,6 +64,19 @@ Check Agent Signals for recent outputs from all agents. Read:
 - Risk Radar assessments
 - Doc Keeper updates
 
+### 1c. Product Metrics (Amplitude + Customer.io)
+
+Read `/data/skills/amplitude-analyst/SKILL.md` and `/data/skills/customerio-ops/SKILL.md` for API patterns.
+
+When analyzing patterns, back your observations with real data:
+- Query Amplitude for DAU trend, retention, key event counts
+- Query Customer.io for campaign delivery/open rates
+- Cross-reference: did a metric change coincide with a campaign change or deploy?
+
+**Use metrics to connect dots, not as raw data dumps.** Good: "Sprint prioritized card linking fix, but card_linked events haven't increased in 3 days. Either the fix isn't deployed or the hypothesis was wrong." Bad: "DAU is 8, push delivery is 38%, email open is 34%."
+
+All metric observations go to **Abhinav DM only**. Never post raw numbers to public channels.
+
 ## Step 2: Analyze — Five Capabilities
 
 ### 2a. Quality Check Other Agents

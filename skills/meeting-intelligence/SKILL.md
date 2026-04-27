@@ -96,6 +96,13 @@ Read the full transcript and build an internal understanding. Answer these quest
 - Cross-reference with the pre-call sheets in #daily-standup (read Abhinav's replies to each person's sheet)
 - Extract Done/Doing/Blockers per person for the Daily Scrum Notion database
 
+**Metric verification (if Amplitude/Customer.io configured):**
+Read `/data/skills/amplitude-analyst/SKILL.md` and `/data/skills/customerio-ops/SKILL.md` for API patterns.
+- If the meeting discusses a metric ("DAU is recovering"), verify against Amplitude: query the actual DAU and confirm or correct
+- If the meeting discusses campaign performance ("push is working better"), check Customer.io delivery metrics
+- Include verified metrics in PROJECT_STATE.md updates: "Meeting said DAU recovering. Amplitude confirms: 7→9→12 (Apr 24-27)."
+- If a deploy/release is mentioned, signal Thinker via Agent Signals for deploy→metric impact analysis
+
 **Implicit signals:**
 - What should have been discussed but wasn't?
 - Are there contradictions between what people said and what data shows?

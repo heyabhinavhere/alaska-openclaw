@@ -56,13 +56,22 @@ Read all active blockers (Status: "Active"). Include:
 - Who owns the resolution
 - How long it's been active (days since Raised Date)
 
-### 1d. Amplitude Metrics (if configured)
-If Amplitude access is available:
-- DAU (Daily Active Users) with trend (up/down/flat vs yesterday)
-- Activation rate
-- D7 retention
+### 1d. Product Metrics (Amplitude + Customer.io)
 
-No access? Skip — don't show placeholder metrics.
+Read `/data/skills/amplitude-analyst/SKILL.md` and `/data/skills/customerio-ops/SKILL.md` for API patterns.
+
+**Amplitude** (if `$AMPLITUDE_API_KEY` is set):
+- DAU for the last 7 days with WoW trend
+- Query: `GET /api/2/events/segmentation` with `_active` event, last 7 days
+- Auth: `curl -u "$AMPLITUDE_API_KEY:$AMPLITUDE_SECRET_KEY"`
+
+**Customer.io** (if `$CUSTOMERIO_APP_API_KEY` is set):
+- Push delivery rate (across all active push campaigns)
+- Email open rate (across all active email campaigns)
+- Flag any campaign with delivery <50% or open rate <10%
+- Query: `GET /v1/campaigns` then `GET /v1/campaigns/{id}/metrics` for each active campaign
+
+**If either API is unavailable:** Skip that section silently. Never show placeholder or estimated metrics. Never fail the entire pulse because one API is down.
 
 ## Step 2: Detect Anomalies
 
@@ -105,7 +114,9 @@ Use Slack mrkdwn formatting. First names only. Keep each line to one task.
 
 [If Amplitude available]
 *Metrics*
-• DAU: [n] ([trend]) | Activation: [%]
+• DAU: [n] ([WoW trend, e.g. +14% WoW])
+• Push delivery: [n]% | Email open: [n]%
+[If any campaign unhealthy]: • *Alert:* [campaign] — [issue]
 
 [If anomalies detected]
 *Flags*
