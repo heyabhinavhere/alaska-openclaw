@@ -56,21 +56,20 @@ echo "[alaska] Skills synced from git to /data/skills/"
 # These define Alaska's personality, identity, and memory
 # Only copy if workspace doesn't already have them (preserve runtime edits)
 WORKSPACE_DIR="/root/.openclaw/workspace"
-mkdir -p "$WORKSPACE_DIR/memory"
 if [ -d /opt/default-workspace ]; then
-  for f in /opt/default-workspace/*; do
-    fname=$(basename "$f")
-    # Skip directories (memory/ handled separately below)
-    [ -d "$f" ] && continue
-    if [ ! -f "$WORKSPACE_DIR/$fname" ]; then
-      cp "$f" "$WORKSPACE_DIR/$fname"
-      echo "[alaska] Workspace: initialized $fname from git"
+  # Copy all files and directories from git, preserving structure
+  # Only copy files that don't already exist (preserve runtime edits)
+  cd /opt/default-workspace
+  find . -type d | while read dir; do
+    mkdir -p "$WORKSPACE_DIR/$dir"
+  done
+  find . -type f | while read file; do
+    if [ ! -f "$WORKSPACE_DIR/$file" ]; then
+      cp "$file" "$WORKSPACE_DIR/$file"
+      echo "[alaska] Workspace: initialized $file from git"
     fi
   done
-  # Sync memory/ directory (copy only files that don't exist yet)
-  if [ -d /opt/default-workspace/memory ]; then
-    cp -n /opt/default-workspace/memory/* "$WORKSPACE_DIR/memory/" 2>/dev/null || true
-  fi
+  cd /
   echo "[alaska] Workspace files ready at $WORKSPACE_DIR"
 fi
 
