@@ -1,5 +1,5 @@
 # HEARTBEAT.md
 
-# Keep this file empty (or with only comments) to skip heartbeat API calls.
+# Reminders — check date and fire if due
 
-# Add tasks below when you want the agent to check something periodically.
+- **After June 10, 2026:** Remind Sandeep (U0AQFJV9B32) in #agentic-ai about building the human-in-the-loop API for the remaining 3%. New API needed, post-V2 launch.
