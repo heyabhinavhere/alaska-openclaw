@@ -45,8 +45,8 @@ From calendar event or manual request, extract:
 Pull relevant data based on attendees and meeting type:
 
 ### For Team Calls (Abhinav, Darwin, Samder, Sandeep, Pankaj, Sai)
-- Sprint Board: current sprint status, per-person task progress
-- Blockers: active blockers relevant to attendees
+- `DAILY_STATE.md`: current sprint status, per-person commitments and progress
+- Blockers (Notion DB + DAILY_STATE.md `Active Blockers`): active blockers relevant to attendees
 - Decision Log: pending decisions that need resolution
 - Previous Meeting Notes: unresolved items from last team call
 - Follow-Through data: overdue tasks for attendees
@@ -131,7 +131,7 @@ If two meetings are within 30 minutes of each other:
 - Brief for the first meeting, then add: "Also coming up: [second meeting] at [time]. Key context: [1-2 lines]"
 
 ### No Relevant Data
-If a meeting has no relevant Sprint Board, Blocker, or Decision Log data:
+If a meeting has no relevant DAILY_STATE.md, Blocker, or Decision Log data:
 - Still brief with what you know: "Light agenda — no active blockers or decisions pending for this group. Might be a good time to discuss [suggestion based on memory/context]."
 
 ### Recurring Meetings

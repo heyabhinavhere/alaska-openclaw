@@ -64,11 +64,54 @@ Before ANY Notion write, verify:
    - Meeting Type: `standup` / `planning` / `review` / `ad-hoc`
    - Backlog Status: `New` / `Triaged` / `Ready for Sprint` / `Deferred`
 
-2. **Required fields are populated.** Never leave Owner empty on Sprint Board. Never leave Due Date empty. If missing, flag as `[NEEDS OWNER]` or `[NEEDS DUE DATE]` and ask the team.
+2. **Required fields are populated.** Never leave Due Date empty. If missing, flag as `[NEEDS DUE DATE]` and ask the team. (Owner field is paused as of 2026-05-23 — see "Owner field — paused" below.)
 
 3. **All data was explicitly stated, not inferred.** If you're unsure whether something was said or decided, flag as `[NEEDS CLARIFICATION]` and ask. Never invent details.
 
-4. **Page/database IDs are real.** Never fabricate Notion IDs.
+4. **Page/database IDs are real.** Never fabricate Notion IDs. See `/root/.openclaw/workspace/MEMORY.md` → Notion Data Sources for the canonical ID list.
+
+### Notion API headers — get these right
+
+- **Reads (data source queries):** `Notion-Version: 2025-09-03`, endpoint `POST /v1/data_sources/{data_source_id}/query`. The older `/databases/{id}/query` endpoint is deprecated.
+- **Writes (page create/update):** `Notion-Version: 2022-06-28`, endpoints `POST /v1/pages` and `PATCH /v1/pages/{page_id}`. The newer 2025-09-03 version does NOT accept all the field-write shapes we use.
+
+Wrong header → silent write failure. Symptom: API returns 200 but the field doesn't appear when you read the page back.
+
+### Notion Write Contract — exact JSON shapes
+
+These are the property-value shapes you MUST use when writing. Per-property type comes from the database schema; use the type below for each property.
+
+```
+Status (select):       {"select": {"name": "Done"}}
+Priority (select):     {"select": {"name": "P0 Critical"}}
+Effort (select):       {"select": {"name": "L"}}
+Source (select):       {"select": {"name": "meeting"}}
+Owner (people):        {"people": [{"id": "<notion_user_uuid>"}]}
+Due Date (date):       {"date": {"start": "2026-05-23"}}
+Multi-select tag:      {"multi_select": [{"name": "AI"}, {"name": "Backend"}]}
+Number:                {"number": 5}
+Checkbox:              {"checkbox": true}
+Rich text:             {"rich_text": [{"text": {"content": "Some text"}}]}
+Title:                 {"title": [{"text": {"content": "Page title"}}]}
+URL:                   {"url": "https://example.com"}
+Relation:              {"relation": [{"id": "<other_page_id>"}]}
+Email:                 {"email": "person@example.com"}
+Phone:                 {"phone_number": "+1234567890"}
+```
+
+**Common mistakes (these all fail silently with the wrong API version or wrong shape):**
+- Writing Status as `{"status": {"name": "Done"}}` — wrong. The Status field in our schema is a `select` type, not the new Notion `status` type. Use `{"select": {"name": "..."}}`.
+- Writing Owner as `{"rich_text": [{"text": {"content": "Pankaj"}}]}` — wrong. Owner is a `people` field requiring `{"people": [{"id": "<uuid>"}]}`.
+- Using `Notion-Version: 2025-09-03` on a `POST /v1/pages` write — some shapes will be rejected.
+
+### Owner field — PAUSED as of 2026-05-23
+
+The Owner (people) field on Sprint Board / future task DBs requires a Notion User ID. The team is being invited to the Notion workspace as part of v2.2 stabilization; IDs are pending.
+
+Until IDs are populated in `MEMORY.md` → Team Roster:
+- **Do NOT attempt to set Owner.**
+- Write the first name into the Notes / description / rich-text field instead, prefixed with `Owner: `.
+- This will be migrated to the proper `people` field once IDs are captured.
 
 ---
 
@@ -381,7 +424,7 @@ Every agent must verify data before writing or posting. This is the final gate b
 ### Before Writing to Notion
 - [ ] All extracted data was **explicitly stated** (not inferred from context)
 - [ ] Select field values match existing options **exactly** (see Section 1)
-- [ ] Required fields are populated (Owner, Due Date on Sprint Board)
+- [ ] Required fields are populated (Due Date on any task entry; Owner is paused per v2.2 — see "Owner field — paused" above)
 - [ ] No duplicate entries — check for existing similar entries first
 - [ ] Page/database IDs are real, not fabricated
 
@@ -396,7 +439,7 @@ Every agent must verify data before writing or posting. This is the final gate b
 - [ ] Due date was stated OR flagged as `[NEEDS DUE DATE]`
 - [ ] Effort estimate has reasoning (not just guessed)
 - [ ] Task is actionable and specific (not vague like "finalize the flow")
-- [ ] No duplicate of an existing Sprint Board task
+- [ ] No duplicate of an existing item in DAILY_STATE.md per-person sections or recent Meeting Notes
 
 ### Before Logging Decisions
 - [ ] Decision was explicitly made ("Let's go with X"), not just discussed

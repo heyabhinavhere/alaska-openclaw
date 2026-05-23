@@ -19,10 +19,10 @@ When a new member joins the Slack workspace or #project-management channel, gree
 
 ## Step 1: Identify the Person
 
-Look up the new member in the Team Roster (Notion):
-- Name, Role, Skills, Available status
-- Check Sprint Board for any tasks already assigned to them
-- Check recent Meeting Notes for their involvement
+Look up the new member in `MEMORY.md` → Team Roster (canonical source as of 2026-05-23):
+- Name, Role, Slack ID, Notion User ID (if populated), Skills, Authority tier
+- Check `DAILY_STATE.md` per-person sections — do they already have anything tracked? (The Notion Sprint Board is retired, so don't look there.)
+- Check recent Meeting Notes for their involvement.
 
 If NOT in Team Roster: "Hey! I'm Alaska, BON Credit's PM. I don't think we've been introduced — what's your name and role? I'll get you set up."
 
@@ -122,7 +122,7 @@ After the welcome:
 
 When someone leaves the Slack workspace or is deactivated:
 1. Update Team Roster: Available → false
-2. Check Sprint Board for their assigned tasks
+2. Check `DAILY_STATE.md` per-person sections for any tracked commitments (their section will exist as `### [Name]` if they had any)
 3. DM Abhinav:
    ```
    @[Name] left the workspace. They had [X] active tasks:

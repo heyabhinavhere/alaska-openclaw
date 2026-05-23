@@ -1,9 +1,10 @@
 ---
 name: whatsapp-send
-description: Send WhatsApp messages via Meta Cloud API — backup channel for urgent DMs
+description: DEPRECATED (2026-05-23). Was the WhatsApp Meta Cloud API backup channel for urgent DMs. Slack has been rock-solid; this path hasn't fired in months. Kept for reference, not maintained. Token (90-day Meta test) is likely expired.
 version: 1.0.0
 metadata:
   openclaw:
+    deprecated: true
     requires:
       env: [WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID]
       bins: [curl, sqlite3]
@@ -11,9 +12,11 @@ metadata:
     emoji: "📱"
 ---
 
-# WhatsApp Send (Backup Channel)
+# WhatsApp Send (DEPRECATED — Backup Channel)
 
-Slack is the primary channel. Use WhatsApp only for urgent DMs that need immediate attention.
+> **Status as of 2026-05-23:** Deprecated. Slack is the only path that matters now. This skill is retained for reference but not actively maintained. The 90-day Meta test-number token is likely expired. Do not invoke unless Abhinav explicitly asks you to.
+
+Slack is the primary channel. Use WhatsApp only for urgent DMs that need immediate attention — but per the deprecation note above, this path isn't reliable. Prefer Slack DM.
 
 ## When to Use WhatsApp
 

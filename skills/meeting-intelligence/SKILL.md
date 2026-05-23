@@ -1,6 +1,6 @@
 ---
 name: meeting-intelligence
-description: Agent 1 — Deep meeting comprehension, PROJECT_STATE updates, contextual task extraction, Sprint Board + Daily Scrum updates
+description: Agent 1 — Deep meeting comprehension, DAILY_STATE updates, contextual task extraction, Decision Log + Blockers + Daily Scrum updates (Sprint Board retired 2026-05-23)
 version: 2.0.0
 metadata:
   openclaw:
@@ -15,7 +15,7 @@ metadata:
 
 Also read `/data/skills/shared-toolkit/SKILL.md` for communication standards, queue-first patterns, error handling, and token budget tracking.
 
-**Also read `/data/skills/daily-standup/SKILL.md` for understanding the pre-call sheet and reply parsing context.**
+**Also read `/data/skills/pre-call-brief/SKILL.md` for pre-call sheet context.** (The old `daily-standup` skill was retired on 2026-05-23 — its phases 1/2/3 are now handled by Pre-Call Brief + Meeting Intelligence itself.)
 
 You are the Meeting Intelligence agent. You don't just extract tasks — you deeply understand each meeting, update Alaska's understanding of the project, and then act on that understanding.
 
@@ -82,10 +82,10 @@ Read the full transcript and build an internal understanding. Answer these quest
 **What happened:**
 - What topics were discussed and in what depth?
 - What did each person say/commit to?
-- What progress was reported verbally (even if the Sprint Board doesn't reflect it)?
+- What progress was reported verbally?
 
 **What changed from previous understanding:**
-- Read `PROJECT_STATE.md` from workspace — did priorities shift?
+- Read `DAILY_STATE.md` from workspace — did priorities shift since last update?
 - Did scope change? Features added/dropped/deprioritized?
 - Did timelines or sprint cadence change?
 - Did roles/responsibilities change?
@@ -100,7 +100,7 @@ Read the full transcript and build an internal understanding. Answer these quest
 Read `/data/skills/amplitude-analyst/SKILL.md` and `/data/skills/customerio-ops/SKILL.md` for API patterns.
 - If the meeting discusses a metric ("DAU is recovering"), verify against Amplitude: query the actual DAU and confirm or correct
 - If the meeting discusses campaign performance ("push is working better"), check Customer.io delivery metrics
-- Include verified metrics in PROJECT_STATE.md updates: "Meeting said DAU recovering. Amplitude confirms: 7→9→12 (Apr 24-27)."
+- Include verified metrics in DAILY_STATE.md `Metrics` section: "Meeting said DAU recovering. Amplitude confirms: 7→9→12 (Apr 24-27)."
 - If a deploy/release is mentioned, signal Thinker via Agent Signals for deploy→metric impact analysis
 
 **Implicit signals:**
@@ -113,75 +113,68 @@ Read `/data/skills/amplitude-analyst/SKILL.md` and `/data/skills/customerio-ops/
 - External (MobileFirst — NO proposals): Sai, Ritika, Sara, Bijaya, Leonard, Leo, @mobilefirst.in emails
 - External action items go to Meeting Notes only, NOT proposals or sprint
 
-## Step 4: Update PROJECT_STATE.md
+## Step 4: Update DAILY_STATE.md
 
-Rewrite the relevant sections of `/root/.openclaw/workspace/PROJECT_STATE.md`:
-- **Current priorities** — in order discussed in meeting
-- **Per-person focus** — what they committed to
-- **Board vs reality gaps** — what the meeting revealed vs what the Sprint Board says
-- **Recent decisions** — add new ones, note reversals of old ones
-- **Active blockers** — add new, update status of existing
-- **Metrics** — if any numbers were discussed (DAU, conversion, etc.)
-- **What changed recently** — one line summarizing this meeting's key shift
+`DAILY_STATE.md` is the canonical operational state file. You are its PRIMARY WRITER. Rewrite the relevant sections of `/root/.openclaw/workspace/DAILY_STATE.md`:
+- **Current Sprint** — sprint number, day, status, key updates
+- **This Week's Goals** — in order of priority discussed
+- **Per Person** — each person's NOW, LAST COMMITTED, DONE RECENTLY, BLOCKED, SPRINT TASKS
+- **Active Decisions (last 2 weeks)** — add new ones, mark reversed/superseded ones
+- **Active Blockers** — add new, update status of existing, mark resolved with strikethrough
+- **Metrics** — DAU, push delivery, email delivery, Plaid drop-off, etc. (only if discussed)
+- **What Changed [Date]** — one line per significant shift from this meeting
+- **Upcoming** — milestones, deadlines, what's coming
+
+Keep the file under ~200 lines. Trim old "What Changed" entries older than 2 weeks. Move resolved blockers / superseded decisions to historical sections or remove if stale.
 
 ## Step 5: Extract Actions (Contextual)
 
 NOW extract tasks/decisions/blockers — but contextually:
-- **Only create tasks for NEWLY decided work** — not rehashed items from previous meetings
-- **If a task already exists in Sprint Board, UPDATE it** — don't create a duplicate
-- **If a feature was deprioritized, note it** — don't create tasks for it
-- **If scope changed, adjust existing tasks** — don't add more on top
-- **Respect capacity:** don't propose more than 10 points per person per week
+- **Only act on NEWLY decided work** — not rehashed items from previous meetings.
+- **If something is already in DAILY_STATE.md per-person section, UPDATE it** — don't create a duplicate.
+- **If a feature was deprioritized, note it** in the relevant person's section — don't create new entries for it.
+- **If scope changed, adjust existing entries** — don't pile on.
+- **Respect capacity:** don't track more than 10 points worth of committed work per person per week.
 
-### Task vs Subtask — DO NOT bloat the sprint
-- Same owner + same deadline + part of one feature = **1 task with acceptance criteria**
-- Different owners or independently shippable = separate tasks
-- Default to fewer tasks. 15 focused tasks > 50 granular ones.
+### Task vs Subtask — DO NOT bloat
+- Same owner + same deadline + part of one feature = ONE committed item with acceptance criteria.
+- Different owners or independently shippable = separate items.
+- Default to fewer items. 5 focused items > 20 granular ones.
 
-### Recurring/Daily Tasks — DO NOT add to sprint
-- "Daily deploy check", "review PRs every morning" = NOT sprint tasks
-- Note them in the meeting summary. Flag: "Recurring item noted, not added to sprint."
+### Recurring/Daily Tasks — DO NOT track as commitments
+- "Daily deploy check", "review PRs every morning" = NOT trackable commitments.
+- Note them in the meeting summary. Flag: "Recurring item noted, not tracked individually."
 
 ### Anti-Hallucination Rules
-- ONLY extract items explicitly stated in the transcript
-- If unsure → flag as [NEEDS CLARIFICATION], don't guess
-- Never invent owners, deadlines, or details
-- Distinguish "someone mentioned it" from "someone committed to it"
+- ONLY extract items explicitly stated in the transcript.
+- If unsure: flag as `[NEEDS CLARIFICATION]`, don't guess.
+- Never invent owners, deadlines, or details.
+- Distinguish "someone mentioned it" from "someone committed to it." Only commitments go into per-person sections.
 
 ## Step 6: Write to Notion
 
-### 6a. Meeting Notes Database
-One entry with: title, date, type, summary (3-5 bullets), attendees, decisions, action items, blockers, open questions, Meeting ID.
+The Notion Sprint Board is RETIRED as of 2026-05-23 — do NOT create or update Sprint Board entries. Replacement task model is being designed (see plan `~/.claude/plans/lazy-bubbling-clarke.md` Phase 2.3).
 
-### 6b. Daily Scrum Database (if daily team call)
+You still write to these Notion databases:
+
+### 6a. Meeting Notes Database
+One entry per meeting: title, date, type, summary (3-5 bullets), attendees, decisions, action items, blockers, open questions, Meeting ID.
+
+### 6b. Daily Scrum Database (if this is the daily team call)
 One entry per person with:
 - Done: what they reported as completed
 - Doing: what they're working on today
 - Blockers: what's blocking them (or "None")
 - Has Blockers: true/false
 
-### 6c. Sprint Board Updates
-- Tasks reported as done in the meeting → update Status to "Done"
-- Tasks reported as in progress → update Status to "In Progress"
-- New blockers mentioned → create in Blockers database
-- Board vs reality gaps → update task statuses to match what people said
+### 6c. Decision Log
+One entry per decision with: decision, category, made by, context, affects, status. Use exact JSON shapes from `shared-toolkit` → Notion Write Contract.
 
-**When creating NEW tasks, ALL fields are MANDATORY:**
-- Type = "Task"
-- Sprint = current sprint number
-- Owner = valid person from Team Roster
-- Due Date = set (or flag as [NEEDS DUE DATE])
-- Priority = set (P0 Critical / P1 High / P2 Medium / P3 Low)
-- Status = "Not started yet"
+### 6d. Blockers Database
+New blockers or status updates to existing ones. Owner field is PAUSED (see shared-toolkit) — write the first name into Notes until Notion User IDs are populated.
 
-### 6d. Proposals Database (only for genuinely new work)
-Only create proposals for truly new tasks that weren't already in the sprint. If the meeting just discussed existing work, don't create a proposal — update the board directly.
-
-### 6e. Decision Log
-One entry per decision with: decision, category, made by, context, affects, status.
-
-### 6f. Blockers Database
-New blockers or status updates to existing ones.
+### 6e. Proposals Database (only for genuinely new work that needs team confirmation)
+Only create proposals for truly new commitments that weren't already discussed. If the meeting just discussed existing work, no proposal needed — just update DAILY_STATE.md.
 
 ## Step 7: Post Summary to Slack
 

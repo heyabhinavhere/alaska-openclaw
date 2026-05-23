@@ -19,7 +19,7 @@ When team members message Alaska in Slack (DM or channel mention), respond intel
 **Triggers:** "status of [feature]", "where are we on [task]", "update on [thing]"
 
 **Response:**
-1. Search Sprint Board for matching tasks (by name similarity)
+1. Search `DAILY_STATE.md` per-person sections + recent Meeting Notes for matching items (by name similarity). The Notion Sprint Board is retired as of 2026-05-23.
 2. Return:
 ```
 *[Task Name]*
@@ -63,7 +63,7 @@ Effort: [effort] | Due: [date] | Sprint: [N]
 **Triggers:** "sprint status", "how's the sprint?", "sprint health", "sprint progress"
 
 **Response:**
-1. Read Sprint Board for current sprint
+1. Read `DAILY_STATE.md` — `Current Sprint` section + `Per Person` sections.
 2. Calculate:
    - Tasks by status (Done / In Progress / In Review / Not started yet / Backlog)
    - Effort points completed vs planned
@@ -85,9 +85,9 @@ Completion: [%] of tasks, [%] of effort points
 **Triggers:** "my tasks", "what's on my plate", "what should I work on"
 
 **Response:**
-1. Identify who's asking (from Slack user → Team Roster mapping)
-2. Read their Sprint Board tasks
-3. Return prioritized by due date:
+1. Identify who's asking (from Slack user → MEMORY.md Team Roster).
+2. Read their section in `DAILY_STATE.md` (`Per Person` → that person's `NOW`, `LAST COMMITTED`, `BLOCKED`).
+3. Return prioritized by recency and priority:
 ```
 *Your Tasks — Sprint [N]*
 1. [Task] — [priority] — due [date] — [status]

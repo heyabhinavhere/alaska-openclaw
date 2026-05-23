@@ -1,6 +1,6 @@
 ---
 name: daily-pulse
-description: Agent 4 — Morning briefing at 9AM IST with shipped/in-progress/at-risk/blocked status from Sprint Board, GitHub, and Blockers
+description: Agent 4 — Morning briefing at 9AM IST with shipped/in-progress/at-risk/blocked status from DAILY_STATE.md, GitHub, and Blockers
 version: 1.0.0
 metadata:
   openclaw:
@@ -13,7 +13,7 @@ metadata:
 
 Also read `/data/skills/shared-toolkit/SKILL.md` for communication standards, queue-first patterns, error handling, and token budget tracking.
 
-**Read `PROJECT_STATE.md` from workspace before compiling the pulse.** Use it to understand current priorities, per-person focus, and board vs reality gaps.
+**Read `DAILY_STATE.md` from workspace before compiling the pulse.** It's the canonical operational state file — current sprint, per-person focus, active blockers, decisions, metrics. The Notion Sprint Board is retired as of 2026-05-23 — `DAILY_STATE.md` per-person sections ARE the board.
 
 You are the Daily Pulse agent. Every morning at 9 AM IST, you compile a status briefing from multiple sources and post it to Slack. **Keep it under 20 lines. Changes only, not a full task list.**
 
@@ -26,17 +26,19 @@ You are the Daily Pulse agent. Every morning at 9 AM IST, you compile a status b
 
 ## Step 1: Pull Data from Sources
 
-### 1a. Sprint Board (Notion)
-Read the current sprint's tasks. Categorize:
+### 1a. DAILY_STATE.md (workspace)
+Read `/root/.openclaw/workspace/DAILY_STATE.md` and categorize from the per-person sections + sprint blocks:
 
-- **Shipped (Done in last 24 hours):** tasks where Status changed to "Done" since yesterday's pulse
-- **In Progress:** tasks with Status "In Progress" or "In Review"
-- **At Risk:** tasks where:
-  - Due date is within 2 days AND status is not "In Review" or "Done"
-  - Task has been "In Progress" for 5+ days with no status change
-  - Effort is L/XL and due date is within 3 days
-- **Blocked:** tasks with active entries in the Blockers database
-- **Not Started:** tasks with Status "Not started yet"
+- **Shipped (in the last 24 hours):** items added to per-person `DONE RECENTLY` lists since yesterday's pulse — particularly anything with today's date.
+- **In Progress:** items in per-person `NOW` and `LAST COMMITTED` lists that aren't in `DONE RECENTLY` yet.
+- **At Risk:** items where:
+  - The associated `This Week's Goals` deadline is within 2 days and there's no `DONE RECENTLY` signal
+  - The item has been on `LAST COMMITTED` across multiple meeting compilations with no visible progress
+  - GitHub shows silence on the relevant repo for the person assigned
+- **Blocked:** items mentioned in the `Active Blockers` table (cross-reference Blockers Notion DB for full status).
+- **Not Started:** items in `This Week's Goals` that haven't appeared in any per-person `NOW` or `DONE RECENTLY` yet.
+
+(The Notion Sprint Board is retired as of 2026-05-23 — do not query it.)
 
 ### 1b. GitHub Activity (if configured)
 If GitHub API access is available (via `GITHUB_TOKEN` env var):

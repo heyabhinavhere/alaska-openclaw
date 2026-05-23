@@ -29,9 +29,9 @@ When triggered, check the Proposals database for any entries with Status: "Pendi
 ## Step 1: Read the Proposal + Sprint Context
 
 For each pending proposal:
-1. Read the proposal details from the Proposals database
-2. Read the current Sprint Board to understand existing capacity
-3. Read the Team Roster for current availability
+1. Read the proposal details from the Proposals database.
+2. Read `DAILY_STATE.md` per-person sections to understand existing capacity and current commitments. (The Notion Sprint Board is retired as of 2026-05-23 — don't query it.)
+3. Read the Team Roster for current availability.
 
 **Calculate capacity:**
 - For each team member, count their current in-progress/this-sprint tasks
@@ -238,6 +238,6 @@ Pending → Awaiting Feedback → [Modified] → Confirmed → Handed Off
 
 1. **Never auto-confirm if there are unresolved objections** — even after timeout
 2. **Never modify a proposal without re-posting the updated version** — transparency
-3. **Never create Sprint Board tasks yourself** — that's the Sprint Operator's job
+3. **Never create or update Sprint Board entries.** That DB is retired as of 2026-05-23. Confirmed proposals are reflected in DAILY_STATE.md via the next Meeting Intelligence run, or handed off to Sprint Operator for surfacing.
 4. **Never ignore capacity warnings** — always surface them, even if the team approves
 5. **Never guess at missing information** — if a task needs an owner and no one claimed it, ask explicitly

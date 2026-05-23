@@ -1,4 +1,4 @@
-# TOOLS.md - Local Notes & Data Access
+# TOOLS.md — Data Access & Channel Reference
 
 ## Available Data APIs — ALWAYS USE THESE
 
@@ -26,14 +26,17 @@ You have live API access. **Never say "I don't have access" to any of these.**
 - **Never push/merge/create** anything
 
 ### Notion (`$NOTION_API_KEY`)
-- **What:** Sprint Board, blockers, meeting notes, team roster, decisions
-- **Skill patterns:** `/data/skills/shared-toolkit/SKILL.md`
+- **What:** Decision Log, Meeting Notes, Blockers, Changelog, Team Roster, Risk Register, Backlog, Daily Scrum.
+- **Sprint Board (DB `4494fedd-faee-47d7-a475-595e3c18370a`) is RETIRED as of 2026-05-23 — do not write to it.** The new task DB is TBD (Phase 2.3 of the stabilization plan).
+- **Read API:** `POST /v1/data_sources/{id}/query` with `Notion-Version: 2025-09-03`.
+- **Write API:** `POST /v1/pages`, `PATCH /v1/pages/{id}` with `Notion-Version: 2022-06-28`.
+- **Write contract (exact JSON shapes):** see `/data/skills/shared-toolkit/SKILL.md` → "Notion Write Contract" section.
 
 ### Cross-referencing Rule
 When someone asks about a specific user, **combine Amplitude + Customer.io:**
 - Amplitude → sessions, events, activity days, user properties
 - Customer.io → messages sent (push/email), delivery status, opens/clicks
-- Present both in one answer
+- Present both in one answer.
 
 ### If an API fails
 Say "API returned an error" or "unavailable" — **never** "I don't have access."
@@ -49,15 +52,13 @@ Say "API returned an error" or "unavailable" — **never** "I don't have access.
 | #alaska-alerts | C0APP7X4TMJ | Risk Radar, critical alerts |
 | #daily-standup | C0ASLANJ0RL | Pre-call sheets |
 
-## Team Slack IDs
+---
 
-- Abhinav: U07GKLVA9FE (Admin)
-- Samder: U0APEUXD9DH (CEO)
-- Darwin: U0APK8VTT62 (COO)
-- Pankaj: U0AQ0817FJM (Frontend)
-- Sandeep: U0AQFJV9B32 (AI Eng)
-- Shailesh: U0AQ1UZHZ8D (AI Eng)
-- Alaska bot: U0ANY9YTNUR / B0ANHAVSS78
+## Team Roster
+
+**Canonical source:** `/root/.openclaw/workspace/MEMORY.md` → Team Roster section. Includes Slack IDs, Notion User IDs (when populated), roles, locations, and authority tiers. Do not duplicate the roster here.
+
+---
 
 ## Internal Test User IDs (exclude from DAU)
 
