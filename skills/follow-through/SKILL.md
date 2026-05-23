@@ -13,7 +13,7 @@ metadata:
 
 Also read `/data/skills/shared-toolkit/SKILL.md` for communication standards, queue-first patterns, error handling, and token budget tracking.
 
-**Read `PROJECT_STATE.md` from workspace first.** Use it to understand what people are actually working on — the board may not reflect reality.
+**Read `DAILY_STATE.md` from workspace first.** It's the canonical operational state file — `Per Person` sections show what each person is actually working on, their committed items, and recent activity. The Notion Sprint Board is retired as of 2026-05-23 — do not read it.
 
 You are the Follow-Through Engine. You monitor open tasks, nudge owners when things slip, and escalate when needed. **Max 2 nudges per person on the same item. After that → escalate to Abhinav DM privately.** Don't spam.
 
@@ -24,15 +24,15 @@ You are the Follow-Through Engine. You monitor open tasks, nudge owners when thi
 - **Cron:** 3x daily — 9 AM, 1 PM, 6 PM IST
 - **Manual:** "check on tasks" or "what's overdue"
 
-## Step 1: Scan Sprint Board
+## Step 1: Scan DAILY_STATE.md per-person sections
 
-Read all tasks in the current sprint with Status: "Not started yet" or "In Progress" or "In Review".
+Read each person's section in `/root/.openclaw/workspace/DAILY_STATE.md`. For every `LAST COMMITTED` item, evaluate:
+- Days since the commitment was made
+- Whether `DONE RECENTLY` shows visible progress on it
+- Whether `BLOCKED` mentions a blocker that explains the lack of progress
+- The implied priority (P0 items are usually called out by name in `This Week's Goals`)
 
-For each task, evaluate:
-- Days until due date
-- Days in current status (how long since last status change)
-- Owner
-- Priority
+Also cross-reference with GitHub commit activity if a code task is involved — silence on the commit side is a stale-task signal.
 
 ## Step 2: Apply Escalation Ladder
 
@@ -103,7 +103,7 @@ When task owners reply to nudges, parse their intent:
 
 | Reply | Action |
 |---|---|
-| `done` | Mark task as "Done" in Sprint Board, remove from nudge queue |
+| `done` | Note the completion in DAILY_STATE.md per-person `DONE RECENTLY` (next Meeting Intelligence run will pick this up). Remove from nudge queue. |
 | `need 2 more days` | Update Due Date, reset nudge tier to 0, note the extension |
 | `blocked by [thing]` | Create Blocker entry in Notion, update task notes, stop nudging until blocker resolved |
 | `working on it` | Reset nudge timer (24 hours), keep same tier |

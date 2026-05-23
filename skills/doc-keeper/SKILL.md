@@ -38,7 +38,7 @@ Check Agent Signals database every time you're invoked. Look for signals where:
 - Process each signal, then update Status to "acknowledged"
 
 Also scan for task status changes:
-- Read Sprint Board for tasks that moved to "Done" since your last check
+- Read `DAILY_STATE.md` per-person `DONE RECENTLY` sections — anything new since your last check becomes Changelog candidates. (The Notion Sprint Board is retired as of 2026-05-23 — don't scan it.)
 - Track what you've already processed:
 ```bash
 sqlite3 /data/queue/alaska.db "CREATE TABLE IF NOT EXISTS doc_keeper_log (id INTEGER PRIMARY KEY AUTOINCREMENT, event_type TEXT, reference_id TEXT UNIQUE, processed_at DATETIME DEFAULT CURRENT_TIMESTAMP);"
