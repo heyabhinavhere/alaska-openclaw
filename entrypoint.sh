@@ -46,11 +46,15 @@ else
   "
 fi
 
-# Sync skills from git to volume on every deploy
-# Skills are always overwritten from git (source of truth — no runtime edits)
+# Mirror-sync skills from git to volume on every deploy.
+# Skills are git-canonical (no runtime edits), so the volume should EXACTLY match
+# /opt/default-skills/. Previous behavior used `cp -r` which added new files but
+# never removed deleted ones — that left orphan skills on the volume after the
+# v2.2 stabilization (system-health/, daily-standup/). Wipe-and-recopy fixes that.
 mkdir -p /data/skills
-cp -r /opt/default-skills/* /data/skills/ 2>/dev/null || true
-echo "[alaska] Skills synced from git to /data/skills/"
+find /data/skills -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+cp -r /opt/default-skills/. /data/skills/
+echo "[alaska] Skills mirror-synced from git to /data/skills/ ($(ls /data/skills | wc -l | tr -d ' ') skills present)"
 
 # Sync workspace files from git (SOUL.md, USER.md, MEMORY.md, etc.)
 # These define Alaska's personality, identity, and memory
