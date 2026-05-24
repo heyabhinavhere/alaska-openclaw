@@ -89,6 +89,13 @@ else
   echo "[alaska] SQLite queue already exists."
 fi
 
+# Apply any pending SQL migrations (idempotent — safe to run every boot)
+if [ -d /opt/migrations ]; then
+  echo "[alaska] Checking for pending migrations..."
+  bash /opt/migrations/run_migrations.sh /data/queue/alaska.db /opt/migrations
+  echo "[alaska] Migrations complete."
+fi
+
 # Substitute env vars into config (OpenClaw doesn't do this natively)
 if [ -n "$HOOKS_TOKEN" ]; then
   sed -i "s/__HOOKS_TOKEN__/$HOOKS_TOKEN/g" /data/.openclaw/openclaw.json
