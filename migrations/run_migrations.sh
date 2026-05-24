@@ -20,7 +20,7 @@ sqlite3 "$DB" "CREATE TABLE IF NOT EXISTS _migrations (
 for migration in "$MIGRATION_DIR"/*.sql; do
   name=$(basename "$migration")
   # Escape single quotes in filename for safe SQL interpolation
-  name_escaped="${name//\'/\'\'}"
+  name_escaped="${name//"'"/"''"}"
   applied=$(sqlite3 "$DB" "SELECT 1 FROM _migrations WHERE filename='$name_escaped';")
   if [ "$applied" = "1" ]; then
     echo "[migrations] $name already applied — skipping"
