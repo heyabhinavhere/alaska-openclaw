@@ -19,8 +19,10 @@ sqlite3 "$DB" "CREATE TABLE IF NOT EXISTS _migrations (
 # (lexical), which is what we want for numerically-prefixed migration files.
 for migration in "$MIGRATION_DIR"/*.sql; do
   name=$(basename "$migration")
-  # Escape single quotes in filename for safe SQL interpolation
-  name_escaped="${name//"'"/"''"}"
+  # Escape single quotes in filename for safe SQL interpolation.
+  # Variable-based form is portable across bash 3.2 (macOS) and bash 4+ (Linux container).
+  q="'"; qq="''"
+  name_escaped="${name//$q/$qq}"
   applied=$(sqlite3 "$DB" "SELECT 1 FROM _migrations WHERE filename='$name_escaped';")
   if [ "$applied" = "1" ]; then
     echo "[migrations] $name already applied — skipping"
