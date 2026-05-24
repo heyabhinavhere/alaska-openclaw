@@ -1,3 +1,8 @@
+-- Enable foreign key enforcement for this migration session.
+-- Note: PRAGMA foreign_keys is per-connection in SQLite. Also set in
+-- entrypoint.sh for the gateway init connection, and per-call in agents.
+PRAGMA foreign_keys = ON;
+
 -- Migration 0001: v2 task model schema
 -- Spec: docs/superpowers/specs/2026-05-23-alaska-task-model-design.md
 -- Creates tables for the new task system. Idempotent via CREATE IF NOT EXISTS.
@@ -37,13 +42,30 @@ CREATE INDEX IF NOT EXISTS idx_tasks_owner_status ON tasks(owner_slack_id, statu
 CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_status_due ON tasks(status, due_at);
 
+-- Auto-update updated_at on every UPDATE so agents don't have to remember.
+CREATE TRIGGER IF NOT EXISTS trg_tasks_updated_at
+AFTER UPDATE ON tasks
+FOR EACH ROW
+WHEN OLD.updated_at = NEW.updated_at  -- only fire if caller didn't set it explicitly
+BEGIN
+  UPDATE tasks SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END;
+
 -- ============================================================
 -- 2. task_events — append-only audit log
 -- ============================================================
 CREATE TABLE IF NOT EXISTS task_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   task_id TEXT NOT NULL REFERENCES tasks(task_id),
-  event_type TEXT NOT NULL,
+  event_type TEXT NOT NULL
+    CHECK (event_type IN (
+      'created', 'status_changed', 'owner_changed', 'due_changed',
+      'priority_changed', 'ack', 'pass', 'reassigned', 'dedup_decision',
+      'comment', 'mention', 'linked_to_blocker', 'scheduled_action_linked',
+      'notion_synced', 'notion_drift_overwritten', 'retroactive_create',
+      'matched', 'unknown_t_id_referenced', 'dispatcher_surfaced',
+      'scheduled_action_fired'
+    )),
   actor_slack_id TEXT,
   old_value TEXT,
   new_value TEXT,
