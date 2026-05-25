@@ -213,6 +213,214 @@ Different skills can ingest at different cadences (Thinker reads hourly, future 
 
 ---
 
+## 1.7 Task Write Contract — v2 task model
+
+The canonical operations for the v2 task model. Every skill that creates, updates, or queries tasks uses these patterns. Schema lives in `migrations/0001_v2_task_model.sql`; the live tables are on `/data/queue/alaska.db`.
+
+**Always include `PRAGMA foreign_keys=ON;` per Section 1.5.** Without it, the FK relationships between `tasks`, `task_events`, `task_mentions`, and `blockers` are advisory only and orphan writes can silently corrupt the audit log.
+
+### Generate the next T-N ID
+
+```bash
+NEXT_ID=$(sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; SELECT 'T-' || COALESCE(MAX(CAST(SUBSTR(task_id, 3) AS INTEGER)) + 1, 1) FROM tasks;")
+```
+
+Same pattern for `blocker_id` (`B-N`), `action_id` (`SA-N`), `proposal_id` (`RP-N`) — substitute the table name and prefix.
+
+### Create a new task
+
+```bash
+# Escape any apostrophes in title/description per Section 1.6 pattern
+q="'"; qq="''"
+title_esc="${title//$q/$qq}"
+desc_esc="${description//$q/$qq}"
+
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  INSERT INTO tasks ( \
+    task_id, title, description, status, priority, effort, \
+    owner_slack_id, additional_owners, creator_slack_id, assigner_slack_id, \
+    visibility, category, source, source_ref, due_at \
+  ) VALUES ( \
+    '$NEXT_ID', '$title_esc', '$desc_esc', 'active', $priority_or_NULL, $effort_or_NULL, \
+    '$owner_slack_id', $additional_owners_json_or_NULL, \
+    '$creator_slack_id', $assigner_or_NULL, \
+    '$visibility', $category_or_NULL, '$source', '$source_ref', \
+    $due_at_or_NULL \
+  ); \
+  INSERT INTO task_events (task_id, event_type, actor_slack_id, new_value, context) \
+  VALUES ('$NEXT_ID', 'created', '$actor_slack_id', \
+          '{\"status\":\"active\",\"owner\":\"$owner_slack_id\"}', \
+          'Source: $source, ref: $source_ref');"
+```
+
+**Compute `visibility` at INSERT time:**
+
+```bash
+if [ "$owner_slack_id" = "$creator_slack_id" ] && [ -z "$additional_owners_json" -o "$additional_owners_json" = "null" ]; then
+  visibility="personal"
+else
+  visibility="team"
+fi
+# Override: meetings are always team-visible
+if [ "$source" = "meeting" ]; then
+  visibility="team"
+fi
+```
+
+**Required fields** (any INSERT missing these will fail the CHECK constraints):
+
+- `task_id` (unique, format `T-N`)
+- `title` (NOT NULL)
+- `status` (default `active`, must be in `{active, blocked, pending_acceptance, done, dropped, snoozed}`)
+- `owner_slack_id` (NOT NULL)
+- `creator_slack_id` (NOT NULL)
+- `visibility` (default `personal`, must be `personal` or `team`)
+- `source` (NOT NULL, must be in `{meeting, slack_dm, slack_channel, standup_reply, manual}`)
+
+### Update task status (e.g., from "T-42 done")
+
+`tasks.updated_at` auto-bumps via the `trg_tasks_updated_at` trigger (set up in migration 0001), so you don't need to set it manually — but you DO need to write the corresponding `task_events` row.
+
+```bash
+# Capture old value for the audit log
+OLD_STATUS=$(sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; SELECT status FROM tasks WHERE task_id='$task_id';")
+
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  UPDATE tasks SET \
+    status = '$new_status', \
+    done_at = CASE WHEN '$new_status' = 'done' THEN CURRENT_TIMESTAMP ELSE done_at END \
+  WHERE task_id = '$task_id'; \
+  INSERT INTO task_events (task_id, event_type, actor_slack_id, old_value, new_value, context) \
+  VALUES ('$task_id', 'status_changed', '$actor_slack_id', \
+          '{\"status\":\"$OLD_STATUS\"}', '{\"status\":\"$new_status\"}', '$context');"
+```
+
+The trigger handles `updated_at`. Setting `done_at` is conditional on transitioning into `done` state.
+
+### Log a mention without status change
+
+When a task is discussed but no state change happens (e.g., someone references T-42 in a meeting summary, or the classifier sees TASK_UPDATE on a task that's already in that status):
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  INSERT INTO task_mentions ( \
+    task_id, surface, actor_slack_id, excerpt, source_ref, mention_type \
+  ) VALUES ( \
+    '$task_id', '$surface', '$actor_slack_id', '$excerpt_esc', '$source_ref', '$mention_type' \
+  );"
+```
+
+`mention_type` is one of `{status_update, discussion, assignment, commitment, reference}` (or NULL). `surface` is one of `{meeting, slack_dm, slack_channel, standup_reply}`.
+
+### Query: active tasks for a person (pre-call brief, daily pulse)
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, status, priority, due_at, updated_at, source \
+  FROM tasks \
+  WHERE owner_slack_id = '$owner_slack_id' \
+    AND status IN ('active', 'blocked', 'pending_acceptance') \
+  ORDER BY \
+    CASE priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END, \
+    due_at ASC NULLS LAST, \
+    updated_at DESC;"
+```
+
+Add `additional_owners` filtering if you also want to surface tasks where the person is a secondary owner:
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, status, priority, due_at, owner_slack_id \
+  FROM tasks \
+  WHERE (owner_slack_id = '$slack_id' OR additional_owners LIKE '%\"$slack_id\"%') \
+    AND status IN ('active', 'blocked', 'pending_acceptance') \
+  ORDER BY priority ASC, due_at ASC;"
+```
+
+### Query: tasks done in last N hours (changelog / daily pulse shipped)
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, owner_slack_id, done_at, category \
+  FROM tasks \
+  WHERE status = 'done' \
+    AND done_at > datetime('now', '-24 hours') \
+  ORDER BY done_at DESC;"
+```
+
+### Query: all events for a task (audit log)
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT created_at, event_type, actor_slack_id, old_value, new_value, context \
+  FROM task_events \
+  WHERE task_id = '$task_id' \
+  ORDER BY created_at ASC;"
+```
+
+### Create a blocker row (when a task transitions to blocked)
+
+When a task's status changes to `blocked`, the task-handler also writes a `blockers` row so the blocker is queryable independently of the task. One blocker row can block multiple tasks via the `blocking_task_ids` JSON array — that's the link back from blocker to task(s).
+
+Schema reference (migration 0001, table 5): columns are `blocker_id, title, description, blocking_task_ids, owner_slack_id, raised_by_slack_id, status, raised_at, resolved_at, resolution, source, source_ref`. There is no `blocked_task_id` column — the link is the JSON array.
+
+```bash
+# Generate next blocker_id using the canonical MAX/CAST/SUBSTR pattern from above.
+B_NEXT_ID=$(sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; SELECT 'B-' || COALESCE(MAX(CAST(SUBSTR(blocker_id, 3) AS INTEGER)) + 1, 1) FROM blockers;")
+
+# Escape apostrophes in free-text fields per Section 1.5.
+q="'"; qq="''"
+title_esc="${blocker_title//$q/$qq}"
+desc_esc="${blocker_description//$q/$qq}"
+
+# blocking_task_ids is a JSON array string like '["T-42","T-43"]'. Use '[]' not NULL when external.
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  INSERT INTO blockers ( \
+    blocker_id, title, description, blocking_task_ids, \
+    owner_slack_id, raised_by_slack_id, status, source, source_ref \
+  ) VALUES ( \
+    '$B_NEXT_ID', '$title_esc', '$desc_esc', '$blocking_task_ids_json', \
+    '$owner_slack_id', '$raised_by_slack_id', 'active', '$source', '$source_ref' \
+  ); \
+  INSERT INTO task_events (task_id, event_type, actor_slack_id, new_value, context) \
+  VALUES ('$primary_blocked_task_id', 'linked_to_blocker', '$raised_by_slack_id', \
+          '$B_NEXT_ID', '$title_esc');"
+```
+
+Field rules:
+- `title` — short summary of the blocker (e.g., "Plaid docs", "Waiting on Sandeep's review"). NOT NULL.
+- `description` — optional longer detail. Use the verbatim extraction if you have one.
+- `blocking_task_ids` — JSON array of the task IDs this blocker is preventing (e.g., `'["T-42","T-43"]'`). Use `'[]'` (not NULL) when the blocker is external and not yet linked to any task.
+- `owner_slack_id` — who owns the blocked work (usually the primary blocked task's owner).
+- `raised_by_slack_id` — who reported the blocker (the actor/speaker, or `agent:meeting-intelligence`).
+- `status` — at INSERT always `'active'`. Resolution flows UPDATE to `'resolved'` and set `resolved_at`.
+
+After INSERT, append a `task_events` row on each blocked task with `event_type='linked_to_blocker'`, `new_value=$B_NEXT_ID`, `context` = the blocker title so each task's audit log carries the blocker pointer. If you're linking to multiple tasks, write one row per task.
+
+### Match-or-create logic (delegated to task-handler skill)
+
+When the intent-classifier surfaces a possible new task, do NOT write to `tasks` directly. Invoke the `task-handler` skill (at `/data/skills/task-handler/SKILL.md`) which encapsulates the match-or-create dedup logic.
+
+The handler's procedure:
+
+1. Pull candidate tasks for the same owner where status IN ('active', 'blocked', 'pending_acceptance') AND updated_at > NOW - 14 days, limit 20.
+2. Pass the new extraction + candidates to Claude Sonnet 4.6 with a focused dedup prompt.
+3. If `confidence >= 0.8` AND `match != null` → UPDATE the existing task per "Update task status" pattern above, append a `task_events` row with `event_type='matched'`, log a `task_mentions` row.
+4. Else → INSERT new task per "Create a new task" pattern above.
+5. Always log the decision to `task_events` with `event_type='dedup_decision'` and the full reasoning in `context`.
+
+### Common anti-patterns
+
+- **Never modify `task_id` after creation.** It's the stable identity that humans reference ("T-42 done"). Renaming or reassigning breaks every prior mention.
+- **Never delete tasks.** Use `status = 'dropped'` for cancelled work. Preserves history and audit trail.
+- **Always write a `task_events` row alongside every `tasks` UPDATE.** The events table is the audit log; updates without events are invisible to downstream readers.
+- **Always log `task_mentions` on non-action discussions** (e.g., task referenced in a meeting but no status change). Needed for dedup signal and Thinker's pattern detection.
+- **Default to NEW task when unsure.** When the match-or-create LLM call has confidence < 0.8, create a new task with a `[NEEDS LINK?]` note in description. Easier to merge later than to lose context.
+- **Never set `updated_at` manually** unless you're intentionally back-dating (the trigger handles it).
+- **Never bypass `task-handler` for INSERT/UPDATE from inbound message classification.** Direct writes skip the dedup logic and pollute the dataset with duplicates.
+
+---
+
 ## 2. slackSend — Queue-First Slack Messages
 
 ### For Routine Messages (channel posts, summaries, proposals)
