@@ -384,6 +384,29 @@
         "lastDeliveryStatus": "not-delivered",
         "consecutiveErrors": 0
       }
+    },
+    {
+      "id": "PLACEHOLDER-uuid-to-be-set-by-openclaw-dashboard",
+      "name": "Intent Classifier \u2014 Batch (Phase A obs mode)",
+      "enabled": true,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "tz": "UTC"
+      },
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "user-message",
+        "message": "You are running the intent-classifier batch job.\n\n**===== MANDATORY READS =====**\n1. /root/.openclaw/workspace/AGENT_RULES.md\n2. /root/.openclaw/workspace/MEMORY.md \u2014 Team Roster (you'll substitute it into the classifier prompt)\n3. /data/skills/intent-classifier/SKILL.md \u2014 the full procedure\n4. /data/skills/shared-toolkit/SKILL.md \u2014 Section 1.5 (FK enforcement) and 1.6 (ingestion pattern)\n\n**===== YOUR MISSION =====**\nProcess up to 50 unprocessed rows from `intent_inbox` per the procedure in `/data/skills/intent-classifier/SKILL.md`.\n\n**===== PHASE A: OBSERVATION ONLY =====**\nPhase A is logging only. Write classifications to `classifier_audit` and update `intent_inbox.processed=1`. Do NOT take ANY downstream action \u2014 no tasks created, no DMs sent, no channel posts, no scheduled_actions created, no other tables modified. The classifier_audit `would_have_done` field captures what Phase B+ WOULD do, for evaluation.\n\n**===== STEPS =====**\n1. Query unprocessed rows from intent_inbox (LIMIT 50) per the SKILL.\n2. For each row: pre-filter (bot self / short / emoji-only), then if not filtered, invoke Claude Sonnet 4.6 with the classifier prompt template, substituting roster + channel + author + message text + ISO timestamp.\n3. Write each classification to `classifier_audit` AND update `intent_inbox.processed=1` (both writes must use `PRAGMA foreign_keys=ON;` per shared-toolkit Section 1.5).\n4. Cap at 50 messages per run.\n\n**===== REPORT =====**\nWhen done, report: messages processed, intent distribution (count per intent), average confidence, any rows that failed classification (DB errors, API failures). If the inbox queue length > 200, also DM Abhinav (U07GKLVA9FE) flagging the backlog.\n\n**===== POSTING INSTRUCTIONS =====**\nFor backlog/error DMs to Abhinav: use action=send, channel=slack, target=U07GKLVA9FE.\nNever rely on the cron delivery config \u2014 it's `{mode: none}` and only logs internally.\nALWAYS use the explicit action=send form when posting to Slack.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "state": {}
     }
   ]
 }
