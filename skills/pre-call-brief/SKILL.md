@@ -83,21 +83,25 @@ For each team member who's active today, query SQLite for their task state. Use 
 
 ```bash
 # 1. Active + blocked + pending_acceptance tasks
+# Includes tasks where the person is a secondary owner (additional_owners JSON contains their ID),
+# matching the canonical pattern in shared-toolkit Section 1.7 "Query: active tasks for a person".
 sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
-  SELECT task_id, title, status, priority, due_at, updated_at, source \
+  SELECT task_id, title, status, priority, due_at, updated_at, source, owner_slack_id \
   FROM tasks \
-  WHERE owner_slack_id = '$OWNER' \
+  WHERE (owner_slack_id = '$OWNER' OR additional_owners LIKE '%\"$OWNER\"%') \
     AND status IN ('active', 'blocked', 'pending_acceptance') \
   ORDER BY \
     CASE status WHEN 'pending_acceptance' THEN 0 WHEN 'blocked' THEN 1 ELSE 2 END, \
     CASE priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END, \
     due_at ASC NULLS LAST;"
 
-# 2. New since yesterday — tasks created in the last 24h (so team sees what got added)
+# 2. New since yesterday — tasks created in the last 24h (so team sees what got added).
+# Includes updated_at so the formatter can apply the stale-marker rule uniformly (brand-new
+# tasks won't be stale, but the column has to be selected for the rule to evaluate).
 sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
-  SELECT task_id, title, source, source_ref, creator_slack_id, assigner_slack_id, created_at \
+  SELECT task_id, title, source, source_ref, creator_slack_id, assigner_slack_id, created_at, updated_at \
   FROM tasks \
-  WHERE owner_slack_id = '$OWNER' \
+  WHERE (owner_slack_id = '$OWNER' OR additional_owners LIKE '%\"$OWNER\"%') \
     AND created_at > datetime('now', '-1 day') \
   ORDER BY created_at DESC;"
 
@@ -138,7 +142,7 @@ Reply format (one per line, thread reply):
   T-N <free note>      — log a mention without status change
   new: <description>   — capture a new task right now
 
-Team call in [N] min.
+Team call in [N] min.    ← compute N as `(meeting_start_ts − now())` rounded to the nearest minute (the meeting start time is known from Step 1's calendar lookup; if the calendar is missing, omit this footer line entirely rather than guess).
 ```
 
 ### Source-hint resolution
@@ -147,7 +151,7 @@ When formatting each task line, derive the parenthetical source hint from `sourc
 
 - `source='meeting'`: hint = `"from [day abbrev] meeting"` — derive day-of-week from created_at
 - `source='slack_dm'`: hint = `"committed [day abbrev] DM"` — short form
-- `source='slack_channel'`: hint = `"in #[channel] [day abbrev]"` — resolve channel name from MEMORY.md if helpful
+- `source='slack_channel'`: hint = `"in #[channel] [day abbrev]"` — resolve channel name from `/root/.openclaw/workspace/TOOLS.md` Channel ID mapping (the canonical channel-ID-to-name table; mirrored in MEMORY.md but TOOLS.md is the single source per Alaska's tool config)
 - `source='standup_reply'`: hint = `"from [day abbrev] standup"`
 - `source='manual'`: hint = `"added manually"` (rare path; usually Abhinav)
 
@@ -155,7 +159,7 @@ If the `assigner_slack_id` is set and DIFFERENT from `creator_slack_id`, prepend
 
 ### Fallback: zero tasks in SQLite for this person
 
-If all three queries return zero rows for a person, fall back to the OLD DAILY_STATE.md per-person section read. This is a Phase B transition state and should disappear within ~2 weeks of going live. Append a footer note to the brief:
+If all three queries return zero rows for a person, fall back to the OLD DAILY_STATE.md per-person section read. The DAILY_STATE.md format uses `## <First Name>` as the section header (e.g., `## Pankaj`), with sub-bullets under "WORKING ON", "DONE RECENTLY", and "BLOCKERS" lines — read just that person's section and render those three buckets as ACTIVE / NEW SINCE YESTERDAY / BLOCKED respectively (T-IDs absent in fallback mode). This is a Phase B transition state and should disappear within ~2 weeks of going live. Append a footer note to the brief:
 
 ```
 _(I'm switching to a new task system. DM me anything you're working on and I'll start tracking it — you'll get T-IDs next call.)_
@@ -174,16 +178,20 @@ _(I'm switching to a new task system. DM me anything you're working on and I'll 
 After posting the brief, monitor the thread (or DM thread) for replies. Each reply gets parsed using the grammar above:
 
 ```
-Regex patterns (try in order, first match wins):
-  ^T-(\d+)\s+done\b                          → mark_done(T-N)
-  ^T-(\d+)\s+blocked\s+by\s+(.+)$            → mark_blocked(T-N, reason)
-  ^T-(\d+)\s+active\b                        → confirm_active(T-N) — logs a mention, no status change
-  ^T-(\d+)\s+(.+)$                           → log_mention(T-N, free_note)
-  ^new:\s*(.+)$                              → create_new_task(description)
-  ^on\s+leave\b                              → mark_on_leave(person, today)
+Regex patterns (try in order, first match wins). Each verb anchors with \b to avoid swallowing
+trailing tokens — "T-42 done by EOD" still matches `done` and the suffix is captured as the
+reply text passed to task-handler (which extracts the actual due hint from it):
+  ^T-(\d+)\s+done\b.*$                        → mark_done(T-N)              [is_status_update=true]
+  ^T-(\d+)\s+blocked\s+by\s+(.+)$             → mark_blocked(T-N, reason)   [is_status_update=true]
+  ^T-(\d+)\s+active\b.*$                      → confirm_active(T-N)         [is_status_update=FALSE — logs a mention only, no status flip]
+  ^T-(\d+)\s+(.+)$                            → log_mention(T-N, free_note) [is_status_update=false]
+  ^new:\s*(.+)$                               → create_new_task(description) [is_status_update=false, no explicit_task_id]
+  ^on\s+leave\b                               → mark_on_leave (deferred — see note below)
 ```
 
-For each matched reply:
+**`on leave` handling (Phase B):** there is no scheduled_actions write yet (those land in Phase C). For now, post a one-line ack: `Got it — noted you're on leave today. I'll skip your tasks in tomorrow's brief.` and INSERT a `task_events` row with `event_type='comment'` and `context='on_leave:<YYYY-MM-DD>'` against ANY of the person's active tasks (pick the most recent) so the audit log carries the signal. Phase C will replace this with a proper recurring_routine row.
+
+For each matched reply (other than `on leave`):
 
 1. Route to `/data/skills/task-handler/SKILL.md` with the appropriate inputs:
    - `extraction`: the reply text verbatim
@@ -191,7 +199,7 @@ For each matched reply:
    - `creator_slack_id`: same
    - `source`: `standup_reply`
    - `source_ref`: `slack:thread:<channel_id>:<parent_ts>:<reply_ts>`
-   - `is_status_update`: `true` for done/blocked/active, `false` for free_note or new:
+   - `is_status_update`: per the per-pattern column above — `true` for `done` and `blocked by`, `false` for `active`, free_note, and `new:` (task-handler still logs a `task_mentions` row for the false cases, so the audit trail is preserved either way)
    - `explicit_task_id`: the matched T-N (omit for `new:`)
 2. task-handler returns `{task_id, action, status}`. Post a ONE-LINE thread acknowledgment:
    - For `mark_done`: `T-N marked done. Will show in tomorrow's shipped list.`
