@@ -43,7 +43,7 @@ The calling skill provides a single extraction context:
 If `explicit_task_id` is provided OR the extraction text contains a `T-\d+` pattern matched by regex:
 
 1. Query the task by `task_id`. If it exists:
-   - If `owner_slack_id` matches (or matches any `additional_owners`, or the calling speaker matches the existing owner): treat as a status update on this task. Skip to Step 3 with `match_decision = T-N`.
+   - If `owner_slack_id` matches OR the caller's `owner_slack_id` is in the existing task's `additional_owners` JSON array (test via `additional_owners LIKE '%"$owner_slack_id"%'`, matching the canonical pattern in shared-toolkit Section 1.7's "Query: active tasks for a person"): treat as a status update on this task. Skip to Step 3 with `match_decision = T-N`.
    - If owner doesn't match: this is suspicious (someone referenced T-N but isn't the owner). Log to `task_events` with `event_type='unknown_t_id_referenced'`, context noting the ownership mismatch, and fall through to Step 2 (dedup).
 
 2. If the task doesn't exist (referenced T-N doesn't correspond to any row):
@@ -51,6 +51,8 @@ If `explicit_task_id` is provided OR the extraction text contains a `T-\d+` patt
    - Fall through to Step 2 — maybe the message is creating a new task and the T-N reference is a typo or aspirational
 
 ### Step 2: Match-or-create dedup via LLM
+
+**Before any SQL write below**, escape every free-text field (extraction, title, description, source_ref, blocker title) per shared-toolkit Section 1.5: `q="'"; qq="''"; field_esc="${field//$q/$qq}"`. Slack IDs are alphanumeric and safe; free-text from messages is not. The canonical INSERT patterns in Section 1.7 show this inline — don't skip it.
 
 Pull candidate tasks for this owner (and any `additional_owners` if provided):
 
@@ -110,11 +112,13 @@ Log the FULL classifier response to `task_events` with `event_type='dedup_decisi
 
 If `decision == "match"` AND `confidence >= 0.8`:
 
-- **If `is_status_update == true`:** UPDATE the matched task per shared-toolkit Section 1.7 "Update task status" pattern. New status depends on the extraction's verb:
+- **If `is_status_update == true`:** UPDATE the matched task per shared-toolkit Section 1.7 "Update task status" pattern. The valid `tasks.status` values per migration 0001 are `{active, blocked, pending_acceptance, done, dropped, snoozed}` — never invent values, the CHECK constraint will reject them. Map verbs as follows:
   - "done", "shipped", "merged", "finished", "deployed" → status='done', done_at=NOW
-  - "blocked", "stuck", "can't proceed" → status='blocked'
+  - "blocked", "stuck", "can't proceed" → status='blocked' (also write a `blockers` row per Step 5)
   - "started", "working on", "in progress" → status='active' (if currently a different status)
-  - "in review", "waiting on review" → status='in_review' if your schema supports it, else 'active' with context noting review
+  - "in review", "waiting on review", "in QA" → status='active' with context noting "in review" — there is no in_review state in the schema; the audit log carries this nuance, not the status column
+  - "dropped", "cancelled", "deprioritized" → status='dropped'
+  - "snoozed", "paused", "deferred" → status='snoozed'
 - **If `is_status_update == false`:** the new statement is further discussion of the existing task, not a state change. Don't update the task itself; just log a `task_mentions` row per Section 1.7.
 
 Always log `task_events` with `event_type='matched'`, context including the reasoning from the LLM.
@@ -130,7 +134,7 @@ Compute `visibility` at INSERT time:
 
 Generate the next `T-N` ID per shared-toolkit Section 1.7. INSERT the task row. Append a `task_events` row with `event_type='created'`.
 
-If the dedup decision was low-confidence-defaulting-to-new (confidence < 0.8 but no clean match), set the task description to start with `[NEEDS LINK?]` and include the secondary_match_candidates from the LLM response in the description. This flags it for Abhinav review.
+If the dedup decision was low-confidence-defaulting-to-new (confidence < 0.8 but no clean match), set the task description to start with `[NEEDS LINK?]` and include the secondary_match_candidates from the LLM response in the description. Also ensure the `task_events` audit row for this INSERT carries a `low_confidence: true` marker in its `context` JSON alongside the dedup reasoning — write it as `event_type='dedup_decision'` (in addition to the `event_type='created'` row), so Thinker can query `WHERE context LIKE '%low_confidence%'` to surface flagged tasks without LIKE-scanning the description field.
 
 ### Step 5: Side effects (Phase B+ activation gradual)
 
@@ -138,7 +142,7 @@ These run after the primary INSERT/UPDATE:
 
 - **Status changed to 'done':** signal Doc Keeper for Changelog. Insert an Agent Signals row OR write directly to Changelog Notion DB. (Existing pattern from v2.2 Doc Keeper Event-Driven cron.)
 - **Status changed to 'blocked':** create a `blockers` row per shared-toolkit Section 1.7, link via `blocking_task_ids` JSON array.
-- **New task with `visibility = 'team'`:** in Phase D, post a one-line public announcement to #project-management. In Phase B (where we are now), skip this step — log to `task_events` with `event_type='team_visibility_deferred'` so we can backfill announcements when Phase D lands.
+- **New task with `visibility = 'team'`:** in Phase D, post a one-line public announcement to #project-management. In Phase B (where we are now), skip the post — but write a `task_events` row with `event_type='comment'` and `context='team_visibility_deferred: announcement to #project-management deferred to Phase D'`. Phase D can backfill announcements by querying `WHERE event_type='comment' AND context LIKE 'team_visibility_deferred%'`. (We use `'comment'` because the `event_type` CHECK enum in migration 0001 doesn't include a dedicated deferred-announcement value — the context string is the marker.)
 
 ### Step 6: Return value
 

@@ -360,33 +360,42 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 
 ### Create a blocker row (when a task transitions to blocked)
 
-When a task's status changes to `blocked`, the task-handler also writes a `blockers` row so the blocker is queryable independently of the task and can carry resolution metadata across multiple blocked tasks.
+When a task's status changes to `blocked`, the task-handler also writes a `blockers` row so the blocker is queryable independently of the task. One blocker row can block multiple tasks via the `blocking_task_ids` JSON array — that's the link back from blocker to task(s).
+
+Schema reference (migration 0001, table 5): columns are `blocker_id, title, description, blocking_task_ids, owner_slack_id, raised_by_slack_id, status, raised_at, resolved_at, resolution, source, source_ref`. There is no `blocked_task_id` column — the link is the JSON array.
 
 ```bash
-# Generate next blocker_id per the "Generate the next T-N ID" pattern, substituting 'blocker_id' and 'B-'.
-last_b=$(sqlite3 /data/queue/alaska.db "SELECT blocker_id FROM blockers ORDER BY rowid DESC LIMIT 1;")
-next_num=$(( ${last_b#B-} + 1 ))
-blocker_id="B-$next_num"
+# Generate next blocker_id using the canonical MAX/CAST/SUBSTR pattern from above.
+B_NEXT_ID=$(sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; SELECT 'B-' || COALESCE(MAX(CAST(SUBSTR(blocker_id, 3) AS INTEGER)) + 1, 1) FROM blockers;")
 
-# Escape apostrophes in any free-text fields per Section 1.5 (q="'"; qq="''"; text="${text//$q/$qq}").
+# Escape apostrophes in free-text fields per Section 1.5.
+q="'"; qq="''"
+title_esc="${blocker_title//$q/$qq}"
+desc_esc="${blocker_description//$q/$qq}"
+
+# blocking_task_ids is a JSON array string like '["T-42","T-43"]'. Use '[]' not NULL when external.
 sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
   INSERT INTO blockers ( \
-    blocker_id, blocked_task_id, blocker_topic, raised_by_slack_id, \
-    blocking_task_ids, blocking_person_slack_id, status, raised_at \
+    blocker_id, title, description, blocking_task_ids, \
+    owner_slack_id, raised_by_slack_id, status, source, source_ref \
   ) VALUES ( \
-    '$blocker_id', '$blocked_task_id', '$blocker_topic_escaped', '$raised_by', \
-    '$blocking_task_ids_json', '$blocking_person', 'open', CURRENT_TIMESTAMP \
-  );"
+    '$B_NEXT_ID', '$title_esc', '$desc_esc', '$blocking_task_ids_json', \
+    '$owner_slack_id', '$raised_by_slack_id', 'active', '$source', '$source_ref' \
+  ); \
+  INSERT INTO task_events (task_id, event_type, actor_slack_id, new_value, context) \
+  VALUES ('$primary_blocked_task_id', 'linked_to_blocker', '$raised_by_slack_id', \
+          '$B_NEXT_ID', '$title_esc');"
 ```
 
 Field rules:
-- `blocked_task_id` — the task that is now blocked. FK to `tasks(task_id)`.
-- `blocker_topic` — short free-text summary from the extraction (e.g., "Plaid docs").
-- `blocking_task_ids` — JSON array of other `task_id`s that are blocking this one, or `'[]'` if the blocker is external (waiting on docs, vendor, etc.). Use `'[]'` not NULL so JSON queries don't have to handle NULL.
-- `blocking_person_slack_id` — Slack ID of the person blocking (if known), else NULL.
-- `status` — always `'open'` at insert time. Resolution flows update to `'resolved'` and set `resolved_at`.
+- `title` — short summary of the blocker (e.g., "Plaid docs", "Waiting on Sandeep's review"). NOT NULL.
+- `description` — optional longer detail. Use the verbatim extraction if you have one.
+- `blocking_task_ids` — JSON array of the task IDs this blocker is preventing (e.g., `'["T-42","T-43"]'`). Use `'[]'` (not NULL) when the blocker is external and not yet linked to any task.
+- `owner_slack_id` — who owns the blocked work (usually the primary blocked task's owner).
+- `raised_by_slack_id` — who reported the blocker (the actor/speaker, or `agent:meeting-intelligence`).
+- `status` — at INSERT always `'active'`. Resolution flows UPDATE to `'resolved'` and set `resolved_at`.
 
-After INSERT, append a `task_events` row on the blocked task with `event_type='blocked'`, `new_value=$blocker_id`, `context` = the blocker_topic so the task's audit log carries the blocker pointer.
+After INSERT, append a `task_events` row on each blocked task with `event_type='linked_to_blocker'`, `new_value=$B_NEXT_ID`, `context` = the blocker title so each task's audit log carries the blocker pointer. If you're linking to multiple tasks, write one row per task.
 
 ### Match-or-create logic (delegated to task-handler skill)
 
