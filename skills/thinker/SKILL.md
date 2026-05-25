@@ -54,6 +54,31 @@ Read recent messages from team Slack channels. **Filter ruthlessly:**
 - General chat not about BON Credit work
 - Messages that are clearly not actionable
 
+### Ingestion to `intent_inbox` (mandatory)
+
+For every channel message you fetch in this step, ALSO write it to the `intent_inbox` table so the v2 intent-classifier (Phase A) can process it on its 5-min cron. Pattern documented in `/data/skills/shared-toolkit/SKILL.md` → Section 1.6.
+
+Specifically for each fetched message:
+
+```bash
+# For each fetched message — apply the Section 1.6 escape pattern:
+q="'"; qq="''"
+text_escaped="${message_text//$q/$qq}"
+if [ -z "$thread_ts" ]; then thread_ts_literal="NULL"; else thread_ts_literal="'$thread_ts'"; fi
+
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; INSERT OR IGNORE INTO intent_inbox (message_ts, channel_id, author_slack_id, message_text, thread_ts) VALUES ('$message_ts', '$channel_id', '$author_slack_id', '$text_escaped', $thread_ts_literal);"
+```
+
+This is a fire-and-forget write that doesn't change Thinker's own analysis. The classifier and Thinker do their work independently. Don't gate any Thinker logic on whether the ingestion succeeded — the `INSERT OR IGNORE` makes duplicates harmless, and the classifier will catch up on the next cron tick.
+
+**Silent-failure detection:** After the ingestion loop completes, run a quick health check:
+
+```bash
+ingested_count=$(sqlite3 /data/queue/alaska.db "SELECT count(*) FROM intent_inbox WHERE created_at > datetime('now', '-65 minutes');")
+```
+
+If `ingested_count` is 0 but you actually fetched messages from Slack in this run, something is silently dropping the inserts (DB lock, disk full, malformed escape). DM Abhinav: "Ingestion looks broken — fetched [N] messages from Slack but only [0] landed in intent_inbox. Investigate." This catches the class of "Phase A is silently dead" failures.
+
 ### 1b. Agent Outputs
 Check Agent Signals for recent outputs from all agents. Read:
 - Meeting Intelligence summaries
