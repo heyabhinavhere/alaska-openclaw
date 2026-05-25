@@ -54,6 +54,18 @@ Read recent messages from team Slack channels. **Filter ruthlessly:**
 - General chat not about BON Credit work
 - Messages that are clearly not actionable
 
+### Ingestion to `intent_inbox` (mandatory)
+
+For every channel message you fetch in this step, ALSO write it to the `intent_inbox` table so the v2 intent-classifier (Phase A) can process it on its 5-min cron. Pattern documented in `/data/skills/shared-toolkit/SKILL.md` → Section 1.6.
+
+Specifically for each fetched message:
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; INSERT OR IGNORE INTO intent_inbox (message_ts, channel_id, author_slack_id, message_text, thread_ts) VALUES ('$ts', '$channel_id', '$user', '$text_escaped', $thread_ts_or_NULL);"
+```
+
+This is a fire-and-forget write that doesn't change Thinker's own analysis. The classifier and Thinker do their work independently. Don't gate any Thinker logic on whether the ingestion succeeded — the `INSERT OR IGNORE` makes duplicates harmless, and the classifier will catch up on the next cron tick.
+
 ### 1b. Agent Outputs
 Check Agent Signals for recent outputs from all agents. Read:
 - Meeting Intelligence summaries

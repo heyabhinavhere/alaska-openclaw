@@ -148,6 +148,47 @@ the audit log permanently.
 
 ---
 
+## 1.6 Slack message ingestion → `intent_inbox`
+
+Any skill that reads Slack channel messages should ALSO write each message to the `intent_inbox` table for the v2 intent-classifier (Phase A onwards) to process in batched mode. The pattern is `INSERT OR IGNORE` against the `(channel_id, message_ts)` unique constraint — duplicate ingestion attempts are harmless, so it's safe to re-ingest on every cron pull.
+
+### Pattern
+
+After fetching new channel messages, for each message:
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; INSERT OR IGNORE INTO intent_inbox (message_ts, channel_id, author_slack_id, message_text, thread_ts) VALUES ('$message_ts', '$channel_id', '$author_slack_id', '$message_text', $thread_ts_or_NULL);"
+```
+
+Fields:
+- `message_ts`: Slack's `ts` field (string, format `1234567890.123456`).
+- `channel_id`: the Slack channel ID (e.g., `C0ANKDD664A` for #project-management).
+- `author_slack_id`: the message author's Slack user ID (e.g., `U0AQFJV9B32`). NOT the display name.
+- `message_text`: the raw message body. Strip Slack-mrkdwn formatting if needed but otherwise preserve verbatim — the classifier needs the original wording to detect task verbs, T-N references, etc.
+- `thread_ts`: pass NULL if it's a top-level message; pass the parent `ts` if it's a thread reply.
+
+### When to ingest
+
+- Whenever a skill fetches new messages from a channel (via Slack `conversations.history` or similar), ingest them.
+- It's OK to ingest the same message twice; the `(channel_id, message_ts)` unique constraint deduplicates silently.
+- DMs to Alaska bypass this table — they're handled synchronously by the intent-classifier when slack-commands invokes it.
+
+### Edge cases
+
+- **Bot messages:** still ingest them. The intent-classifier has a pre-filter that skips Alaska's own bot messages (`U0ANY9YTNUR`, `U0ANFSYAH29`).
+- **Message edits:** Slack edits keep the same `ts`, so `INSERT OR IGNORE` keeps the original text. If we ever want to re-classify edited messages, add a separate column later; for Phase A, original wording is what we evaluate.
+- **Empty / system messages** (e.g., "X joined the channel"): still ingest. The pre-filter in intent-classifier marks them `NON_WORK_CHAT` without an LLM call.
+
+### Why ingestion is decoupled from classification
+
+Two separate concerns:
+- **Ingestion** = grab Slack reality and persist it (this section).
+- **Classification** = interpret the persisted messages (intent-classifier skill).
+
+Different skills can ingest at different cadences (Thinker reads hourly, future skills might pull more often). The classifier runs on a fixed 5-min cron and processes whatever's accumulated. The `INSERT OR IGNORE` constraint means concurrent ingestion is safe.
+
+---
+
 ## 2. slackSend — Queue-First Slack Messages
 
 ### For Routine Messages (channel posts, summaries, proposals)
