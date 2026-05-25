@@ -151,6 +151,104 @@ Or just ask me anything about the project — I'll pull from Notion, Fireflies, 
 - "did users who got [campaign] open the app?" → CIO recipients + Amplitude app_opens
 - "is the push fix working?" → CIO delivery rate + Amplitude push-attributed events
 
+## Intent-driven actions (Phase B+)
+
+For every DM Alaska receives, BEFORE falling through to the existing query/help responses below:
+
+1. Invoke `intent-classifier` (synchronous mode — see `/data/skills/intent-classifier/SKILL.md` "DM handling"). Pass the DM message text, sender Slack ID, and timestamp.
+2. Classifier returns `{intent, confidence, entities, would_have_done}`.
+3. If `intent` is one of the action intents below AND `confidence >= 0.7`, run the matching handler. Otherwise fall through to the existing static commands (Status Check, Blocker Report, etc.) — those still work as before for low-confidence or non-action messages.
+
+**Phase B handlers (DMs only — channel-level TASK_CREATE/UPDATE arrives in Phase D):**
+
+### TASK_CREATE handler
+
+Triggered by: "starting on X", "I'll do Y", "add task: Z", "new task: Z" — the classifier's TASK_CREATE label.
+
+1. Read `/data/skills/task-handler/SKILL.md`.
+2. Invoke task-handler with:
+   - `extraction`: the verbatim DM message text
+   - `owner_slack_id`: the DM sender's Slack ID
+   - `creator_slack_id`: the same Slack ID (self-create → personal task)
+   - `source`: `slack_dm`
+   - `source_ref`: the Slack DM message permalink (`https://<workspace>.slack.com/archives/<DM_channel_id>/p<ts_without_dot>`)
+   - `is_status_update`: `false`
+   - `due_at_iso`: if the message contains a date hint ("by Friday", "tomorrow"), parse to ISO and pass — otherwise omit
+3. task-handler returns `{task_id, action, title, ...}`.
+4. Reply ONE LINE in the DM (no narration, per shared-toolkit Section 9 Slack discipline):
+   > `Tracking as T-N: <title>. I'll surface it in your standup brief.`
+5. If `dedup_decision.type == 'low_conf_defaulted_new'`, append `(flagged for review)` to your reply so the sender knows we created a possibly-duplicate task.
+
+### TASK_UPDATE handler
+
+Triggered by: "T-42 done", "still working on T-65", "blocked on T-58", "merged the PR" — the classifier's TASK_UPDATE label.
+
+1. Look for a `T-\d+` pattern in the message text. If found, that's the `explicit_task_id`. If NOT found:
+   - Pull the sender's most recently updated active task from SQLite (per shared-toolkit Section 1.7 "Query: active tasks for a person", LIMIT 1).
+   - If exactly 1 active task → use that as `explicit_task_id`.
+   - If 0 active tasks → reply "No active tasks for you — start one with 'new task: <description>'." and stop.
+   - If >1 active tasks → reply "Which task? Reply with the T-N (e.g., T-42 done) or describe it." and stop.
+2. Invoke task-handler with:
+   - `extraction`: verbatim message text
+   - `owner_slack_id`: DM sender
+   - `creator_slack_id`: DM sender
+   - `source`: `slack_dm`
+   - `source_ref`: Slack message permalink
+   - `is_status_update`: `true`
+   - `explicit_task_id`: the T-N from step 1
+3. task-handler determines the target status from the verb (done/blocked/active/dropped/snoozed) per its own verb-mapping rules.
+4. Reply ONE LINE in the DM:
+   > `Got it — T-N marked as <status>.`
+   For `done`: also append `Will show up in tomorrow's Daily Pulse shipped list.`
+   For `blocked`: also append `Logged blocker B-N.` (task-handler creates the blocker row per Step 5 of its procedure).
+
+### TASK_BLOCKER handler
+
+Triggered by: "blocked on Plaid docs", "can't proceed until X", "waiting on Sandeep" — the classifier's TASK_BLOCKER label (where no specific T-N is implied as the BLOCKED task — i.e., it's a standalone blocker report, not a status update on a known task).
+
+If the message DOES reference a T-N (e.g., "T-42 is blocked on Plaid"), this is a TASK_UPDATE — let TASK_UPDATE handler handle it instead. Classifier should distinguish; if you see ambiguity, prefer TASK_UPDATE.
+
+For a standalone TASK_BLOCKER (no T-N):
+
+1. Invoke task-handler with:
+   - `extraction`: verbatim message text
+   - `owner_slack_id`: DM sender
+   - `creator_slack_id`: DM sender
+   - `source`: `slack_dm`
+   - `source_ref`: Slack message permalink
+   - `is_status_update`: `false` (this creates a NEW blocker-tracking task, status='blocked' from creation)
+2. task-handler creates a task with `status='blocked'` and, per its Step 5 side effect, also creates a `blockers` row.
+3. Reply ONE LINE in the DM:
+   > `Logged blocker B-N (task T-N). I'll surface it in tonight's brief and check back tomorrow.`
+
+### REMINDER_REQUEST handler — DEFERRED to Phase C
+
+Triggered by: "remind me about X in 5 days", "every Friday DM me my tasks".
+
+Phase B response (one line):
+> `Reminders aren't wired up yet — coming in Phase C. Noted; ping me by hand near the date and I'll surface it.`
+
+(Phase C will replace this with actual scheduled_actions writes.)
+
+### STATUS_QUERY / DECISION_RECORDED / NON_WORK_CHAT / AMBIGUOUS
+
+These intents are NOT handled here in Phase B. Fall through to the existing slack-commands sections (Status Check, My Tasks, Help, General Questions). The classifier output is still logged to `classifier_audit` per Phase A observation mode — we just don't take action.
+
+### Authority note
+
+In Phase B, ALL task actions are SELF-SCOPED — the DM sender is always the owner. Cross-person assignment (TASK_ASSIGN intent) is rejected with a one-line reply:
+
+> `Cross-person task assignment isn't wired up yet — coming in Phase D. For now, share what you need with the person directly and I'll pick it up from your next meeting.`
+
+(Phase D will replace this with the full TASK_ASSIGN workflow.)
+
+### Anti-patterns
+
+1. **Never write to `tasks` or `blockers` directly from this skill.** Always route through `task-handler` so dedup logic is consistent across surfaces.
+2. **Never reply with multi-line internal narration.** One line per acknowledgment, per shared-toolkit Slack discipline rules. Examples of BAD: "Let me check… I'll query the database… Done." GOOD: "Got it — T-42 marked done."
+3. **Never invoke task-handler without an `owner_slack_id`.** If the sender can't be resolved (unknown DM, Slack ID not in MEMORY.md), apply SOUL.md self-heal pattern first; if still unresolved, do NOT call task-handler — reply: "Hey! I'm Alaska, BON Credit's PM. I don't think we've met — what's your name?"
+4. **Never claim Phase C/D features work in Phase B.** Use the deferred-handler replies above for REMINDER_REQUEST and TASK_ASSIGN.
+
 ## General Questions
 
 For anything not matching a specific command, use your judgment:
