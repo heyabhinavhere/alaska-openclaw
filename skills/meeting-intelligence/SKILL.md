@@ -145,6 +145,31 @@ NOW extract tasks/decisions/blockers — but contextually:
 - "Daily deploy check", "review PRs every morning" = NOT trackable commitments.
 - Note them in the meeting summary. Flag: "Recurring item noted, not tracked individually."
 
+### Step 5b: Write each commitment to SQLite via task-handler (Phase B+)
+
+For each commitment extracted above:
+
+1. Decide if it's a NEW task or a STATUS UPDATE on an existing one. Status updates have explicit completion/progress verbs: "I shipped X yesterday", "T-42 done", "still working on chart UI", "merged the PR", "blocked on docs". Everything else is a new task.
+
+2. Invoke the `task-handler` skill (at `/data/skills/task-handler/SKILL.md`) with these inputs per commitment:
+   - `extraction`: verbatim quote from the transcript (the commitment statement itself, not the surrounding context)
+   - `owner_slack_id`: speaker's Slack ID, resolved from MEMORY.md Team Roster
+   - `creator_slack_id`: `agent:meeting-intelligence`
+   - `source`: `meeting`
+   - `source_ref`: `<fireflies_transcript_id>+<sentence_index>` — use the Fireflies sentence index so the audit log can deep-link
+   - `is_status_update`: `true` if the verb signals completion/progress on existing work, else `false`
+   - `explicit_task_id`: any `T-\d+` reference found in the quote (e.g., "T-42 done" → pass `T-42`), else omit
+
+3. task-handler returns a JSON with `task_id`, `action` (`created` | `updated` | `mentioned`), and `dedup_decision`. Capture all three per commitment — you'll cite the T-IDs in Step 7's Slack summary.
+
+4. If task-handler returns `action='created'` with `dedup_decision.type='low_conf_defaulted_new'`, the task description will already carry `[NEEDS LINK?]` — flag this in the meeting summary too so Abhinav knows to review.
+
+**Skip task-handler entirely for:**
+- **External actions** (MobileFirst — Sai, Ritika, etc.): per existing rules, external action items go to Meeting Notes only, never to tasks.
+- **Recurring/daily activities:** "Daily deploy check", "review PRs every morning" — these are routines, not tasks. Note them in the summary, don't write to tasks.
+- **Decisions:** decisions are not tasks. Step 6c writes them to the Decision Log.
+- **Blockers without a task owner:** a blocker raised in a meeting but not yet linked to a specific person's work goes to the blockers table directly (Step 6d), not via task-handler.
+
 ### Anti-Hallucination Rules
 - ONLY extract items explicitly stated in the transcript.
 - If unsure: flag as `[NEEDS CLARIFICATION]`, don't guess.
@@ -196,7 +221,8 @@ _Progress confirmed:_
 _Decisions:_
 1. [Decision] — [who decided]
 
-_New tasks:_ [only genuinely new items, if any]
+_New tasks:_ [list T-IDs and one-line titles, only if genuinely new]
+_Status updates:_ [T-IDs marked done / blocked / dropped, one per line]
 
 _Blockers:_ [new or status-changed only]
 ```
