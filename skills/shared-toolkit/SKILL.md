@@ -358,6 +358,36 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
   ORDER BY created_at ASC;"
 ```
 
+### Create a blocker row (when a task transitions to blocked)
+
+When a task's status changes to `blocked`, the task-handler also writes a `blockers` row so the blocker is queryable independently of the task and can carry resolution metadata across multiple blocked tasks.
+
+```bash
+# Generate next blocker_id per the "Generate the next T-N ID" pattern, substituting 'blocker_id' and 'B-'.
+last_b=$(sqlite3 /data/queue/alaska.db "SELECT blocker_id FROM blockers ORDER BY rowid DESC LIMIT 1;")
+next_num=$(( ${last_b#B-} + 1 ))
+blocker_id="B-$next_num"
+
+# Escape apostrophes in any free-text fields per Section 1.5 (q="'"; qq="''"; text="${text//$q/$qq}").
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  INSERT INTO blockers ( \
+    blocker_id, blocked_task_id, blocker_topic, raised_by_slack_id, \
+    blocking_task_ids, blocking_person_slack_id, status, raised_at \
+  ) VALUES ( \
+    '$blocker_id', '$blocked_task_id', '$blocker_topic_escaped', '$raised_by', \
+    '$blocking_task_ids_json', '$blocking_person', 'open', CURRENT_TIMESTAMP \
+  );"
+```
+
+Field rules:
+- `blocked_task_id` — the task that is now blocked. FK to `tasks(task_id)`.
+- `blocker_topic` — short free-text summary from the extraction (e.g., "Plaid docs").
+- `blocking_task_ids` — JSON array of other `task_id`s that are blocking this one, or `'[]'` if the blocker is external (waiting on docs, vendor, etc.). Use `'[]'` not NULL so JSON queries don't have to handle NULL.
+- `blocking_person_slack_id` — Slack ID of the person blocking (if known), else NULL.
+- `status` — always `'open'` at insert time. Resolution flows update to `'resolved'` and set `resolved_at`.
+
+After INSERT, append a `task_events` row on the blocked task with `event_type='blocked'`, `new_value=$blocker_id`, `context` = the blocker_topic so the task's audit log carries the blocker pointer.
+
 ### Match-or-create logic (delegated to task-handler skill)
 
 When the intent-classifier surfaces a possible new task, do NOT write to `tasks` directly. Invoke the `task-handler` skill (at `/data/skills/task-handler/SKILL.md`) which encapsulates the match-or-create dedup logic.
