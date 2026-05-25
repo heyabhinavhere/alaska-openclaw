@@ -229,6 +229,36 @@ All agents read AGENT_RULES.md first. DAILY_STATE.md is the single source of tru
 ### Goa Retreat (May 9-13)
 - Team retreat. Standups paused. Pre-Call Brief disabled (re-enabled May 15).
 
+### v2.3 — v2.2 Follow-Up (May 25)
+
+v2.2 updated SKILL.md files but missed the *cron payload.message prompts* — and those are what agents actually execute on each cron firing. Result: skills said "Sprint Board retired, write to DAILY_STATE.md", but Thinker and Sprint Operator's cron prompts still said `PATCH /v1/pages` with the retired DB ID. Plus several silent-failure surfaces.
+
+Caught by Alaska's audit after the May 25 Daily Pulse looked off:
+
+- Follow-Through 6PM had **27 consecutive `Message failed` errors** since launch — silent because nobody saw them.
+- Pre-Call Brief had 2 consecutive failures.
+- 7 cron jobs had `delivery.channel: webchat` — outputs going to an unreachable surface.
+- 6 cron prompts still wrote to or read from the retired Sprint Board.
+- Daily Pulse had no staleness gate (would post 4-day-old DAILY_STATE.md as fresh).
+- Daily Pulse counted "days since commitment" as overdue instead of "days past due date" — flagged Samder's May 21 Mon/Tue commitment as overdue on Sunday May 25.
+- Pre-Call Brief had a contradictory line ("DAILY_STATE.md was retired — DAILY_STATE.md is the only operational state file") from a v2.2 over-replace bug.
+- Main-session Slack discipline still leaking — Alaska replied to Sandeep in #agentic-ai with full internal narration despite the v2.2 SOUL.md rewrite.
+
+**What v2.3 fixed:**
+
+- Rewrote cron payload prompts for Meeting Intelligence, Sprint Operator, Doc Keeper Event-Driven, Thinker, Pre-Call Brief, Daily Pulse. All Sprint Board write paths removed. Daily Pulse got staleness gate + correct overdue logic.
+- Sprint Operator cron is now a full v2.0 planning helper: reads DAILY_STATE.md + GitHub, DMs Abhinav a proposal, NO Notion writes. Matches the SKILL.md rewrite from v2.2.
+- Thinker cron stopped querying Sprint Board entirely. Now observes DAILY_STATE.md vs recent Slack activity and proposes to Abhinav via DM. No Notion writes.
+- 7 delivery configs changed from `{mode: none, channel: webchat}` → `{mode: none}`. Agents post to Slack via explicit `action=send,channel=slack,target=...` in their prompts — removing the webchat channel lets OpenClaw stop trying to route to the unreachable surface.
+- SOUL.md "Slack Message Discipline" section turned into a hard forbidden-phrase list with self-check rule. Examples + categories: process narration, tool/API references, self-reference as AI. Alaska-core SKILL.md cross-references it.
+- daily-pulse/SKILL.md now has a "Critical guard — staleness check" section matching the cron prompt. Plus an "Overdue logic" subsection with a verdict table covering the Mon/Tue case.
+
+**Lesson:** OpenClaw cron jobs have TWO sources of truth for behavior — the `payload.message` inline prompt AND the SKILL.md file the prompt references. The inline prompt wins because that's the active task; the SKILL is background guidance. Future schema/architecture changes need to update BOTH. The cron-jobs-backup.json snapshot in the repo is just documentation — the live state lives in OpenClaw's dashboard.
+
+**Deferred for post-merge observation:**
+
+- Pre-Call Brief 2-error pattern — root cause needs live error logs after these fixes deploy. May resolve as a side effect of the cron prompt cleanup; if not, investigate then.
+
 ### v2.2 — Stabilization (May 23)
 Big foundation cleanup. Plan: `~/.claude/plans/lazy-bubbling-clarke.md`.
 
