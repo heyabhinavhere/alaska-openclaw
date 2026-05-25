@@ -26,7 +26,7 @@ The calling skill provides a single extraction context:
 | `owner_slack_id` | yes | Who owns the work |
 | `creator_slack_id` | yes | Who created or extracted the task (often `agent:meeting-intelligence`) |
 | `source` | yes | One of: `meeting`, `slack_dm`, `slack_channel`, `standup_reply`, `manual` |
-| `source_ref` | yes | Fireflies ID + timestamp, or Slack message URL |
+| `source_ref` | yes | For `meeting`: `<fireflies_transcript_id>+<sentence_index>` (preferred — sentence index is reliably retrievable). For Slack sources: the message permalink URL. For `manual`: the operator's identifier or note. |
 | `is_status_update` | yes (bool) | True if extraction implies a state change on an existing task ("T-42 done", "merged the PR"). False if it implies new work. |
 | `explicit_task_id` | no | If the extraction text contains a `T-N` pattern, the caller passes it here |
 | `assigner_slack_id` | no | If different from creator (e.g., cross-person assignment via TASK_ASSIGN) |
