@@ -27,9 +27,9 @@ Identity disambiguation rule: **Sandeep ≠ Samder.** Sandeep = AI engineer (arc
 | Darwin | Darwin Tu | U0APK8VTT62 | _TBD (invite pending)_ | Co-founder COO | Founder — finance, credit analysis, user audits | US (SF) |
 | Pankaj | Pankaj Pal | U0AQ0817FJM | _TBD (invite pending)_ | Frontend Engineer | Engineer — Flutter, Node.js, bon_app | India |
 | Sandeep | Sandeep Singh | U0AQFJV9B32 | _TBD (invite pending)_ | AI Engineer | Engineer — Python, LangGraph, CredGPT, DevOps | India |
-| Shailesh | Shailesh | U0AQ1UZHZ8D | _TBD (invite pending)_ | AI Engineer | Engineer — Python, joined Apr 1, fully ramped | India |
-| Tarun | Tarun | _not in Slack_ | _TBD (invite pending)_ | QA Intern | Engineer — Pankaj doing KT, fresher | India |
-| Nilesh | Nilesh Kumar | _TBD_ | _TBD (invite pending)_ | Backend Engineer | Engineer — joined ~May 5, MoneyLine integration | India |
+| Shailesh | Shailesh Kumar | U0AQ1UZHZ8D | _TBD (invite pending)_ | AI Engineer | Engineer — Python, joined Apr 1, fully ramped | India |
+| Tarun | Tarun Kumar | U0AS70U9KM5 | _TBD (invite pending)_ | QA Intern | Engineer — Pankaj doing KT, fresher | India |
+| Nilesh | Nilesh Kumar | U0B17Q59J75 | _TBD (invite pending)_ | Backend Engineer | Engineer — joined ~May 5, MoneyLine integration | India |
 | Sai | Sai | _external_ | _do not invite_ | External (MobileFirst) | External — Backend/Data, transitioning off to Nilesh | India |
 
 **Bot / system accounts:**
