@@ -82,11 +82,18 @@ mkdir -p /data/queue
 
 # Initialize SQLite queue database with WAL mode if it doesn't exist
 if [ ! -f /data/queue/alaska.db ]; then
-  echo "[alaska] Initializing SQLite queue database with WAL mode..."
-  sqlite3 /data/queue/alaska.db "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT NOT NULL, payload TEXT NOT NULL, status TEXT DEFAULT 'pending', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, sent_at DATETIME, retry_count INTEGER DEFAULT 0);"
+  echo "[alaska] Initializing SQLite queue database with WAL mode + FK enforcement..."
+  sqlite3 /data/queue/alaska.db "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; CREATE TABLE IF NOT EXISTS outbox (id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT NOT NULL, payload TEXT NOT NULL, status TEXT DEFAULT 'pending', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, sent_at DATETIME, retry_count INTEGER DEFAULT 0);"
   echo "[alaska] SQLite queue ready at /data/queue/alaska.db"
 else
   echo "[alaska] SQLite queue already exists."
+fi
+
+# Apply any pending SQL migrations (idempotent — safe to run every boot)
+if [ -d /opt/migrations ]; then
+  echo "[alaska] Checking for pending migrations..."
+  bash /opt/migrations/run_migrations.sh /data/queue/alaska.db /opt/migrations
+  echo "[alaska] Migrations complete."
 fi
 
 # Substitute env vars into config (OpenClaw doesn't do this natively)

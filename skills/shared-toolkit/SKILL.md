@@ -115,6 +115,39 @@ Until IDs are populated in `MEMORY.md` → Team Roster:
 
 ---
 
+## 1.5 SQLite — Foreign Key Enforcement Pattern
+
+The v2 task model schema (migration `0001_v2_task_model.sql`) declares foreign
+keys between tasks, task_events, task_mentions, scheduled_actions, blockers,
+intent_inbox, and classifier_audit. SQLite enforces these ONLY when
+`PRAGMA foreign_keys = ON;` is set on the current connection.
+
+**Every sqlite3 invocation that writes to v2 task tables MUST include the
+pragma.** Pattern:
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; <your INSERT/UPDATE/DELETE>"
+```
+
+Read-only queries don't need the pragma (FKs aren't enforced on SELECT), but
+adding it is harmless — when in doubt, include it.
+
+**Wrong (silently corrupts audit log if task doesn't exist):**
+```bash
+sqlite3 /data/queue/alaska.db "INSERT INTO task_events (task_id, event_type, ...) VALUES ('T-nonexistent', 'created', ...);"
+```
+
+**Right (errors immediately if task doesn't exist):**
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; INSERT INTO task_events (task_id, event_type, ...) VALUES ('T-nonexistent', 'created', ...);"
+```
+
+Why: per-connection default is OFF in SQLite. Agents that forget the pragma
+will silently insert orphan rows that violate referential integrity, polluting
+the audit log permanently.
+
+---
+
 ## 2. slackSend — Queue-First Slack Messages
 
 ### For Routine Messages (channel posts, summaries, proposals)
