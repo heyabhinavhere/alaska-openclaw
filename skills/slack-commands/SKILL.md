@@ -159,6 +159,8 @@ For every DM Alaska receives, BEFORE falling through to the existing query/help 
 2. Classifier returns `{intent, confidence, entities, would_have_done}`.
 3. If `intent` is one of the action intents below AND `confidence >= 0.7`, run the matching handler. Otherwise fall through to the existing static commands (Status Check, Blocker Report, etc.) — those still work as before for low-confidence or non-action messages.
 
+**`source_ref` construction (used by all handlers below):** build a deterministic identifier from the inbound DM event payload — `slack:dm:<channel_id>:<message_ts>` (e.g., `slack:dm:D08QKABCD:1779042600.001200`). Do NOT call any Slack API to resolve a permalink in this skill. The deterministic form is stable, requires no extra call, and Doc Keeper / Thinker can lazily expand it to a permalink later when displaying in Notion. NEVER pass an empty `source_ref` — `tasks.source_ref` is a TEXT column but the audit log depends on it.
+
 **Phase B handlers (DMs only — channel-level TASK_CREATE/UPDATE arrives in Phase D):**
 
 ### TASK_CREATE handler
@@ -171,7 +173,7 @@ Triggered by: "starting on X", "I'll do Y", "add task: Z", "new task: Z" — the
    - `owner_slack_id`: the DM sender's Slack ID
    - `creator_slack_id`: the same Slack ID (self-create → personal task)
    - `source`: `slack_dm`
-   - `source_ref`: the Slack DM message permalink (`https://<workspace>.slack.com/archives/<DM_channel_id>/p<ts_without_dot>`)
+   - `source_ref`: `slack:dm:<channel_id>:<message_ts>` per the construction rule in the preamble above
    - `is_status_update`: `false`
    - `due_at_iso`: if the message contains a date hint ("by Friday", "tomorrow"), parse to ISO and pass — otherwise omit
 3. task-handler returns `{task_id, action, title, ...}`.
@@ -184,16 +186,17 @@ Triggered by: "starting on X", "I'll do Y", "add task: Z", "new task: Z" — the
 Triggered by: "T-42 done", "still working on T-65", "blocked on T-58", "merged the PR" — the classifier's TASK_UPDATE label.
 
 1. Look for a `T-\d+` pattern in the message text. If found, that's the `explicit_task_id`. If NOT found:
-   - Pull the sender's most recently updated active task from SQLite (per shared-toolkit Section 1.7 "Query: active tasks for a person", LIMIT 1).
-   - If exactly 1 active task → use that as `explicit_task_id`.
-   - If 0 active tasks → reply "No active tasks for you — start one with 'new task: <description>'." and stop.
-   - If >1 active tasks → reply "Which task? Reply with the T-N (e.g., T-42 done) or describe it." and stop.
+   - Pull the sender's active tasks from SQLite (per shared-toolkit Section 1.7 "Query: active tasks for a person", LIMIT 5 so you can disambiguate).
+   - If exactly 1 active task AND it was `updated_at` within the last 20 minutes → it's almost certainly the one the sender means (they were just talking about it). Use it as `explicit_task_id` and proceed silently.
+   - If exactly 1 active task BUT it's older than 20 minutes → **CONFIRM before acting.** Reply: `Marking T-N "<title>" as <inferred status> — confirm with 'yes' or specify a different T-N.` Do NOT invoke task-handler yet. Wait for the sender's reply.
+   - If 0 active tasks → reply: `No active tasks tracked for you yet — start one with "new task: <description>".` and stop.
+   - If 2+ active tasks → reply: `Which task? Reply with the T-N (e.g., "T-42 done") or describe it. Your active tasks: T-A — <title-a>, T-B — <title-b>, ...` and stop.
 2. Invoke task-handler with:
    - `extraction`: verbatim message text
    - `owner_slack_id`: DM sender
    - `creator_slack_id`: DM sender
    - `source`: `slack_dm`
-   - `source_ref`: Slack message permalink
+   - `source_ref`: `slack:dm:<channel_id>:<message_ts>` per the preamble
    - `is_status_update`: `true`
    - `explicit_task_id`: the T-N from step 1
 3. task-handler determines the target status from the verb (done/blocked/active/dropped/snoozed) per its own verb-mapping rules.
@@ -215,20 +218,20 @@ For a standalone TASK_BLOCKER (no T-N):
    - `owner_slack_id`: DM sender
    - `creator_slack_id`: DM sender
    - `source`: `slack_dm`
-   - `source_ref`: Slack message permalink
+   - `source_ref`: `slack:dm:<channel_id>:<message_ts>` per the preamble
    - `is_status_update`: `false` (this creates a NEW blocker-tracking task, status='blocked' from creation)
 2. task-handler creates a task with `status='blocked'` and, per its Step 5 side effect, also creates a `blockers` row.
 3. Reply ONE LINE in the DM:
    > `Logged blocker B-N (task T-N). I'll surface it in tonight's brief and check back tomorrow.`
 
-### REMINDER_REQUEST handler — DEFERRED to Phase C
+### REMINDER_REQUEST handler — DEFERRED (Phase C internally)
 
 Triggered by: "remind me about X in 5 days", "every Friday DM me my tasks".
 
-Phase B response (one line):
-> `Reminders aren't wired up yet — coming in Phase C. Noted; ping me by hand near the date and I'll surface it.`
+Phase B response (one line, no internal phase labels in the reply):
+> `Reminders aren't available yet — noted. Ping me near the date and I'll surface it.`
 
-(Phase C will replace this with actual scheduled_actions writes.)
+(Internally: Phase C wiring will replace this with actual `scheduled_actions` writes. The reply intentionally hides the roadmap from team members.)
 
 ### STATUS_QUERY / DECISION_RECORDED / NON_WORK_CHAT / AMBIGUOUS
 
@@ -236,11 +239,11 @@ These intents are NOT handled here in Phase B. Fall through to the existing slac
 
 ### Authority note
 
-In Phase B, ALL task actions are SELF-SCOPED — the DM sender is always the owner. Cross-person assignment (TASK_ASSIGN intent) is rejected with a one-line reply:
+In Phase B, ALL task actions are SELF-SCOPED — the DM sender is always the owner. Cross-person assignment (TASK_ASSIGN intent) is rejected with a one-line reply (no internal phase labels in the reply):
 
-> `Cross-person task assignment isn't wired up yet — coming in Phase D. For now, share what you need with the person directly and I'll pick it up from your next meeting.`
+> `I can't assign tasks across people yet. Share it with them directly and I'll pick it up from your next meeting.`
 
-(Phase D will replace this with the full TASK_ASSIGN workflow.)
+(Internally: Phase D will replace this with the full TASK_ASSIGN workflow.)
 
 ### Anti-patterns
 
