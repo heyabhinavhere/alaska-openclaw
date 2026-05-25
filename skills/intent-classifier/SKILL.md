@@ -43,7 +43,10 @@ The cron prompt that invokes this skill in batched mode supplies the channel/mes
 
 For each message:
 
-1. **Pre-filter:** skip if message_text is < 5 characters AND doesn't contain `@` mention, T-N reference, or task verb. Mark as `NON_WORK_CHAT` directly without LLM call.
+1. **Pre-filter (fast bypass, no LLM call):**
+   - **Bot self-messages:** Skip if `author_slack_id` is Alaska's bot user ID (`U0ANY9YTNUR`) or alaska@boncredit.ai user (`U0ANFSYAH29`). Mark as `NON_WORK_CHAT` (or optionally `BOT_SELF` if we add that type later). Prevents feedback loops where Alaska classifies her own Daily Pulse output as TASK_UPDATE etc.
+   - **Trivially short messages:** Skip if `message_text` is < 5 characters AND doesn't contain `@`-mention, T-N reference, or any task verb (fix, ship, build, merge, deploy, blocked, done, working, finished, started, assigned, review, approve, reject). Mark as `NON_WORK_CHAT` directly without LLM call.
+   - **Emoji-only or punctuation-only messages:** Skip if message strips to empty after removing emojis and punctuation. Mark as `NON_WORK_CHAT`.
 
 2. **Classify with LLM:** for the rest, call Claude Sonnet 4.6 with this exact prompt structure:
 
@@ -91,6 +94,14 @@ Timestamp: [ISO]
 
 3. **Write classification result.**
 
+**Critical: every sqlite3 write below must set `PRAGMA foreign_keys=ON;` per shared-toolkit Section 1.5.** Without it, the FK from `classifier_audit.inbox_id` to `intent_inbox(id)` is not enforced and orphan audit rows can pollute the Phase A evaluation dataset.
+
+Pattern:
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; UPDATE intent_inbox SET processed=1, intent='...', confidence=..., classifier_output='...', processed_at=CURRENT_TIMESTAMP WHERE id=...;"
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; INSERT INTO classifier_audit (inbox_id, intent, confidence, entities, reasoning, would_have_done) VALUES (...);"
+```
+
 **Observation mode (Phase A):**
 - Update the `intent_inbox` row: `processed = 1`, `intent = <result>`, `confidence = <result>`, `classifier_output = <full JSON>`, `processed_at = NOW()`.
 - Insert into `classifier_audit`: full record with `would_have_done` populated.
@@ -104,6 +115,7 @@ Triggered every 5 min via OpenClaw cron. Read unprocessed messages:
 
 ```bash
 sqlite3 /data/queue/alaska.db "
+  PRAGMA foreign_keys = ON;
   SELECT id, channel_id, author_slack_id, message_text, message_ts
   FROM intent_inbox
   WHERE processed = 0
@@ -112,11 +124,13 @@ sqlite3 /data/queue/alaska.db "
 "
 ```
 
-For each row:
-1. Look up channel name (from /root/.openclaw/workspace/TOOLS.md channel mapping)
-2. Look up author first name (from MEMORY.md)
-3. Run the LLM classifier
-4. Write results per "Write classification result" above
+For each row, BEFORE invoking Claude:
+1. Look up channel name from `/root/.openclaw/workspace/TOOLS.md` channel mapping (substitute into prompt).
+2. Look up author first name from `/root/.openclaw/workspace/MEMORY.md` → Team Roster (substitute into prompt).
+3. Read the full team roster from `MEMORY.md` and format as a markdown list of `slack_id → first_name` pairs. Substitute it in place of the `[Resolve from /root/.openclaw/workspace/MEMORY.md → Team Roster]` placeholder in the prompt template. The LLM sees the actual roster, not the placeholder.
+4. Substitute the message text, channel name, author name, and ISO timestamp into the corresponding placeholders.
+5. Invoke Claude Sonnet 4.6 with the now-fully-substituted prompt.
+6. Write results per "Write classification result" above.
 
 Cap at 50 messages per run to bound token cost. If queue grows >200, alert Abhinav.
 
@@ -138,4 +152,11 @@ When invoked from a DM context with a single message:
 
 ## Token budget
 
-Estimate: 50 channel msgs/day × 600 tokens/classification × $3/1M (Sonnet) = ~$0.10/day. Cap warning at $0.50/day in `classifier_audit` count >> expected.
+Realistic estimate using Sonnet 4.6 pricing ($3/M input + $15/M output):
+- ~500 input tokens per call (prompt template + roster + message)
+- ~150 output tokens per call (JSON response)
+- Per-call cost: ~$0.00375
+- BON Credit team activity: ~100-150 channel msgs/day classified after pre-filter
+- Daily cost: ~$0.40 - $0.55
+
+Daily cap warning: if `classifier_audit` row count for the day exceeds 250 (suggesting unusual volume) OR if estimated daily spend exceeds $1.50, alert Abhinav. Both thresholds are 3x baseline to allow for organic growth without false positives.
