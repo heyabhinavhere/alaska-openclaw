@@ -6,7 +6,18 @@ the specific cases Alaska needs:
 - Compute next fire time after a given datetime
 - Validate RRULE string syntax
 - Format human-readable description (for confirmation messages)
+
+Assumes the input RRULE string has NO embedded DTSTART — we synthesize
+one from the `after` anchor at call time. All datetimes returned are
+in UTC.
 """
+
+# PEP 604 union syntax (`datetime | None`) requires Python 3.10+.
+# The production image (1panel/openclaw:2026.3.13, node:24-bookworm) runs
+# Python 3.11, so this is fine in prod. Adding the future import lets
+# local-dev environments on Python 3.9 (e.g. macOS system python) import
+# this module too — annotations become strings, evaluated lazily.
+from __future__ import annotations
 
 from datetime import datetime, timezone
 from dateutil import rrule
@@ -65,7 +76,7 @@ def describe_rrule(rrule_str: str) -> str:
             k, v = kv.split('=', 1)
             parts[k] = v
 
-    freq = parts.get('FREQ', 'UNKNOWN').lower()
+    freq = parts.get('FREQ', '').lower()
     day_map = {'MO': 'Monday', 'TU': 'Tuesday', 'WE': 'Wednesday',
                'TH': 'Thursday', 'FR': 'Friday', 'SA': 'Saturday', 'SU': 'Sunday'}
 
@@ -80,9 +91,24 @@ def describe_rrule(rrule_str: str) -> str:
             bits.append('every week')
     elif freq == 'monthly':
         bits.append('every month')
+    elif freq == 'yearly':
+        bits.append('every year')
+    elif freq == 'hourly':
+        bits.append('every hour')
+    elif freq == 'minutely':
+        bits.append('every minute')
+    elif freq == 'secondly':
+        bits.append('every second')
+    elif freq == '':
+        # No FREQ key in the rule — surface this rather than fabricating "every unknown"
+        return 'unknown schedule (no FREQ)'
     else:
+        # Graceful fallback for any RFC 5545 freq we haven't enumerated above
         bits.append(f'every {freq}')
 
+    # Time block — only emit if BYHOUR is set. BYMINUTE alone (without BYHOUR)
+    # is exotic and surfacing it as "at 00:MM UTC" would be misleading (implies
+    # midnight); we drop it silently in that case.
     if 'BYHOUR' in parts:
         hour = int(parts['BYHOUR'])
         minute = int(parts.get('BYMINUTE', '0'))
