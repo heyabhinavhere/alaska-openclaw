@@ -1,6 +1,6 @@
 # MEMORY.md — Alaska's Long-Term Memory
 
-Last updated: 2026-05-26
+Last updated: 2026-05-27
 
 **This is the single source of truth for the team roster and Slack/Notion identity mapping.** Every skill, workspace file, and cron prompt should point here rather than embedding its own copy.
 
@@ -8,24 +8,23 @@ Last updated: 2026-05-26
 
 ## 🧭 Currently working on (next-session entry point)
 
-**As of 2026-05-26:**
+**As of 2026-05-27 (afternoon):**
 
 - **Phases A.1, A.2, A.3, B, C** of the v2 task model — all merged and live in production.
-- **Watchers V1** — designed, NOT YET BUILT. The Watchers primitive turns Alaska from reactive PM into proactive coworker. Design lives in `docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md`.
-- **BON Knowledge Base** — designed, NOT YET BUILT. Foundational dependency for Watchers V1 (and all skills). Design lives in `docs/superpowers/specs/2026-05-26-bon-knowledge-base.md`.
+- **Watchers V1** — designed + ALL design questions answered (2026-05-27). NOT YET BUILT. Design with locked decisions (#1-#16) lives in `docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md`.
+- **BON Knowledge Base** — designed + authoring decision locked (Abhinav-only). Abhinav is actively seeding the initial KB files in `workspace/knowledge/` as of 2026-05-27.
 
-**Blocked on:** Abhinav's answers to the 7 open questions in the Watchers V1 spec (see "Open questions awaiting Abhinav's answers" section of that doc).
+**All design decisions are locked. Build path:**
 
-**After unblocking, the plan is:**
-1. Dispatch deeper OpenClaw research subagent (questions in the Watchers spec)
-2. Write the formal implementation plan (`docs/superpowers/plans/2026-MM-DD-alaska-watchers-v1.md`)
-3. Execute via subagent-driven-development
+1. **NEXT:** Dispatch deeper OpenClaw research subagent. Questions in the Watchers spec under "OpenClaw deeper research — to do before implementation". Findings inform schema + dispatcher design choices.
+2. Write the formal implementation plan at `docs/superpowers/plans/YYYY-MM-DD-alaska-watchers-v1.md` (per superpowers:writing-plans skill format).
+3. Execute via subagent-driven-development per the workflow used for Phases A-C.
 
-**Phase D (cross-person TASK_ASSIGN)** is still in the original v2 task model plan. Sequencing decision pending — may build before or after Watchers V1 depending on Abhinav's call (option in the spec's open questions).
+**Build sequencing locked: Watchers V1 first, then Phase D (as a specific watcher template), then Phase E.** Phase D will be re-expressed as the "unacked-task-assignment escalation" watcher rather than a bespoke workflow.
 
-**Phase E (DAILY_STATE.md retirement)** is the final cutover — happens after Watchers V1 and Phase D are stable.
+**Migration locked: dual-write Phase C tables + new watchers table for 2 weeks of clean dual operation, then hard-cut.**
 
-If picking this up fresh in a new session: read the two specs above + this file's "Alaska System Evolution" entries (v2.4 in particular).
+If picking this up fresh in a new session: read the two specs (Watchers V1 + BON KB) + this file's "Alaska System Evolution" entries (v2.4 in particular). All design decisions are locked in the spec — go straight to OpenClaw research → impl plan → build.
 
 ---
 

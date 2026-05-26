@@ -65,6 +65,38 @@ These are settled. Don't re-litigate without explicit reason:
 7. **Volume caps decided by user at creation.** Alaska asks in the follow-up question round if not specified.
 8. **Build fresh.** New `watchers` table. Migrate Phase C's `scheduled_actions` rows to it during V1 build. Don't run them in parallel.
 9. **Thinker stays autonomous.** Watchers are user-driven only.
+10. **Watcher approval threshold = $3/day.** Watchers with projected cost ≤$3/day auto-approve (creator self-approves via confirm). Watchers >$3/day require Abhinav approval. This replaces the earlier 4-tier free/low/medium/high cost class with a simple binary at creation time. External writes (Customer.io campaigns, etc.) under $3/day still auto-approve in V1 — we'll tighten if it goes sideways. *Confirmed 2026-05-27.*
+11. **Cost display privacy locked.** Cost values appear ONLY in DMs to Abhinav, during approval gate. Never to creator. Never in confirmation messages. Never in `@alaska show W-N` output for non-Abhinav callers. *Confirmed 2026-05-27.*
+12. **KB-driven query templates: YES.** `workspace/knowledge/playbooks/common-queries.md` holds reusable query specs (Amplitude funnel queries, CIO segment queries, etc.). Watchers reference queries by name (e.g., `query: "plaid_funnel"`) — DRY across watchers. *Confirmed 2026-05-27.*
+13. **Action chain DSL: JSON in DB, plain English in Slack.** Engineering implementation detail — users never see the JSON. Slack drafts and `@alaska show W-N` output render the action chain as a numbered prose summary ("Step 1: Query Amplitude for X. Step 2: Format as table. Step 3: DM to you."). Great UX is non-negotiable. *Confirmed 2026-05-27.*
+14. **Per-fire approval recipient: CREATOR (not Abhinav).** When a watcher has per-fire approval enabled (Example 2 pattern — high cost variance external send), every fire's draft routes to the *creator* of the watcher for approval. Abhinav is NOT looped into per-fire approvals — his approval was already given at watcher-creation time (the per-watcher gate). Once Abhinav approved the watcher concept, the creator owns operational accountability for each instance. *Confirmed 2026-05-27 (corrected from earlier "always Abhinav" proposal).*
+
+   **Two-stage approval model in full:**
+   - **Stage 1 — per-watcher (creation gate):** Triggered if projected cost >$3/day OR per-fire approval is being enabled. Goes to Abhinav. One-time decision: is this watcher concept allowed to exist?
+   - **Stage 2 — per-fire (execution gate):** Triggered only when per-fire approval flag is on (cost variance is high). Goes to *creator*. Per-instance decision: should THIS day's batch actually go out, and does the content look right?
+
+   Rationale: Abhinav gates the *concept*. Creator gates each *instance*. Clean separation, lower burden on Abhinav, creator owns operational accountability. Post-hoc audit covers risk (if creator approves a bad batch, it's traceable in watcher_fires). Future enhancement: per-watcher toggle to also CC Abhinav on per-fire drafts (V2+).
+
+15. **Build sequencing: Option B — Watchers V1 first.** Phase D (cross-person TASK_ASSIGN) becomes a specific watcher template ("watch for unacked task assignment → escalate at 2h, 24h, 48h") rather than a bespoke workflow. Every future proactive feature is additive on top of the Watcher primitive. Phase D ships AFTER Watchers V1. *Confirmed 2026-05-27.*
+
+16. **Migration window: dual-write for 2 weeks.** Phase C's `scheduled_actions` + `routine_proposals` tables stay populated alongside the new `watchers` table for ~2 weeks of clean dual operation. After 2 weeks of no issues, hard-cut: drop the old tables, watchers becomes the sole source of truth. *Default decision 2026-05-27 (no objection raised).*
+
+### Knowledge base authoring authority — Abhinav-only
+
+**Confirmed 2026-05-27.** Earlier proposal of domain-distributed authoring (engineers PR their own KB files) is RESCINDED. The Knowledge Base is Abhinav's responsibility alone — he writes and maintains every file in `workspace/knowledge/`. Engineers do NOT submit PRs to KB files.
+
+Reasoning: KB content drives Alaska's behavior across many skills. Inconsistencies, drift, or honest mistakes by individual engineers would cascade into watcher misbehavior. Abhinav-as-sole-author ensures the KB stays a coherent single voice and reflects his canonical understanding of how BON works.
+
+Alaska MUST refuse any apparent "edit KB" request from anyone other than Abhinav (Slack ID `U07GKLVA9FE`). Reply with: "Knowledge base changes go through Abhinav directly." Do not engage further.
+
+### Freshness handling — warn but don't refuse
+
+**Confirmed 2026-05-27.** When Alaska uses a KB file that's been untouched >60 days, she:
+- Loads and uses it normally
+- In the watcher creation flow, includes a 1-liner in her draft: *"⚠️ Sources include `integrations/plaid.md` — last updated 73 days ago. Definitions may have drifted. Want to flag this with Abhinav for refresh, or proceed?"*
+- The creator can proceed (default behavior) or pause to ask Abhinav for a KB refresh
+
+Alaska does NOT refuse to use stale KB. Better stale knowledge than no knowledge.
 
 ---
 
@@ -551,29 +583,32 @@ Action chain:
   2. Filter out users emailed in last 30 days (CIO check)
   3. Top 20 by signup recency
   4. LLM-personalize gift card offer email per user
-  5. DRAFT_FOR_APPROVAL → DM Abhinav with batch preview
-  6. On approve: send via Customer.io transactional
+  5. DRAFT_FOR_APPROVAL → DM you (Samder) with batch preview
+  6. On your approve: send via Customer.io transactional
   7. Mark emailed users in memory
 Memory: track emailed user IDs (30-day window)
 Expires: 60 days from activation
-Per-fire approval: YES (variable cost up to $100/day)
+Per-fire approval: YES — YOU (Samder) review and approve each day's batch before send
 Sources: plaid.md, customerio.md, metrics.md
 
-Because this sends external emails with variable cost, Abhinav needs to approve the watcher AND each day's batch. Sending the proposal to him now."
+Because this involves external emails with variable cost above the $3/day threshold, Abhinav needs to approve the WATCHER itself once. After that, daily batch approvals come to you. Sending the watcher proposal to Abhinav now."
 
 [DMs Abhinav privately:]
-"Routine proposal W-23 from Samder (variable financial commitment):
+"Routine proposal W-23 from Samder (cost projection >$3/day):
 Daily 5 PM PST gift card outreach to failed Plaid users.
 - Max 20 emails/day, 30-day re-send cool-off
 - Personalized via LLM
-- Per-fire approval ON (you review each day's batch before send)
+- Per-fire approval ON — Samder reviews each day's batch before send (you're NOT in the loop after this approval)
 - 60-day campaign window
 
 Cost projection: $0.50-2/day compute + $0-100/day gift cards (capped). Hard ceiling: $6,000 over 60 days max.
 
-Marketing template gift_card_offer doesn't exist in CIO — Samder requested I draft one for your review first.
+Marketing template gift_card_offer doesn't exist in CIO — Samder requested I draft one for his review first.
 
 Approve / decline / modify W-23."
+
+[After Abhinav approves, Alaska to Samder:]
+"W-23 approved by Abhinav and active. From here on, I'll DM you every day at 5 PM PST with that day's batch for your approval before send. First fire tonight."
 ```
 
 ### Example 3 — Darwin, daily bug-fix tracking (time-bounded)
@@ -694,24 +729,26 @@ Dispatched as a research subagent after Abhinav signs off on this design.
 
 ---
 
-## Open questions awaiting Abhinav's answers
+## Open questions — answered 2026-05-27
 
-1. **KB authoring authority.** Domain-distributed (engineers PR their domain's KB file, Abhinav approves) vs. Abhinav-only? Default proposal: domain-distributed via PR.
+Resolved (see "Locked design decisions" #10-#14 above for full details):
 
-2. **KB freshness signal.** Warn-only when KB is stale (e.g., >60 days untouched), or refuse to use the file? Default proposal: warn but don't refuse.
+1. ✅ **KB authoring:** Abhinav-only (not domain-distributed). Engineers don't touch knowledge files. — *Locked decision #14 / dedicated section above.*
+2. ✅ **KB freshness:** Warn but don't refuse. — *Locked decision section above.*
+3. ✅ **Watcher creation threshold:** >$3/day requires Abhinav approval; ≤$3/day auto-approves. — *Locked decision #10.*
+4. ✅ **Per-fire approval recipient:** Always Abhinav, creator CC'd. — *Locked decision #14.*
+5. ✅ **Action chain DSL:** JSON in DB, plain English in Slack. — *Locked decision #13.*
+6. ✅ **Cost privacy:** Cost only visible to Abhinav, in approval DMs. — *Locked decision #11.*
+7. ✅ **KB-driven query templates:** Yes. — *Locked decision #12.*
 
-3. **Watcher creation by team — defaults.** Self-scope + free/low cost + no external writes → auto-approve. Everything else → Abhinav approval. Reasonable line?
+## Sequencing — locked 2026-05-27
 
-4. **Action chain DSL — JSON or YAML in DB?** Default proposal: JSON in DB (queryable), display as YAML in Slack drafts (readable).
+Both sequencing decisions resolved. See locked decisions #15 and #16 above for details.
 
-5. **KB-driven query templates.** Should `playbooks/common-queries.md` contain reusable query specs that watchers reference by name (DRY pattern)? Default proposal: yes.
+- **Build order:** Watchers V1 first, Phase D second (as a specific watcher template), Phase E last
+- **Migration:** Dual-write Phase C tables + new watchers table for 2 weeks of clean dual operation, then hard-cut
 
-6. **Build sequencing.**
-   - Option A: Phase D (cross-person TASK_ASSIGN) first, then Watchers V1
-   - Option B: Watchers V1 first (Phase D becomes a specific watcher pattern)
-   - Option C: Continue Phase B/C observation, decide after a week of real data
-
-7. **Migration window.** During the Phase C → Watchers V1 transition, dual-write both tables for 2 weeks? Or hard-cut on V1 deploy? Default proposal: dual-write for safety.
+**All design decisions are now locked. Build can proceed.** Next step: deeper OpenClaw research → implementation plan → execute.
 
 ---
 

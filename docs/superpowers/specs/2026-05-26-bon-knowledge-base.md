@@ -241,10 +241,25 @@ metadata:
 
 ## Maintenance norms
 
-### Who edits what
+### Who edits what — Abhinav-only
 
-- **Domain-distributed authoring.** Each integration file has an owner (the engineer who works with that system). They own keeping it current.
-- **PR-gated.** All KB changes go through GitHub PR review. Abhinav approves.
+**Confirmed 2026-05-27.** The Knowledge Base is Abhinav's responsibility alone. No domain-distributed authoring. Engineers do NOT submit PRs to KB files. They do NOT directly edit `workspace/knowledge/`.
+
+Reasoning: KB content drives Alaska's behavior across many skills. Inconsistencies, drift, or honest mistakes by individual engineers would cascade into watcher misbehavior. Abhinav-as-sole-author ensures the KB stays a coherent single voice and reflects his canonical understanding of how BON works.
+
+**What engineers CAN do:**
+- Ask Alaska "what does plaid.md say about X?" — she'll quote
+- Notify Abhinav of a definition that's drifted ("hey, our Plaid failure handling changed — KB needs an update")
+- Flag stale KB content during their own work
+
+**What engineers CANNOT do:**
+- Submit PRs touching `workspace/knowledge/`
+- Ask Alaska to update KB files on their behalf
+
+**Alaska's enforcement:** Any apparent "edit KB" request from anyone other than Abhinav (Slack ID `U07GKLVA9FE`) gets the reply: *"Knowledge base changes go through Abhinav directly."* No further engagement.
+
+**Tooling implication:** A CI check (GitHub Actions or pre-commit hook) should reject any commit to `workspace/knowledge/**` not authored by Abhinav. Easier to enforce mechanically than by code review.
+
 - **No silent edits.** Update the "Last updated" header on every change.
 
 ### Freshness signal
@@ -350,17 +365,19 @@ Pointers from MEMORY.md and TOOLS.md to KB files keep backward compatibility —
 
 ---
 
-## Open questions
+## Open questions — answered 2026-05-27
 
-1. **KB authoring authority** — Domain-distributed (engineers PR their own files) vs Abhinav-only? Default proposal: domain-distributed via PR with Abhinav approval.
+1. ✅ **KB authoring authority** — **Abhinav-only.** Not domain-distributed. See "Who edits what" section above.
 
-2. **Freshness threshold** — At what age should Alaska start warning about KB staleness? Default proposal: 60 days untouched.
+2. ✅ **Freshness threshold** — **60 days, warn-only.** Alaska continues to use KB files past 60 days untouched, but flags the staleness in her drafts to give the user a chance to ask Abhinav for a refresh.
 
-3. **Format strictness** — Should KB files be free-form markdown, or enforce a strict schema/template? Default proposal: structured template (the one above) so skills can grep-parse predictable sections.
+3. (Defaults stand — not raised in conversation, recommend going with: structured template format, git-history versioning, split at ~1500 lines.)
 
-4. **Versioning** — Do we track KB file versions explicitly (e.g., `# Plaid — Card Linkage Integration v3`) or just rely on git history? Default proposal: git history is enough.
+**Format strictness** — Structured template (the one above) for grep-parseability. Skills depend on predictable section names.
 
-5. **Granularity** — When a domain gets complex (e.g., card-linkage involves Plaid + Array + matching engine), do we put everything in one file or split? Default proposal: split when the file passes ~1500 lines.
+**Versioning** — Git history only. Don't manually track versions in file headers (one less thing to keep in sync).
+
+**Granularity** — Split when a file exceeds ~1500 lines. Until then, one file per system / model / concept.
 
 ---
 
