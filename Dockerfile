@@ -7,10 +7,14 @@ FROM 1panel/openclaw:2026.3.13
 
 USER root
 
-# Install system dependencies: SQLite for local queue, curl for health checks
+# Install system dependencies:
+# - sqlite3: local task queue + v2 task model storage
+# - curl: health checks + Notion/Slack API calls
+# - python3-dateutil: RRULE parsing for the Phase C scheduling engine
 RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
     curl \
+    python3-dateutil \
     && rm -rf /var/lib/apt/lists/*
 
 # Pre-install the Slack plugin (baked into the image, survives restarts)
