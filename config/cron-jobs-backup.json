@@ -407,6 +407,52 @@
         "mode": "none"
       },
       "state": {}
+    },
+    {
+      "id": "PLACEHOLDER-reminder-dispatcher",
+      "name": "Reminder Dispatcher",
+      "enabled": true,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/15 * * * *",
+        "tz": "UTC"
+      },
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "user-message",
+        "message": "You are the reminder-dispatcher running on cron. Read /data/skills/reminder-dispatcher/SKILL.md and execute the procedure. Fire all due scheduled_actions, re-queue recurring ones via rrule_helper, mark fired or failed appropriately. Silent run is the steady-state \u2014 only post a summary log line if at least one action fired.",
+        "timeoutSeconds": 240
+      },
+      "delivery": {
+        "channel": "none"
+      },
+      "state": {}
+    },
+    {
+      "id": "PLACEHOLDER-routine-proposal-watch",
+      "name": "Routine Proposal Watch (expire after 7 days)",
+      "enabled": true,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 6 * * *",
+        "tz": "UTC"
+      },
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "user-message",
+        "message": "Check routine_proposals for any rows where status='pending' AND expires_at < datetime('now'). For each: UPDATE the row to status='expired'; DM the proposer (Slack ID = proposed_by_slack_id) with: 'Your routine proposal RP-N expired after 7 days with no response from Abhinav. Send it again when you want to revisit.' If 1+ proposals expired this run, also DM Abhinav (U07GKLVA9FE) with a one-line summary: 'N routine proposal(s) expired today: RP-X (from <person>), RP-Y (from <person>)'. Silent if no proposals expired.",
+        "timeoutSeconds": 120
+      },
+      "delivery": {
+        "channel": "none"
+      },
+      "state": {}
     }
   ]
 }
