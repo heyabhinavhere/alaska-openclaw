@@ -1,8 +1,31 @@
 # MEMORY.md — Alaska's Long-Term Memory
 
-Last updated: 2026-05-23
+Last updated: 2026-05-26
 
 **This is the single source of truth for the team roster and Slack/Notion identity mapping.** Every skill, workspace file, and cron prompt should point here rather than embedding its own copy.
+
+---
+
+## 🧭 Currently working on (next-session entry point)
+
+**As of 2026-05-26:**
+
+- **Phases A.1, A.2, A.3, B, C** of the v2 task model — all merged and live in production.
+- **Watchers V1** — designed, NOT YET BUILT. The Watchers primitive turns Alaska from reactive PM into proactive coworker. Design lives in `docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md`.
+- **BON Knowledge Base** — designed, NOT YET BUILT. Foundational dependency for Watchers V1 (and all skills). Design lives in `docs/superpowers/specs/2026-05-26-bon-knowledge-base.md`.
+
+**Blocked on:** Abhinav's answers to the 7 open questions in the Watchers V1 spec (see "Open questions awaiting Abhinav's answers" section of that doc).
+
+**After unblocking, the plan is:**
+1. Dispatch deeper OpenClaw research subagent (questions in the Watchers spec)
+2. Write the formal implementation plan (`docs/superpowers/plans/2026-MM-DD-alaska-watchers-v1.md`)
+3. Execute via subagent-driven-development
+
+**Phase D (cross-person TASK_ASSIGN)** is still in the original v2 task model plan. Sequencing decision pending — may build before or after Watchers V1 depending on Abhinav's call (option in the spec's open questions).
+
+**Phase E (DAILY_STATE.md retirement)** is the final cutover — happens after Watchers V1 and Phase D are stable.
+
+If picking this up fresh in a new session: read the two specs above + this file's "Alaska System Evolution" entries (v2.4 in particular).
 
 ---
 
@@ -198,7 +221,61 @@ All agents read AGENT_RULES.md first. DAILY_STATE.md is the single source of tru
 
 ## Alaska System Evolution
 
-### v2.0 (Apr 13) — First Reset
+### v2.4 (May 25-26) — v2 Task Model Activation + Watchers Design
+
+Big session. Three PRs merged, two foundational design docs written, one Slack-discipline regression caught and patched.
+
+**Shipped (all merged + live in production):**
+
+- **PR #9 — Phase B (v2 task model — task lifecycle).** Six commits, five skills touched. `task-handler` skill added (match-or-create dedup via Sonnet 4.6 against last-14-days candidates). Meeting Intelligence now writes commitments to SQLite via task-handler (Step 5b). Slack Commands gained DM intent handlers for `TASK_CREATE` / `TASK_UPDATE` / `TASK_BLOCKER`. Pre-Call Brief reads from SQLite tasks (with `additional_owners` filter for secondary owners) and parses thread-reply grammar (`T-N done`, `T-N blocked by X`, `T-N active`, `new:`, `on leave`). shared-toolkit Section 1.7 extended with canonical Task Write Contract patterns + blocker-row INSERT pattern.
+
+  Two-stage review caught: 5 schema mismatches in B2 (non-existent columns, invalid CHECK enum values, ID-gen bug), 4 issues in B3 (source_ref drift, unresolved-owner fallback, SKIP precedence, status-update format), 4 in B4 (source_ref undefined, blocker promise broken, stale-task confirmation, Phase C/D leaks in user-facing replies), 9 in B5 (T-N active contract ambiguity, regex anchors, additional_owners filter missing, etc.). All closed before merge.
+
+  Validation: Alaska ran replay against May 18-24 historical data in a sandbox database (10 meeting tasks, 1 DM task, dedup engaged, visibility computation clean). Blocker path then validated in a separate exercise — all 7 checks pass, including the C2 fix (Step 5 blocker-row creation on initial INSERT, not just status change).
+
+  **Phase B follow-up tracked as Task #44:** dedupe blocker rows on already-blocked tasks (when T-1 is already blocked and someone says "T-1 blocked again", we currently create B-2 in addition to B-1 — non-blocking but spammy in steady state).
+
+- **PR #10 — Bridge fix for Daily Pulse / Follow-Through staleness.** May 25's 6 PM Daily Pulse quoted "Sprint 8 closes today" and "V2 TestFlight scheduled May 22" from a DAILY_STATE.md last compiled May 21 (4 days stale). Two gaps caught: (a) v2.2 FU3 added staleness gate to Daily Pulse 9AM only, not Follow-Through; (b) v2.3 cron-prompt sweep missed two "sprint tasks" mentions in Follow-Through 9AM. Plus (c) DAILY_STATE.md itself was structurally Sprint-framed even after Sprint Board retirement.
+
+  Fix: staleness gate added to both Follow-Through crons (same gate as Daily Pulse 9AM — skip post if state >96h stale). Sprint refs stripped from Follow-Through 9AM. DAILY_STATE.md restructured sprint-neutral ("Current Focus" not "Current Sprint", "BACKLOG:" not "SPRINT TASKS:", header banner explaining sprint-agnostic framing). Alaska deployed cron updates manually in OpenClaw dashboard + refreshed live DAILY_STATE.md after merge.
+
+- **PR #11 — Phase A.3 (classifier prompt tuning).** Renamed from working title "v1.1" to slot cleanly into Phase A→E sequence. Four disambiguation rules added to the classifier prompt:
+  1. META-COMMENT — "I think X is being assigned to Y" no longer classified as TASK_ASSIGN
+  2. STANDUP CONTEXT — standup messages reporting completed work no longer tagged STATUS_QUERY
+  3. SHARING vs ASSIGNING — `@Sandeep here's the doc` no longer tagged TASK_ASSIGN
+  4. MULTI-INTENT — `today done X, tomorrow Y` records both via new `secondary_intents` JSON column (migration 0002)
+
+  Validation against May 18-24 replay (Alaska ran the re-replay post-merge): 4/4 targets hit. META-COMMENT FPs dropped from 3 to 0. Standup miscategorization dropped from 15 to 2 (the 2 remaining are genuine queries — correct). SHARING→TASK_ASSIGN false positives dropped from 1-2 to 1 borderline (arguably correct). secondary_intents populated on 52% of TASK_UPDATE rows (exceeded 30-40% target). Phase A.3 fully validated.
+
+- **PR #12 — Phase C (scheduling engine — reminders, RRULE, REMINDER_REQUEST handler).** Six commits, 8 files, +617/-7 lines. First Python in the codebase: `lib/rrule_helper.py` (RRULE parsing via python-dateutil) + `tests/test_rrule_helper.py` (11/11 passing). New `reminder-dispatcher` skill (cron-fired every 15 min, handles 5 action types: remind / surface_task / escalate / recurring_routine / auto_followup). slack-commands REMINDER_REQUEST handler replaces the Phase B deferred stub. New Routine Proposal Approval section (Abhinav-gated team routines).
+
+  Code-quality review caught: PEP 604 syntax broke local-dev on Python 3.9 (fixed with `from __future__ import annotations`), `describe_rrule` rendered "every hourly" / "every unknown" for unusual inputs (tightened), 4 missing test cases (added). Final cross-skill review caught 1 critical: reminder-dispatcher Step 3 contradicted Anti-pattern #2 — "mark fired AFTER side effect" vs "BEFORE". Crash between Slack post and the UPDATE would cause duplicate reminders. Rewrote Step 3 with explicit 3a/3b/3c/3d ordering: deterministic prep → flip-with-lock → side effect → audit. No retry path on side-effect failure — we accept rare "one lost reminder" to prevent common "duplicate spam" failure.
+
+**Designed but NOT YET BUILT — preserved in design docs:**
+
+- **Watchers V1** (`docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md`). The big strategic conversation about turning Alaska from reactive to proactive. A **Watcher** is a unit of repeatable agency with five properties (trigger / action chain / recipient / memory / approval gates). Generalizes Phase C's `scheduled_actions` table — reminders ARE watchers, just with action=send_dm and no memory. Unlocks the wider use cases Abhinav articulated: "every Monday show me DAU + retention", "daily 5 PM send gift card emails to failed Plaid users with per-fire approval", "weekly bar chart of Plaid failure steps", "alert me whenever <580 user signs up". Five worked examples in the spec map directly to user-articulated needs.
+
+  V1 deliberately stays narrow: **user-requested watchers only**, no autonomous "Alaska decides what's worth watching" (that turf stays with Thinker). Pre-built templates (Bug-cluster, Customer-signal, Stale-task, Deploy-impact) ship with V1 for fast activation.
+
+  9 design decisions locked (cost display private to Abhinav; per-watcher cron; reminders ARE watchers; per-fire approval only for high cost variance; no approval for watching teammates in V1; strict memory; user-decided volume caps; build fresh table; Thinker stays autonomous). 7 open questions await Abhinav's answers before implementation.
+
+- **BON Knowledge Base** (`docs/superpowers/specs/2026-05-26-bon-knowledge-base.md`). Abhinav's foundational insight — Alaska needs structured domain knowledge. Right now she asks "what counts as a failed Plaid user?" because the answer isn't anywhere; with KB she reads `knowledge/integrations/plaid.md` and uses the team-canonical definition.
+
+  Structure: `workspace/knowledge/` with `integrations/` (one file per external system), `data-models/` (BON internal domain), `definitions/` (shared vocabulary), `playbooks/` (operational recipes). Per-file format template enforces grep-able predictability. Each KB file has an owner (engineer who works with that system).
+
+  Tier 1 seed list = 13 files to write before Watchers V1 ships. Tier 2 (~10 more files) follows over 2 weeks of operation. Domain-distributed authoring via PR with Abhinav approval. Skills declare which KB files they consume via metadata; watchers store `knowledge_sources` for re-validation when KB updates.
+
+**OpenClaw native scheduling research (May 26 — informed Phase C reflection):**
+
+Dispatched a research subagent on whether OpenClaw has native primitives that overlap with our custom Phase C scheduling layer. Findings: yes, partially. OpenClaw natively supports runtime `cron.add` (we already used this for the classifier cron in Phase A.2), one-shot scheduling via `schedule.kind="at"` with auto-delete-after-fire, per-recipient routing via `delivery.channel="slack"` + `delivery.to=user:U...`, and cancellation via `cron.remove`. So Phase C's `remind` and `surface_task` action types could have been native OpenClaw cron entries — our 15-min polling dispatcher adds up to 14 min latency vs native cron's exact-second firing.
+
+But our custom layer remains necessary for: RRULE recurrences (OpenClaw cron uses standard cron expressions without COUNT/UNTIL/EXDATE), `escalate` and `auto_followup` business logic, routine_proposals approval flow, local audit + cross-task linkage in `task_events`, and cross-system queries ("show Sandeep's pending reminders" requires a local index — OpenClaw cron list has no tag/owner filter).
+
+Cleanest hybrid (for V1): use OpenClaw cron natively for time triggers (one cron per watcher via `cron.add`), keep local table for state/memory/approval/audit. Documented in the Watchers V1 spec.
+
+**Two new tasks added to tracker:** Task #43 (Phase A.3 work — completed), Task #44 (Phase B blocker-dedup follow-up — pending).
+
+### v2.3 — v2.2 Follow-Up (May 25)
 - Message overload → reduced to ~5-7/day
 - Meeting Intelligence v2: deep transcript comprehension
 - Risk Radar: only posts changes
