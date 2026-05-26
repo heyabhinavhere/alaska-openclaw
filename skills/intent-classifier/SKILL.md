@@ -1,7 +1,7 @@
 ---
 name: intent-classifier
-description: Classify every non-trivial Slack message Alaska sees into one of 9 intent types. Writes classification + entities + reasoning to intent_inbox / classifier_audit. Phase A runs in OBSERVATION MODE — no downstream action. Phases B+ wire the action paths.
-version: 1.0.0
+description: Classify every non-trivial Slack message Alaska sees into one of 9 intent types. Writes classification + secondary intents + entities + reasoning to intent_inbox / classifier_audit. Phase A runs in OBSERVATION MODE — no downstream action. Phases B+ wire the action paths.
+version: 1.1.0
 metadata:
   openclaw:
     always: true
@@ -59,7 +59,8 @@ DECISION_RECORDED / STATUS_QUERY / NON_WORK_CHAT / AMBIGUOUS
 
 Return JSON with this exact shape:
 {
-  "intent": "<one of the 9>",
+  "intent": "<primary intent, one of the 9>",
+  "secondary_intents": ["<other intent>", ...],  // empty array [] if single-intent; populated for multi-intent messages
   "confidence": <0.0 to 1.0>,
   "entities": {
     "task_ids": ["T-42", ...],          // T-N references found
@@ -81,6 +82,21 @@ Notes:
 - "let's discuss X" or "should we do Y" without commitment is NOT a task — usually NON_WORK_CHAT or DECISION_RECORDED if it concludes
 - Empty or single-emoji messages = NON_WORK_CHAT
 
+Disambiguation rules (v1.1 — tuned from May 18-24 replay findings):
+
+- **META-COMMENTS about assignments are NOT assignments.** "I think X is being assigned to Y", "Looks like Sandeep got this one", "Yeah Pankaj is on it" → NON_WORK_CHAT (or DECISION_RECORDED if it's confirming a recent decision). The speaker must BE doing the assigning, not observing one. A message about who's doing something is different from a message asking someone to do something.
+
+- **STANDUP CONTEXT (channel C0ASLANJ0RL = #daily-standup):** messages reporting completed work OR listing tomorrow's plan are TASK_UPDATE, not STATUS_QUERY. STATUS_QUERY is for QUESTIONS ("what's on my plate?", "any blockers?"). When someone REPORTS their work, that's an update on state, not a query for it. Standup-reply patterns like "Today completed X, tomorrow will do Y" are work reports, not work questions.
+
+- **SHARING vs ASSIGNING:** sharing a doc / spreadsheet / link / GitHub PR with @-mentions for visibility, FYI, or review is NOT TASK_ASSIGN. TASK_ASSIGN requires explicit directive language ("please look at", "can you fix", "you should do", "fix by Friday", "review and approve"). Ambiguous sharing without action verbs → DECISION_RECORDED (if sharing a finalized decision) or NON_WORK_CHAT (if just sharing context). Reports and updates that happen to @-mention stakeholders are TASK_UPDATE, not TASK_ASSIGN.
+
+- **MULTI-INTENT:** if a message genuinely contains BOTH a status report AND a directive (or other meaningful intent combinations), set `intent` to the PRIMARY (whichever drives the more actionable Phase B handler) and populate `secondary_intents` with the others. Common patterns:
+  - Standup "Today completed X, tomorrow will do Y" → intent=TASK_UPDATE, secondary_intents=["TASK_CREATE"]
+  - Audit follow-up "I audited user N and team needs to fix within 24h" → intent=TASK_ASSIGN, secondary_intents=["TASK_UPDATE"]
+  - Reminder request that also implies new work "build new API and remind me on date X" → intent=REMINDER_REQUEST, secondary_intents=["TASK_CREATE"]
+  - Decision + immediate follow-up "Let's go with approach A and Pankaj will start it Monday" → intent=DECISION_RECORDED, secondary_intents=["TASK_ASSIGN"]
+  Use the `secondary_intents` array sparingly — most messages are single-intent. Only flag genuine multi-intent cases. Default to `[]`.
+
 Team roster (for @ resolution):
 [Resolve from /root/.openclaw/workspace/MEMORY.md → Team Roster]
 
@@ -99,8 +115,12 @@ Timestamp: [ISO]
 Pattern:
 ```bash
 sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; UPDATE intent_inbox SET processed=1, intent='...', confidence=..., classifier_output='...', processed_at=CURRENT_TIMESTAMP WHERE id=...;"
-sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; INSERT INTO classifier_audit (inbox_id, intent, confidence, entities, reasoning, would_have_done) VALUES (...);"
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; INSERT INTO classifier_audit (inbox_id, intent, secondary_intents, confidence, entities, reasoning, would_have_done) VALUES (...);"
 ```
+
+The `secondary_intents` column stores the JSON array from the classifier output. For single-intent messages, store `'[]'` (empty array as string). For multi-intent messages, store the JSON array as text, e.g., `'["TASK_CREATE"]'` or `'["TASK_UPDATE", "TASK_CREATE"]'`.
+
+`intent_inbox.intent` still stores only the PRIMARY intent (it's a single TEXT column). The `secondary_intents` column lives only on `classifier_audit` to keep the inbox queue simple and the audit log rich.
 
 **Observation mode (Phase A):**
 - Update the `intent_inbox` row: `processed = 1`, `intent = <result>`, `confidence = <result>`, `classifier_output = <full JSON>`, `processed_at = NOW()`.
