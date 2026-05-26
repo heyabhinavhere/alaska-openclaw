@@ -7,10 +7,14 @@ FROM 1panel/openclaw:2026.3.13
 
 USER root
 
-# Install system dependencies: SQLite for local queue, curl for health checks
+# Install system dependencies:
+# - sqlite3: local task queue + v2 task model storage
+# - curl: health checks + Notion/Slack API calls
+# - python3-dateutil: RRULE parsing for the Phase C scheduling engine
 RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
     curl \
+    python3-dateutil \
     && rm -rf /var/lib/apt/lists/*
 
 # Pre-install the Slack plugin (baked into the image, survives restarts)
@@ -34,6 +38,9 @@ RUN chmod +x /opt/entrypoint.sh
 
 # Copy custom skills to staging (volume mount hides /data/skills/)
 COPY --chown=node:node skills/ /opt/default-skills/
+
+# Copy Python helper library (RRULE parsing, etc.)
+COPY --chown=node:node lib/ /opt/lib/
 
 # Copy SQL migrations to staging
 COPY --chown=node:node migrations/ /opt/migrations/
