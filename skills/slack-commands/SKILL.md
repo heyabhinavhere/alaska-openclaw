@@ -224,14 +224,121 @@ For a standalone TASK_BLOCKER (no T-N):
 3. Reply ONE LINE in the DM:
    > `Logged blocker B-N (task T-N). I'll surface it in tonight's brief and check back tomorrow.`
 
-### REMINDER_REQUEST handler — DEFERRED (Phase C internally)
+### REMINDER_REQUEST handler
 
-Triggered by: "remind me about X in 5 days", "every Friday DM me my tasks".
+Triggered by: "remind me about X in 5 days", "every Friday at 5 PM DM me my open tasks", "follow up with Pankaj on T-42 tomorrow".
 
-Phase B response (one line, no internal phase labels in the reply):
-> `Reminders aren't available yet — noted. Ping me near the date and I'll surface it.`
+#### Step 1: Parse the request
 
-(Internally: Phase C wiring will replace this with actual `scheduled_actions` writes. The reply intentionally hides the roadmap from team members.)
+Extract these fields from the message text (use the LLM if regex isn't enough):
+
+- **One-shot vs recurring** — "in 5 days", "tomorrow at 9am", "next Friday" = one-shot; "every Friday", "daily at 9am", "every weekday" = recurring.
+- **Recipient** — usually the DM sender (self). For team routines, the recipient is a channel (e.g., "post to #project-management every Monday").
+- **Linked task** — any `T-\d+` reference in the message.
+- **Fire time** — parse relative dates ("in 5 days", "tomorrow at 9am", "Friday at 5pm") to an ISO UTC timestamp. For recurring, parse the natural-language schedule into an RRULE string (`FREQ=WEEKLY;BYDAY=FR;BYHOUR=17;BYMINUTE=0`, etc.).
+- **Message text** — what to remind about. Default to a one-line summary of the request itself if not explicit.
+
+#### Step 2: Determine scope
+
+- **`personal`** if the recipient is the DM sender AND no other people / channels are mentioned. Single-person reminders.
+- **`team`** if the recipient is a channel OR multiple people are tagged OR the action posts publicly OR the description implies team-wide behavior (e.g., "every Friday post the standup summary to #project-management").
+
+Personal scope → create the scheduled_action directly. Team scope → create a routine_proposal and gate on Abhinav approval (see Step 4).
+
+#### Step 3: Personal scope — create scheduled_action directly
+
+For one-shot reminders, generate the action ID per the shared-toolkit Section 1.7 pattern (substitute `action_id` / `SA-`):
+
+```bash
+ACTION_ID=$(sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT 'SA-' || COALESCE(MAX(CAST(SUBSTR(action_id, 4) AS INTEGER)) + 1, 1) FROM scheduled_actions;")
+
+# Escape any apostrophes in the message text per Section 1.5.
+q="'"; qq="''"
+payload_json="{\"message\":\"${message_text//$q/$qq}\",\"linked_task_id\":${linked_task_id_json}}"
+
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  INSERT INTO scheduled_actions \
+    (action_id, action_type, fire_at, recipient_slack_id, linked_task_id, \
+     payload, scope, created_by_slack_id) \
+  VALUES \
+    ('$ACTION_ID', 'remind', '$FIRE_AT_ISO', '$SENDER_SLACK_ID', \
+     $LINKED_TASK_ID_OR_NULL, \
+     '$payload_json', 'personal', '$SENDER_SLACK_ID');"
+```
+
+For recurring reminders, validate the RRULE via the helper first, then INSERT with `action_type='recurring_routine'`:
+
+```bash
+# Validate (exits non-zero on invalid)
+python3 -c "
+from rrule_helper import validate_rrule
+import sys
+valid, err = validate_rrule('$RRULE_STRING')
+sys.exit(0 if valid else 1)
+"
+
+# Compute first fire time
+FIRST_FIRE=$(python3 -c "
+from rrule_helper import next_fire_time
+print(next_fire_time('$RRULE_STRING').strftime('%Y-%m-%d %H:%M:%S'))
+")
+
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  INSERT INTO scheduled_actions \
+    (action_id, action_type, fire_at, recurrence_rule, recipient_slack_id, \
+     payload, scope, created_by_slack_id) \
+  VALUES \
+    ('$ACTION_ID', 'recurring_routine', '$FIRST_FIRE', '$RRULE_STRING', \
+     '$SENDER_SLACK_ID', '$payload_json', 'personal', '$SENDER_SLACK_ID');"
+```
+
+If RRULE validation fails, do NOT create the row. Reply to the sender: `Couldn't parse "<their text>" as a schedule. Try something like "every Friday at 5 PM" or "in 5 days".`
+
+Confirm in DM (one line, no narration):
+
+> `Got it — I'll remind you <describe_rrule output OR formatted one-shot time>. <If linked: Linked to T-N.> Reminder ID: SA-N (reply 'cancel SA-N' to remove it).`
+
+For `describe_rrule` output, call the helper:
+
+```bash
+DESC=$(python3 -c "from rrule_helper import describe_rrule; print(describe_rrule('$RRULE_STRING'))")
+```
+
+#### Step 4: Team scope — create routine_proposal (gated on Abhinav)
+
+DO NOT create the scheduled_action yet. First create a proposal:
+
+```bash
+PROPOSAL_ID=$(sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT 'RP-' || COALESCE(MAX(CAST(SUBSTR(proposal_id, 4) AS INTEGER)) + 1, 1) FROM routine_proposals;")
+
+# Same apostrophe escape as above for description + payload
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  INSERT INTO routine_proposals \
+    (proposal_id, proposed_by_slack_id, description, proposed_payload, \
+     proposed_recurrence_rule, proposed_recipient, expires_at) \
+  VALUES \
+    ('$PROPOSAL_ID', '$SENDER_SLACK_ID', '$description_esc', \
+     '$payload_json', '$RRULE_STRING', '$RECIPIENT_DESCRIPTION', \
+     datetime('now', '+7 days'));"
+```
+
+Reply to the proposer:
+
+> `That's a team-wide routine — I need Abhinav to approve it first. Flagged for him (RP-N). I'll let you know once he responds (or after 7 days if he doesn't).`
+
+DM Abhinav (`U07GKLVA9FE`):
+
+```
+*Routine proposal RP-N* from <proposer first name>:
+"<description>"
+Schedule: <describe_rrule output>
+Recipient: <recipient description>
+
+Reply: 'approve RP-N' / 'decline RP-N because <reason>' / 'modify RP-N: <changes>'
+Expires in 7 days if no response.
+```
 
 ### STATUS_QUERY / DECISION_RECORDED / NON_WORK_CHAT / AMBIGUOUS
 
@@ -250,7 +357,38 @@ In Phase B, ALL task actions are SELF-SCOPED — the DM sender is always the own
 1. **Never write to `tasks` or `blockers` directly from this skill.** Always route through `task-handler` so dedup logic is consistent across surfaces.
 2. **Never reply with multi-line internal narration.** One line per acknowledgment, per shared-toolkit Slack discipline rules. Examples of BAD: "Let me check… I'll query the database… Done." GOOD: "Got it — T-42 marked done."
 3. **Never invoke task-handler without an `owner_slack_id`.** If the sender can't be resolved (unknown DM, Slack ID not in MEMORY.md), apply SOUL.md self-heal pattern first; if still unresolved, do NOT call task-handler — reply: "Hey! I'm Alaska, BON Credit's PM. I don't think we've met — what's your name?"
-4. **Never claim Phase C/D features work in Phase B.** Use the deferred-handler replies above for REMINDER_REQUEST and TASK_ASSIGN.
+4. **Never claim cross-person task assignment works yet (deferred handler).** Use the deferred-handler reply above for TASK_ASSIGN. (REMINDER_REQUEST is now live as of Phase C — it's no longer deferred.)
+
+## Routine Proposal Approval (Abhinav-only)
+
+When Abhinav DMs `approve RP-N` / `decline RP-N because <reason>` / `modify RP-N: <changes>`:
+
+1. **Verify the sender is Abhinav** (`U07GKLVA9FE`). If not, respond: `Only Abhinav can approve routines.` Stop.
+2. **Look up the proposal.** If `status != 'pending'`, respond: `RP-N is already <status>.` Stop.
+3. **On `approve`:**
+   - Compute the first fire time from the stored `proposed_recurrence_rule` via rrule_helper.
+   - Generate the next `SA-N` action ID.
+   - INSERT into `scheduled_actions` with: `action_type='recurring_routine'`, `fire_at=<first_fire>`, `recurrence_rule=<proposed_recurrence_rule>`, `recipient_slack_id` or `recipient_channel_id` per the proposal's recipient, `payload` = `proposed_payload`, `scope='team'`, `created_by_slack_id=<proposer>`, `approved_by_slack_id='U07GKLVA9FE'`.
+   - UPDATE `routine_proposals`: `status='approved'`, `abhinav_response=NULL`, `responded_at=CURRENT_TIMESTAMP`.
+   - DM Abhinav: `RP-N approved. Routine SA-N created — first fire <date>.`
+   - DM the original proposer: `Your routine RP-N was approved by Abhinav. It's live as SA-N — first fire <date>.`
+4. **On `decline`:**
+   - Parse the reason from the message (everything after "because" / "—" / colon, or the full remainder if no separator).
+   - UPDATE `routine_proposals`: `status='declined'`, `abhinav_response=<reason>`, `responded_at=CURRENT_TIMESTAMP`.
+   - DM the proposer: `Your routine proposal RP-N was declined. Reason: <reason>`
+   - No DM back to Abhinav (his decline IS the acknowledgment).
+5. **On `modify`:**
+   - Parse the modification description (everything after "modify RP-N:").
+   - UPDATE the proposal fields per the modification (e.g., new RRULE, new recipient, new message). Keep `status='pending'`.
+   - Re-validate any new RRULE via rrule_helper before saving. If invalid: reply to Abhinav `RP-N modify failed — RRULE invalid: <error>. Proposal unchanged.`
+   - DM the proposer: `RP-N was modified by Abhinav. New schedule: <describe_rrule output>. He'll do a final approve next.`
+   - DM Abhinav: `RP-N updated with your modifications. Reply 'approve RP-N' when you're ready to activate it.`
+   - Modified proposals still require a final `approve` to become live — modify alone is NOT activation.
+
+If the proposal has expired (`expires_at < now()` AND `status='pending'`):
+- UPDATE: `status='expired'`.
+- DM the proposer once: `Your routine proposal RP-N expired after 7 days with no response from Abhinav. Send it again when you want to revisit.`
+- This expiration check can run on every routine-proposal cron tick (see C5) or lazily on the next approval-reply attempt.
 
 ## General Questions
 
