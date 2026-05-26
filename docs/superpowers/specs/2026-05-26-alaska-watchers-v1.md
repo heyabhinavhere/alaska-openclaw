@@ -65,6 +65,28 @@ These are settled. Don't re-litigate without explicit reason:
 7. **Volume caps decided by user at creation.** Alaska asks in the follow-up question round if not specified.
 8. **Build fresh.** New `watchers` table. Migrate Phase C's `scheduled_actions` rows to it during V1 build. Don't run them in parallel.
 9. **Thinker stays autonomous.** Watchers are user-driven only.
+10. **Watcher approval threshold = $3/day.** Watchers with projected cost ≤$3/day auto-approve (creator self-approves via confirm). Watchers >$3/day require Abhinav approval. This replaces the earlier 4-tier free/low/medium/high cost class with a simple binary at creation time. External writes (Customer.io campaigns, etc.) under $3/day still auto-approve in V1 — we'll tighten if it goes sideways. *Confirmed 2026-05-27.*
+11. **Cost display privacy locked.** Cost values appear ONLY in DMs to Abhinav, during approval gate. Never to creator. Never in confirmation messages. Never in `@alaska show W-N` output for non-Abhinav callers. *Confirmed 2026-05-27.*
+12. **KB-driven query templates: YES.** `workspace/knowledge/playbooks/common-queries.md` holds reusable query specs (Amplitude funnel queries, CIO segment queries, etc.). Watchers reference queries by name (e.g., `query: "plaid_funnel"`) — DRY across watchers. *Confirmed 2026-05-27.*
+13. **Action chain DSL: JSON in DB, plain English in Slack.** Engineering implementation detail — users never see the JSON. Slack drafts and `@alaska show W-N` output render the action chain as a numbered prose summary ("Step 1: Query Amplitude for X. Step 2: Format as table. Step 3: DM to you."). Great UX is non-negotiable. *Confirmed 2026-05-27.*
+14. **Per-fire approval recipient: ALWAYS Abhinav, creator gets CC.** When a watcher has per-fire approval enabled (Example 2 pattern — high cost variance external send), every fire's draft routes to Abhinav for approval. The original watcher creator is CC'd ("FYI Samder, W-23's batch is awaiting Abhinav's approve") so they're informed, not surprised. *Confirmed 2026-05-27 — see "Per-fire approval flow" below.*
+
+### Knowledge base authoring authority — Abhinav-only
+
+**Confirmed 2026-05-27.** Earlier proposal of domain-distributed authoring (engineers PR their own KB files) is RESCINDED. The Knowledge Base is Abhinav's responsibility alone — he writes and maintains every file in `workspace/knowledge/`. Engineers do NOT submit PRs to KB files.
+
+Reasoning: KB content drives Alaska's behavior across many skills. Inconsistencies, drift, or honest mistakes by individual engineers would cascade into watcher misbehavior. Abhinav-as-sole-author ensures the KB stays a coherent single voice and reflects his canonical understanding of how BON works.
+
+Alaska MUST refuse any apparent "edit KB" request from anyone other than Abhinav (Slack ID `U07GKLVA9FE`). Reply with: "Knowledge base changes go through Abhinav directly." Do not engage further.
+
+### Freshness handling — warn but don't refuse
+
+**Confirmed 2026-05-27.** When Alaska uses a KB file that's been untouched >60 days, she:
+- Loads and uses it normally
+- In the watcher creation flow, includes a 1-liner in her draft: *"⚠️ Sources include `integrations/plaid.md` — last updated 73 days ago. Definitions may have drifted. Want to flag this with Abhinav for refresh, or proceed?"*
+- The creator can proceed (default behavior) or pause to ask Abhinav for a KB refresh
+
+Alaska does NOT refuse to use stale KB. Better stale knowledge than no knowledge.
 
 ---
 
@@ -694,24 +716,32 @@ Dispatched as a research subagent after Abhinav signs off on this design.
 
 ---
 
-## Open questions awaiting Abhinav's answers
+## Open questions — answered 2026-05-27
 
-1. **KB authoring authority.** Domain-distributed (engineers PR their domain's KB file, Abhinav approves) vs. Abhinav-only? Default proposal: domain-distributed via PR.
+Resolved (see "Locked design decisions" #10-#14 above for full details):
 
-2. **KB freshness signal.** Warn-only when KB is stale (e.g., >60 days untouched), or refuse to use the file? Default proposal: warn but don't refuse.
+1. ✅ **KB authoring:** Abhinav-only (not domain-distributed). Engineers don't touch knowledge files. — *Locked decision #14 / dedicated section above.*
+2. ✅ **KB freshness:** Warn but don't refuse. — *Locked decision section above.*
+3. ✅ **Watcher creation threshold:** >$3/day requires Abhinav approval; ≤$3/day auto-approves. — *Locked decision #10.*
+4. ✅ **Per-fire approval recipient:** Always Abhinav, creator CC'd. — *Locked decision #14.*
+5. ✅ **Action chain DSL:** JSON in DB, plain English in Slack. — *Locked decision #13.*
+6. ✅ **Cost privacy:** Cost only visible to Abhinav, in approval DMs. — *Locked decision #11.*
+7. ✅ **KB-driven query templates:** Yes. — *Locked decision #12.*
 
-3. **Watcher creation by team — defaults.** Self-scope + free/low cost + no external writes → auto-approve. Everything else → Abhinav approval. Reasonable line?
+## Still open — sequencing decisions
 
-4. **Action chain DSL — JSON or YAML in DB?** Default proposal: JSON in DB (queryable), display as YAML in Slack drafts (readable).
+These don't block the spec finalization but block kicking off the build:
 
-5. **KB-driven query templates.** Should `playbooks/common-queries.md` contain reusable query specs that watchers reference by name (DRY pattern)? Default proposal: yes.
+**A. Build sequencing.**
+- Option A: Phase D (cross-person TASK_ASSIGN) first, then Watchers V1
+- Option B: Watchers V1 first (Phase D becomes a specific watcher pattern)
+- Option C: Continue Phase B/C observation for ~1 week, then decide
+- Recommendation: Option B — Watcher substrate makes everything else additive
 
-6. **Build sequencing.**
-   - Option A: Phase D (cross-person TASK_ASSIGN) first, then Watchers V1
-   - Option B: Watchers V1 first (Phase D becomes a specific watcher pattern)
-   - Option C: Continue Phase B/C observation, decide after a week of real data
-
-7. **Migration window.** During the Phase C → Watchers V1 transition, dual-write both tables for 2 weeks? Or hard-cut on V1 deploy? Default proposal: dual-write for safety.
+**B. Migration window.** Phase C `scheduled_actions` → new `watchers` table.
+- Dual-write both tables for ~2 weeks (safer)
+- Hard-cut on V1 deploy (cleaner)
+- Recommendation: dual-write — Phase C just deployed, too early to know what might break
 
 ---
 
