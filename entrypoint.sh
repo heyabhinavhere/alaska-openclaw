@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Make /opt/lib importable for Python helpers (rrule_helper, etc.)
+export PYTHONPATH="/opt/lib:${PYTHONPATH}"
+
 echo "[alaska] Starting Alaska AI Project Manager..."
 
 mkdir -p /data/.openclaw

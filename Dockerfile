@@ -39,6 +39,9 @@ RUN chmod +x /opt/entrypoint.sh
 # Copy custom skills to staging (volume mount hides /data/skills/)
 COPY --chown=node:node skills/ /opt/default-skills/
 
+# Copy Python helper library (RRULE parsing, etc.)
+COPY --chown=node:node lib/ /opt/lib/
+
 # Copy SQL migrations to staging
 COPY --chown=node:node migrations/ /opt/migrations/
 
