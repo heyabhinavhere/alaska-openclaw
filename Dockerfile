@@ -3,6 +3,12 @@
 # Pinned version — no surprise auto-updates
 
 # 1panel/openclaw mirrors the official OpenClaw with confirmed version tags on Docker Hub
+# Pinned at 2026.3.13. Upgrade to 2026.5.26 attempted 2026-05-27 17:36 UTC, ROLLED BACK
+# 17:38 UTC due to config schema break the research missed:
+#   - channels.slack.streaming changed from boolean → object form
+#   - channels.slack.nativeStreaming removed (likely merged into streaming object)
+# Recovery: this revert + railway up. Production down ~3 min total.
+# Re-upgrade requires pre-fixing config/openclaw.json channels.slack.* schema first.
 FROM 1panel/openclaw:2026.3.13
 
 USER root
