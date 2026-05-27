@@ -14,11 +14,15 @@ Last updated: 2026-05-27
 - **Watchers V1** — designed + ALL design questions answered (2026-05-27). NOT YET BUILT. Design with locked decisions (#1-#16) lives in `docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md`.
 - **BON Knowledge Base** — designed + authoring decision locked (Abhinav-only). Abhinav is actively seeding the initial KB files in `workspace/knowledge/` as of 2026-05-27.
 
-**All design decisions are locked. Build path:**
+**All design decisions are locked. Build artifacts ready:**
 
-1. **NEXT:** Dispatch deeper OpenClaw research subagent. Questions in the Watchers spec under "OpenClaw deeper research — to do before implementation". Findings inform schema + dispatcher design choices.
-2. Write the formal implementation plan at `docs/superpowers/plans/YYYY-MM-DD-alaska-watchers-v1.md` (per superpowers:writing-plans skill format).
-3. Execute via subagent-driven-development per the workflow used for Phases A-C.
+1. ✅ **Spec:** `docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md` — 16 locked decisions, schema, action chain DSL, conversation flows, templates, worked examples.
+2. ✅ **Research:** `docs/superpowers/research/2026-05-27-openclaw-native-primitives.md` — OpenClaw native primitives surveyed; per-watcher cron pattern CONFIRMED; 3 critical gotchas documented (enabled:true, jobId-not-id, HTTP deny list).
+3. ✅ **Plan:** `docs/superpowers/plans/2026-05-27-alaska-watchers-v1.md` — full Phase W.0 → W.4 implementation plan, 15 tasks, ready for subagent-driven-development execution.
+
+**NEXT (when Abhinav signs off + KB Tier 1 done):**
+- Execute the plan task-by-task per `superpowers:subagent-driven-development`
+- Estimated 2-3 weeks of focused work
 
 **Build sequencing locked: Watchers V1 first, then Phase D (as a specific watcher template), then Phase E.** Phase D will be re-expressed as the "unacked-task-assignment escalation" watcher rather than a bespoke workflow.
 
