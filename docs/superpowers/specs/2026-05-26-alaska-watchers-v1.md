@@ -246,7 +246,12 @@ CREATE TABLE watchers (
   last_action_summary TEXT,                          -- JSON of last fire's outcome
 
   -- OpenClaw integration
-  openclaw_cron_id    TEXT                           -- the cron ID OpenClaw assigned (cron-type only)
+  openclaw_cron_id    TEXT,                          -- the cron ID OpenClaw assigned (cron-type only)
+  stagger_seconds     INTEGER NOT NULL DEFAULT 0     -- random 0-300 offset added to scheduled fire time
+                                                     -- to prevent thundering-herd at common cron times
+                                                     -- (e.g., 30 watchers all firing at "0 9 * * *" against
+                                                     -- maxConcurrentRuns=8 would queue). Set at creation
+                                                     -- via random.randint(0, 300).
 );
 
 CREATE INDEX idx_watchers_status_trigger ON watchers(status, trigger_type);
@@ -324,8 +329,42 @@ Phase C's `scheduled_actions` and `routine_proposals` tables don't disappear imm
 1. Add the new `watchers` + `watcher_fires` tables (migration 0003).
 2. Write a one-time migration script that converts existing `scheduled_actions` rows (action_type='remind' / 'recurring_routine') to `watchers` rows. Most fields map directly.
 3. Routine_proposals migrate to watchers with `status='pending_approval'`.
-4. Reminder-dispatcher gets rewritten as the Watcher dispatcher (or replaced — see "OpenClaw research" below).
+4. Reminder-dispatcher gets rewritten as the Watcher dispatcher.
 5. After 2 weeks of dual operation (both tables populated, only watchers actively executing), drop `scheduled_actions` and `routine_proposals`.
+
+### RRULE migration nuance
+
+OpenClaw cron is standard 5-field cron — does NOT natively support RRULE's `COUNT`, `UNTIL`, `EXDATE`, `BYWEEKNO`, or `BYSETPOS`. For complex RRULEs created in Phase C, we have two options:
+
+**(a) Simple recurrences → native OpenClaw cron, complex RRULEs → polling fallback.**
+- Simple: "every Monday 9 AM IST" → cron expr `0 9 * * 1` with tz `Asia/Kolkata` → native cron.
+- Complex: "every other Friday until Dec 31" → can't be expressed as standard cron. Use our `lib/rrule_helper.py` and a polling cron entry (every 15 min, scan watchers table for RRULE-based ones due to fire).
+
+**(b) All RRULEs go through polling.** Simpler code path (one mechanism), 14-min worst-case latency for all RRULEs.
+
+**Recommendation: (a).** Most user-created recurrences are simple. Reserve polling fallback for the rare complex case. Watcher schema has both `recurrence_rule` (RRULE string) and `openclaw_cron_id` (native cron entry); use whichever is appropriate per watcher.
+
+### Reconciliation janitor cron
+
+A nightly janitor cron handles distributed-state hygiene. The pattern:
+
+1. Janitor runs daily at 04:00 UTC (low-traffic window).
+2. Calls `openclaw cron list --json` to get all active cron entries.
+3. Joins against the `watchers` table on `openclaw_cron_id`.
+4. Finds two failure modes:
+   - **Orphan cron entries** — OpenClaw has a cron whose `openclaw_cron_id` no longer matches any watcher row. Call `cron.remove(jobId)` to clean up.
+   - **Orphan watcher rows** — `watchers` has rows with `openclaw_cron_id IS NULL` AND `status='active'`. Something went wrong during `cron.add`. DM Abhinav with the list for manual resolution (creating the cron entry vs cancelling the watcher).
+5. Logs janitor activity to `task_events` for observability (event_type='comment', context='janitor: cleaned N orphans').
+
+This is standard distributed-state hygiene — bookkeeping that prevents long-tail drift between OpenClaw cron table and our `watchers` table. Implemented as a regular OpenClaw cron entry (the janitor IS a watcher itself — meta, but clean).
+
+### Stagger to prevent thundering-herd
+
+The schema includes `stagger_seconds INTEGER NOT NULL DEFAULT 0`. At watcher creation time, the watcher-creator skill rolls a random 0-300 (5 minutes max) integer and stores it. When building the `cron.add` payload, the watcher's "fire at HH:MM" is shifted by `stagger_seconds`.
+
+Example: user says "every Monday at 9 AM." Stagger rolls `127`. Cron entry fires at 9:02:07 instead of exactly 9:00:00. User doesn't notice the 2-minute offset. The 8-slot `maxConcurrentRuns` queue stays clear because 30 watchers don't all fire simultaneously at the top of the hour.
+
+For users who genuinely need exact timing (rare in BON's use case — most reminders are "morning-ish"), the `@alaska modify W-N stagger 0` command sets stagger to 0 explicitly. Default behavior protects against the common case.
 
 ---
 
