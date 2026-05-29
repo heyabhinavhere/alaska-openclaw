@@ -51,9 +51,23 @@ If you (another agent) change a section a stabilization commit just touched, lea
 
 Status values: `investigating` · `proposed` · `approved` · `shipped` · `declined` · `deferred-to-V4`
 
-| # | Date | Issue (one-line) | Decision | Status | Files | Commit / PR | Validation |
-|---|------|------------------|----------|--------|-------|-------------|------------|
-| — | — | _(none yet — awaiting first issue)_ | — | — | — | — | — |
+**Source of A–F:** the Nilesh ↔ Alaska debt-discrepancy conversation (BON user 2756), 2026-05-26 → 27.
+
+| # | Issue (one-line) | Decision | Status | Files |
+|---|------------------|----------|--------|-------|
+| A | Code/repo RCA hallucination (fabricated line-level findings, self-contradiction) | Fix now — grounded reading | **Wave 1 — in PR** | `slack-commands`, `TOOLS.md`, `alaska-core` |
+| B | Autonomous session acted after explicit "don't send" + public @tag of a teammate | Fix now — third-person guard | **Wave 1 — in PR** (root cause verified via session logs) | `slack-commands`, `alaska-core` |
+| C | Internals/architecture leak ("automated session picked it up…") | Fix now | **Wave 1 — in PR** | `SOUL.md`, `alaska-core` |
+| D | Sycophancy + over-claiming ("Day 1", "I'll delete it") | Fix now (light) | **Wave 1 — in PR** | `SOUL.md`, `alaska-core` |
+| E | Capability dishonesty — "never say I don't have access" overshoot | **Both** — KB supplies the *map*, this fix supplies the *discipline* | **Wave 1 (discipline half) — in PR**; KB coordination pending | `TOOLS.md`, `alaska-core` |
+| F | Over-scoped GitHub token — full `repo` read+WRITE, not read-only | Deferred to after A–E; **Abhinav owns the token swap** | `deferred` — logged, no action yet | — (secret change) |
+
+### Wave 1 (2026-05-28) — what shipped in this PR
+Five behavioral guardrails, all **additive text** (no schema, no migration, no cron-payload change → no OpenClaw dashboard sync). Spine principle added to `alaska-core`: *bold in thinking; honest about facts & limits; restrained about actions & disclosure.* New `slack-commands` sections are **separate named sections** (`Code & repo questions`, `Action restraint`) — they do NOT touch the `Intent-driven actions` block where Watchers V1 + 360-profile add handlers. `intent-classifier` deliberately untouched (avoids the Watchers v1.2 bump). `migrations/0003` slot untouched.
+
+**Coordination asks logged:**
+- KB agent: add a capability/access dimension to KB (natural home `architecture.md` + `integrations/github.md`) so it converges with the `TOOLS.md` "What you can and cannot reach" manifest this PR adds (Issue E knowledge-half + the corrected GitHub facts + Issue F).
+- Watchers V1 / 360-profile: when you add handlers to `slack-commands`, they slot into the `Intent-driven actions` block; my additions are below it (`Code & repo questions`, `Action restraint`) — no overlap expected.
 
 ---
 
