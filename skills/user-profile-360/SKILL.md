@@ -95,6 +95,13 @@ It prints a JSON result on stdout. Read it, then compose ONE clean Slack message
 Pick the narrowest intent that answers the question. Don't use `full_picture`
 for "what's their credit score" — that wastes the fetch.
 
+**Open-ended "tell me about user X" (no specific angle) → use `full_picture`.**
+It pulls credit + debt + Plaid + chat, so the answer is actually useful. Do NOT
+reach for `user_summary` on open-ended asks — it deliberately fetches only
+identity + linking flags, so credit/debt/income come back empty and the user
+looks blank even when they aren't. Reserve `user_summary` for an explicit
+"quick, who is this person."
+
 ---
 
 ## Reading the result
@@ -105,6 +112,7 @@ for "what's their credit score" — that wastes the fetch.
 |---|---|
 | `ok` | Present the data (see below). |
 | `not_found` | "I couldn't find a BON user matching that. Want to try a different identifier?" |
+| `no_data` | The user_id returned an empty profile — the ID is likely wrong (or a brand-new signup with nothing yet). Say: "I don't see any profile data for user <id> — can you double-check the ID?" Don't present a blank profile as a real user. |
 | `multiple` | The `matches` array has up to 20 `{user_id, email, name, created_at}`. Ask which one: list first names + signup month, let them pick, then re-run with `--query-type user_id`. |
 | `search_unavailable` | Search API is down. Fall back: use **customerio-ops** to resolve the email→user_id (CIO `id` IS the BON user_id), or **amplitude-analyst**, then re-run with `user_id`. |
 | `auth_error` | "BON backend rejected the request — I'll flag it." DM Abhinav; the admin key may have rotated. |
