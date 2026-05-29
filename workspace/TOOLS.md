@@ -32,11 +32,19 @@ You have live API access. **Never say "I don't have access" to any of these.**
 - **Write API:** `POST /v1/pages`, `PATCH /v1/pages/{id}` with `Notion-Version: 2022-06-28`.
 - **Write contract (exact JSON shapes):** see `/data/skills/shared-toolkit/SKILL.md` → "Notion Write Contract" section.
 
+### BON Backend — User Profile 360 (`$BON_ADMIN_API_KEY`)
+- **What:** Everything BON holds on a single user — credit (Array + Spinwheel), Plaid accounts/liabilities/income/spending, detected subscriptions, and CredGPT chat history.
+- **When to use:** Any question about a SPECIFIC user's financial situation, credit, debt, spending, or chat ("tell me about user 2762", "what's going on with jane@example.com", "show me their last chats", "why isn't this user engaging").
+- **Skill:** `/data/skills/user-profile-360/SKILL.md` — read it; the flow is one command (`lookup.py`), not raw curl.
+- **Lookup by:** user_id, email, phone, or name (search resolves to user_id).
+- **Toxic PII (SSN/DOB/account#/address) is auto-stripped.** Per-user only — for aggregate metrics use Amplitude.
+
 ### Cross-referencing Rule
-When someone asks about a specific user, **combine Amplitude + Customer.io:**
-- Amplitude → sessions, events, activity days, user properties
-- Customer.io → messages sent (push/email), delivery status, opens/clicks
-- Present both in one answer.
+When someone asks about a specific user, **combine the three per-user sources:**
+- BON Profile 360 → credit, debt, Plaid finances, subscriptions, chat content (the financial picture)
+- Amplitude → sessions, events, activity days, user properties (the behaviour picture)
+- Customer.io → messages sent (push/email), delivery status, opens/clicks (the messaging picture)
+- Use the BON profile for "who is this user / their finances / their chats"; use Amplitude + Customer.io to enrich with behaviour and messaging. Present one combined answer.
 
 ### If an API fails
 Say "API returned an error" or "unavailable" — **never** "I don't have access."
