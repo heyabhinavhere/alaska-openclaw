@@ -288,7 +288,7 @@ The body of the SKILL.md covers (per the spec's "Step-by-step flow" §):
 8. ON CONFIRMATION — insert watcher row + call cron.add + DM creator + DM Abhinav if applicable
 9. ON DECLINE — update status, DM creator with reason
 
-Include explicit `cron.add` payload examples (per the spec's "Migration path" §) showing the right shape for `kind=cron` (recurring) and `kind=at` (one-shot).
+Include explicit `cron.add` payload examples (per the spec's "Migration path" §) showing the right shape for `kind=cron` (recurring) and `kind=at` (one-shot). **Use the canonical live schema shown in W3.2/W4.1** — `payload.kind: "agentTurn"`, `agentId`/`sessionKey`/`sessionTarget`/`wakeMode`, AND the `delivery: {"mode": "none", "channel": "slack"}` block (all 14 live crons carry it; `mode:"none"` suppresses OpenClaw default delivery while the skill posts its own Slack messages). Do NOT omit the delivery block.
 
 Include cost projection logic (compute monthly $ from action chain step costs × fire frequency). Tier mapping: free <$0.50, low $0.50-$3, medium >$3 (= >$3/day for the approval gate), high (external write OR >$15/day). Cost shown ONLY in Abhinav's approval DM.
 
@@ -774,14 +774,15 @@ Each entry has a schedule per the spec table (e.g., new_signup every 15 min, bug
     "kind": "agentTurn",
     "message": "Run /data/skills/event-poller/SKILL.md procedure for event_type=new_signup.",
     "timeoutSeconds": 300
-  }
+  },
+  "delivery": {"mode": "none", "channel": "slack"}
 }
 ```
 
-Key points (per the live schema, NOT the old plan draft):
+Key points (per the live schema — verified against all 14 entries in `config/cron-jobs-backup.json`):
 - `payload.kind` is **`agentTurn`** (not `user-message`).
 - Include `agentId: "main"`, `sessionKey: "agent:main:main"`, `sessionTarget: "isolated"`, `wakeMode: "now"`.
-- **No `delivery` block** — the event-poller / dispatcher posts its own Slack messages (the `action=send` pattern), so cron-level delivery is not used.
+- **KEEP the `delivery: {"mode": "none", "channel": "slack"}` block** — ALL 14 live crons carry it. `mode: "none"` SUPPRESSES OpenClaw's default delivery so the agent's raw turn output isn't auto-posted anywhere; the skill then posts its own Slack messages via the `action=send` pattern. Omitting the block entirely is NOT equivalent — it lets OpenClaw apply default delivery behavior, which would mis-post. (An earlier reconciliation note wrongly claimed live entries had no delivery field; verified false — keep the block.)
 - One entry per event type: `new_signup` (`*/15 * * * *`), `bug_closed` (`*/30 * * * *`), `pr_merged` (`*/30 * * * *`), `task_status_changed` (`*/30 * * * *`) — adjust exprs to the spec table.
 
 - [ ] **Step 4: Commit**
@@ -847,11 +848,12 @@ Match the live `config/cron-jobs-backup.json` schema (read the file first and co
     "kind": "agentTurn",
     "message": "Run /data/skills/watcher-janitor/SKILL.md procedure.",
     "timeoutSeconds": 180
-  }
+  },
+  "delivery": {"mode": "none", "channel": "slack"}
 }
 ```
 
-`payload.kind` is **`agentTurn`** (not `user-message`); include `agentId`/`sessionKey`/`sessionTarget`/`wakeMode`; **no `delivery` block** — the janitor posts its own Slack messages (`action=send`), so cron-level delivery is unused.
+`payload.kind` is **`agentTurn`** (not `user-message`); include `agentId`/`sessionKey`/`sessionTarget`/`wakeMode`; **KEEP the `delivery: {"mode": "none", "channel": "slack"}` block** to match all 14 live crons — `mode: "none"` suppresses OpenClaw's default delivery (the janitor posts its own Slack messages via `action=send`). Dropping the block lets OpenClaw apply default delivery, which mis-posts.
 
 - [ ] **Step 3: Commit**
 
