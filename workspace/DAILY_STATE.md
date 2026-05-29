@@ -1,154 +1,123 @@
 # DAILY_STATE.md — Single Source of Truth
 # Written by Meeting Intelligence. Read by ALL agents before acting.
-# Last compiled: 2026-05-21 16:30 UTC (Meeting Intelligence — Team call May 21 9 PM IST)
+# Last compiled: 2026-05-29 13:00 UTC (RECONSTRUCTED from the May 28 team call + May 27–29 Slack standup sheets, daily pulses, and team-call summaries)
 #
-# NOTE: Sprint Board was retired 2026-05-23. This file is sprint-agnostic.
-# When refreshing, frame work as "Current Focus" and "This Week's Goals", not sprint numbers.
-# Agents that read this file MUST check the "Last compiled" timestamp above and refuse to
+# NOTE: This file was reconstructed on 2026-05-29 during the workspace-persistence fix
+# (Issue H) — it is grounded in Slack data, NOT a normal Meeting Intelligence compile.
+# Meeting Intelligence will overwrite it with a fresh synthesis after the next team call,
+# and from now on those updates PERSIST (the workspace moved to the persistent volume).
+# Sprint Board was retired 2026-05-23 — this file is sprint-agnostic ("Current Focus",
+# not "Current Sprint"). Agents MUST check the "Last compiled" timestamp and refuse to
 # quote dated commitments if the file is more than 48 hours stale.
 
 ---
 
 ## Current Focus
-- **Status:** V2 DEV IS LIVE — testing in progress. TestFlight build going up for 10-user validation. Sandeep shipped 31 fixes across 9 PRs in the most recent push. Shailesh on card matching engine RCA/fix. MoneyLine UNBLOCKED (Kathleen responded May 21).
-- **Cadence:** Weekly check-ins (Monday–Sunday rhythm), capacity ~10pts per person per week.
-- **Headline shifts (May 21 team call):** MoneyLine UNBLOCKED. V2 on dev, TestFlight imminent. Simplified budgeting approach decided (minimum obligations first). Product recommendation engine identified as V3. Single mom marketing strategy crystallized — 100-day focus.
+- **Status:** DATA ACCURACY is the team's #1 priority, hardening V2 for the **June 10 launch**. The AI agent has been presenting wrong financial numbers (total debt, credit-card balance, utilization, income) because it *skips backend tool calls* and answers from stale chat-history / proactive-briefing data instead of the real database — and one wrong number then corrupts every downstream answer. Shailesh documented the root cause + fixes (May 28–29).
+- **Three bug categories formalized (May 28 call):** (1) **Design** — charts/graphs (20 fixed May 28–29), (2) **Data** — tool-call skipping / number accuracy, (3) **Flow** — response quality per question type.
+- **Cadence:** Nightly team calls ~9 PM IST. Capacity ~10 pts/person/week.
+- **Headline shifts (May 26–28):** Darwin's deep audit of user 2756 exposed the accuracy gap (total debt $46K shown vs ~$64K actual, CC balance $24K vs $41K, utilization 48% vs 82.5%, income unverifiable) → "number accuracy is #1." **"Doctor/pharmacist" directive** (Darwin): double-check every number before presenting it. **Debt-misclassification root cause found** — the keyword "car" inside "credit card" mis-bucketed credit cards as car loans (category breakdown wrong; totals correct). **Data consistency mandated** — app chat, dashboard, and backend API must show identical numbers per user. **Budget simplified to 4 lines** (income, debt obligations, living expenses, surplus); financial jargon (DSS, 50/30/20, snowball, autopilot) removed from user-facing replies.
 
-## This Week's Goals (updated from May 21 team call)
-1. **V2 testing & validation** — V2 live on dev. TestFlight build tomorrow. 10-user QA (5 from Darwin's audits + 5 from Sandeep). Tarun leads QA, Darwin/Samder test from business angle.
-2. **New API development** — Sandeep starts building APIs for new design screens. Internal morning tech calls this week. Parallel with V2 bug fixes.
-3. **Card matching engine fix** — Shailesh found root causes. Last-4-digit priority implemented. Plaid event data integration for better AI responses planned.
-4. **Simplified budgeting** — New approach: show minimum monthly obligations from tradelines FIRST, then offer detailed budgeting. EveryDollar-style categories.
-5. **Abhinav: logic for progress + task screen** — Delivering to Sandeep and Shailesh tomorrow.
-6. **MoneyLine integration UI** — 3 CTAs (cash advance, loans, credit cards) → redirect to MoneyLine webview. Minimal approach.
-7. **Dave Ramsey transcripts** — 165 episodes downloaded. PII cleanup needed before use.
-8. **Single mom marketing** — 100-day focus. YouTube shorts, influencer collabs, referral incentives, PR strategy.
-9. **Ventures Lab Q1 metrics** — Darwin organizing and sharing with team.
+## This Week's Goals (toward June 10 launch)
+1. **Number/data accuracy** (CRITICAL) — Sandeep: fix tool-call skipping so the agent reads real DB data; enforce 3-way consistency (app / chat / dashboard / API).
+2. **Debt misclassification fix** — Sandeep (classification logic) + Nilesh (partial fix landed): the "car"-in-"credit card" bug.
+3. **Returning user feature** — Nilesh (API completed + shared) → Pankaj (UI + API integrated; task/progress schema done); tasks/progress API from Sandeep → Nilesh.
+4. **V2 QA** — Tarun: retest remaining 3/10 users after fixes land; full end-to-end app + chart retest; 70-question × 15-section framework.
+5. **Charts** — Sandeep: 20 chart bugs fixed, 15-chart JSON schema created.
+6. **Agent proactivity overhaul** — shift from passive Q&A to proactive holistic advisor (3 pillars: full data comprehension → evolving recommendations → ongoing progress tracking). Critical for launch.
+7. **TechCrunch application** — Samder + Abhinav (demo video shared).
+8. **VenturesLab report** — Darwin (was 90% done May 28, submitting).
+9. **Single mom marketing + user research** — Samder: Listen Labs + Outset AI user interviews (first week of June).
 
 ---
 
 ## Per Person
 
 ### Abhinav (Head of Product & Design)
-- **NOW:** Completed all V2 designs. KT delivered to Pankaj, Sandeep, Shailesh. Working on progress + task screen logic.
-- **LAST COMMITTED (May 21 team call):** Give logic for progress and task screen to Sandeep and Shailesh tomorrow. Have a call with Darwin about V3 plans (product recommendation engine).
-- **DONE RECENTLY:** All V2 designs completed ✓ (May 21), Full V2 design KT to Pankaj ✓ (May 21), AI team architecture discussion with Sandeep + Shailesh ✓ (May 21)
+- **NOW:** PMF card development; cylinder-chart close-icon design in Figma (with Pankaj); TechCrunch demo video shared.
+- **LAST COMMITTED (May 28 standup):** Finalize Figma cylinder-chart close icon; progress PMF card development; review TechCrunch demo feedback.
+- **DONE RECENTLY:** TechCrunch demo video shared ✓ (May 28).
 - **BLOCKED:** Twilio A2P compliance (30+ days).
-- **BACKLOG:** None (product/design work)
 
 ### Sandeep (AI Engineer)
-- **NOW:** V2 deployed on dev (live). Shipped 31 fixes across 9 PRs today. Reviewed new designs with Abhinav. Card matching algorithm improved (last-4-digit priority).
-- **LAST COMMITTED (May 21 team call):** Launch V2 on TestFlight tomorrow. Start building new APIs for new design screens (morning tech calls this week). Fix V2 bugs from QA in parallel. Integrate Plaid event data for better AI responses on card linking. Collaborate on budgeting implementation (EveryDollar model + minimum obligations first).
-- **DONE RECENTLY:** V2 deployed on dev ✓ (May 21), 31 fixes across 9 PRs shipped ✓ (May 21), Card matching algorithm reversed to last-4-digit priority ✓ (May 21), Location feature deployed on dev ✓ (May 21), Dave Ramsey 100 episodes downloaded ✓ (May 21)
-- **BLOCKED:** Waiting on Pankaj for Proactive Briefing JSON schema + Budgeting Agent schema.
-- **BACKLOG:** None tracked yet
+- **NOW:** The #1 critical work — fix agent tool-call skipping (hallucination root cause: agent must read real DB, not chat history); 3-way data consistency (app/chat/dashboard/API); debt-misclassification classification-logic fix; deliver tasks/progress API to Nilesh.
+- **LAST COMMITTED (May 28 standup):** Complete misclassification fix (debt categories root cause); deliver tasks/progress API to Nilesh; continue data-consistency fixes for chart-suggestion bugs.
+- **DONE RECENTLY:** Debt misclassification root cause found ("car" keyword) ✓ (May 28); 20 chart bugs fixed + 15-chart JSON schema ✓ (May 29); proactive-summarizer double-word bug fixed ✓ (May 27); 2 CredGPT PRs merged (#119, #120) ✓ (May 28).
+- **BLOCKED:** None currently.
 
 ### Pankaj (Frontend Engineer)
-- **NOW:** Shipped 4 UI components today. Shared proactive briefing payload to Sandeep.
-- **LAST COMMITTED (May 21 team call):** Upload V2 build for internal testing/TestFlight tomorrow.
-- **DONE RECENTLY:** Opportunities UI in chat ✓ (May 21), Task UI in chat ✓ (May 21), Chart bug fixes ✓ (May 21), Active alerts UI in chat ✓ (May 21), Proactive briefing payload shared to Sandeep ✓ (May 21)
-- **BLOCKED:** Android build pending Play Store review (9+ days).
-- **BACKLOG:** None tracked yet
-
-### Samder (Co-founder CEO)
-- **NOW:** Marketing strategy crystallized — single mom focus for 100 days. Dave Ramsey transcripts downloaded (165 episodes). Kathleen MoneyLine links forwarded.
-- **LAST COMMITTED (May 21 team call):** Work over the weekend on single mom-specific data points and budgeting insights. Share findings Monday/Tuesday. Continue Dave Ramsey data PII cleanup.
-- **DONE RECENTLY:** 165 Dave Ramsey transcripts downloaded ✓ (May 21), Kathleen MoneyLine links forwarded ✓ (May 21), Single mom marketing strategy articulated ✓ (May 21), Single mom cohort research completed ✓, 16 YouTube shorts scripted ✓
-- **BLOCKED:** Nothing currently (was traveling, back now).
-- **BACKLOG:** None tracked yet
+- **NOW:** Returning-user UI + API integration; cylinder-chart close icon.
+- **LAST COMMITTED (May 28 standup):** Cylinder-chart close-icon implementation; continue returning-user API integration coordination with Nilesh.
+- **DONE RECENTLY:** Returning-user UI (7 screens) + schema handed to Nilesh ✓; returning-user UI + API integrated ✓ (May 29); task/progress schema completed ✓ (May 29); navbar flow implemented ✓ (May 28); AI section APIs integrated ✓ (May 27).
+- **BLOCKED:** Android build pending Play Store review (13+ days).
 
 ### Shailesh (AI Engineer)
-- **NOW:** Deep RCA on card matching engine bugs. Code review found 4 issues. Fix PR in progress. Will validate V2 from tech side.
-- **LAST COMMITTED (May 21 standup — did not speak directly in team call):** Card matching engine fix PR — strict last-4 digit priority, closed tradelines excluded, name normalization fix. Investigating data sync pipeline for user 2891.
-- **DONE RECENTLY:** RCA on users 2821, 2891, 2869 ✓ (May 21), Matching engine code review: 4 bugs found ✓ (May 21)
-- **BLOCKED:** Laptop overheating (Docker + ventilation). Not work-blocking.
-- **BACKLOG:** None tracked yet
-- **Note:** (did not speak directly in team call — Abhinav mentioned discussion with "Jalish"/Shailesh earlier + Shailesh to validate V2 from tech side)
+- **NOW:** Deep data validation on user 2756; documenting agent tool-call-skipping root causes; validating Sandeep's backend fixes across user profiles.
+- **LAST COMMITTED (May 28 standup):** Complete deep data validation on user 2756; collaborate with Nilesh on data accuracy; validate backend fixes as Sandeep implements them.
+- **DONE RECENTLY:** Agent tool-call-skipping root cause documented ✓ (May 29); ongoing user-2756 data validation.
+- **BLOCKED:** None currently.
+
+### Nilesh (Backend Engineer)
+- **NOW:** Returning-user API (completed + shared); debt-breakdown logic; collaborating with Shailesh on data accuracy; integrate tasks/progress API once Sandeep delivers.
+- **LAST COMMITTED (May 28 standup):** Implement returning-user API with approach changes; continue data-accuracy collaboration with Shailesh; integrate tasks/progress API.
+- **DONE RECENTLY:** Returning-user API completed + shared ✓ (May 29); debt-breakdown logic bug partially fixed ✓ (May 28); 4 webservices PRs merged (#125–128) ✓ (May 28); led the "car"-keyword debt-classification RCA (the user-2756 investigation).
+- **BLOCKED:** Was waiting on tasks/progress API from Sandeep (returning-user feature) — confirm if still open.
 
 ### Darwin (Co-founder COO)
-- **NOW:** User audits continuing. Shared detailed user scenarios (2854, 2891, 2894) showing budgeting and card linking pain points. Pushed for simplified budgeting and product recommendation engine.
-- **LAST COMMITTED (May 21 team call):** Double-check users 2891 and 2894 for card linking issues. Organize Q1 operational metrics for Ventures Lab and share with team. Have a call with Abhinav about V3 plans.
-- **DONE RECENTLY:** User audits on 2854, 2891, 2894 presented in team call ✓ (May 21), Simplified budgeting approach proposed and approved ✓ (May 21), Product recommendation engine need identified ✓ (May 21)
-- **BLOCKED:** Nothing currently.
-- **BACKLOG:** None tracked yet
+- **NOW:** User audits focused on data-accuracy validation; VenturesLab report; debt strategy.
+- **LAST COMMITTED (May 28 standup):** Submit VenturesLab report (for Ben); continue user audits on data accuracy; follow up on TechCrunch.
+- **DONE RECENTLY:** User 2756 deep audit + debt strategy formalized ✓; surfaced the number-accuracy gap (now the #1 priority); "doctor/pharmacist" double-check-every-number directive; VenturesLab report 90% done (May 28, submitting).
+- **BLOCKED:** None currently.
+
+### Samder (Co-founder CEO)
+- **NOW:** TechCrunch application; single-mom marketing strategy; preparing Listen Labs + Outset AI user interviews (first week of June).
+- **LAST COMMITTED (May 28 standup):** Complete TechCrunch application; advance single-mom marketing; prep user interviews.
+- **DONE RECENTLY:** MobileFirst KT closure confirmed ✓ (May 26). (Was absent from the May 27 call.)
+- **BLOCKED:** None currently.
 
 ### Tarun (QA Intern)
-- **NOW:** V2 charts testing completed. Bug doc shared with Sandeep/Pankaj. Next: V2 TestFlight QA on 10 users.
-- **LAST COMMITTED (May 21 standup — did not speak in team call):** Retest V2 charts after bug fixes. Explore Appium automation.
-- **DONE RECENTLY:** V2 charts testing completed ✓ (May 21), Bug document shared ✓ (May 21)
-- **BLOCKED:** Profile "string string String" bug (needs Sai to check backend).
-- **BACKLOG:** None tracked yet
-- **Note:** (did not speak in tonight's team call — assigned V2 TestFlight QA on 10 users by Sandeep)
+- **NOW:** Full end-to-end app testing + chart retest; retest remaining 3/10 user IDs after Sandeep's fixes; 70-question × 15-section QA framework.
+- **LAST COMMITTED (May 28 standup):** Retest remaining 3 user IDs once fixes land; continue QA via the 70-question spreadsheet; document new bugs.
+- **DONE RECENTLY:** 7/10 user QA completed + chart bugs documented ✓ (May 27); user 2756 QA ✓ (May 26).
+- **BLOCKED:** Chart-suggestion bugs (AI showing wrong chart types) — was waiting on Sandeep's fixes before retesting the final 3 (Sandeep fixed 20 chart bugs May 29 — confirm unblocked).
 
-### Nilesh Kumar (Backend Engineer — ~DAY 17)
-- **NOW:** Shipped user location feature (PR #120 merged & deployed to dev). Investigating rewardscc for credit card images.
-- **LAST COMMITTED (May 21 standup — did not speak in team call):** Logos API — rewardscc platform. Twilio SMS + WhatsApp setup (pending Abhinav sync).
-- **DONE RECENTLY:** User location feature PR #120 merged & deployed to dev ✓ (May 21), CI/CD + Logs KT with Harish ✓, Spinwheel KT with Sai ✓
-- **BLOCKED:** Twilio WhatsApp setup pending Abhinav sync.
-- **BACKLOG:** Logos API, Twilio WhatsApp setup, MoneyLine
-- **Note:** (did not speak in tonight's team call — MoneyLine blocker resolved by Kathleen)
-
-### Sai (External — MobileFirst)
-- **NOW:** Customer.io push fix deployed. KT with Nilesh completed.
-- **LAST COMMITTED (May 20):** KT sessions completed.
-- **DONE RECENTLY:** Customer.io push fix deployed ✓, Spinwheel KT with Nilesh ✓
-- **BLOCKED:** Nothing currently.
+### Sai (External — MobileFirst, offboarding)
+- **NOW:** KT to Nilesh complete; MobileFirst KT closure confirmed (May 26). Transitioning off — do not assign sprint work.
 
 ---
 
-## Active Decisions (last 2 weeks)
-1. **Simplified budgeting: minimum obligations first** — Show total minimum monthly payments from tradelines BEFORE detailed budget. "How much do I need to pay?" answered immediately. Detailed budget offered as next step. Increases card linking probability. (May 21 team call — NEW)
-2. **MoneyLine UI: 3 CTAs only** — Cash advance, loans, credit cards → redirect to MoneyLine webview. No full product listing (we can't match specific cards). Pankaj's suggestion, team agreed. (May 21 team call — NEW)
-3. **Product recommendation engine = V3** — Darwin identified need: classify users by credit profile → recommend products via MoneyLine. Under 500 → cash advance. Above 700 → card upgrades. Abhinav confirmed: V3 scope, not current sprint. (May 21 team call — NEW)
-4. **V2 TestFlight validation: 10 users** — 5 from Darwin's audits + 5 from Sandeep. Tarun leads QA. Darwin/Samder test business angle. (May 21 team call — NEW)
-5. **Plaid event data for AI responses** — Replace hardcoded "card not showing up" with dynamic responses using real Plaid event data from Amplitude. (May 21 team call — NEW)
-6. **Customer.io push is a PERMISSION problem, not backend** — Only ~10% users have notification permission. Needs UX strategy. (May 21 — REFRAMED)
-7. **Single mom marketing: 100-day focus** — YouTube shorts, influencer collabs, referral incentives, PR strategy. Veterans segment comes after. (May 21 team call — NEW)
-8. **Card matching engine: strict last-4 priority** — Shailesh rebuilding: 4-digit + credit-card subtype first, name normalization second, exclude closed tradelines. (May 21)
-9. **24-table data migration DEFERRED** — Stabilize V2 bugs first, then migrate prod. (May 21)
-10. **WhatsApp: Twilio primary, Plivo backup** — Nilesh setting up, pending Abhinav sync. (May 20)
+## Active Decisions (last ~2 weeks)
+1. **June 10 launch CONFIRMED** (hardened from "first week of June"). V2 chat/AI features target June 22. (May 22–23 calls)
+2. **Number/data accuracy = #1 priority** — driven by Darwin's user-2756 audit. (May 26–28)
+3. **Data consistency mandated** — app chat, dashboard, and backend API must show identical numbers per user. (May 27–28)
+4. **"Doctor/pharmacist" directive** — double-check every number before presenting. (May 28)
+5. **Agent philosophy: passive Q&A → proactive holistic advisor** — 3 pillars (full data comprehension → evolving recommendations → progress tracking). (May 22–23)
+6. **Budget simplified to 4 lines** (income, debt obligations, living expenses, surplus); jargon removed from user-facing replies. (May 26)
+7. **Bug ownership formalized** — Sandeep fixes + features, Shailesh validates backend (DB verification), Tarun frontend QA; 24h turnaround. (May 25)
+8. **Card matching ~95%** (two-tier algorithm); ~5% unmatchable (AMEX dual numbering, new/reissued cards) → post-launch user flagging. (May 22–23)
+9. **WhatsApp → Twilio primary** (Plivo backup). (May 20)
+10. **MoneyLine = webview only** (Kathleen hosts the UI via static URL; no backend API from us). (May 15)
 
 ## Active Blockers
 | Blocker | Days Active | Owner | Status |
 |---------|------------|-------|--------|
-| Card matching engine bugs | RECURRING | Shailesh | ROOT CAUSE FOUND. Last-4-digit priority implemented by Sandeep. Shailesh fix PR in progress for full resolution. |
-| Data sync pipeline (user 2891) | 1 | Shailesh | tradeline_matrix/financial_profiles empty despite Array data. Investigating. |
-| Push notification low delivery (~7.6%) | 6+ (REFRAMED) | Abhinav/UX | Backend fix deployed. ~10% permission opt-in. UX problem. |
-| ~~MoneyLine static URL not received~~ | ~~RESOLVED~~ | ~~Nilesh/Samder~~ | ✅ RESOLVED May 21 — Kathleen responded, links forwarded by Samder. |
-| Sandeep waiting on Pankaj schemas | 1 | Pankaj → Sandeep | Proactive Briefing JSON + Budgeting Agent schema. |
-| Plaid card linking 78-80% drop-off | 38+ | Shailesh | Matching engine fix + simplified budgeting approach will address. |
-| Twilio A2P campaign registration | 30+ | Abhinav/Sai | Temporary direct method working. |
-| Profile "string string String" bug | 6+ | Sai/Nilesh | Found in testing. Likely backend ID removal. |
-| Android build pending Play Store | 9+ | Pankaj | iOS approved. Waiting on Play Store review. |
-| Twilio WhatsApp setup | 1 | Nilesh | Pending sync with Abhinav. |
-| Dave Ramsey transcripts PII cleanup | NEW | Samder/Sandeep | 165 episodes downloaded. Need PII removal before AI training use. |
+| Agent tool-call skipping / number accuracy (hallucinated financials) | RECURRING — CRITICAL for June 10 | Sandeep / Shailesh | Root cause documented (agent reads chat history instead of DB). Fixes in progress. |
+| Android build pending Play Store review | 13+ | Pankaj | iOS fine; awaiting Play Store review. |
+| Twilio A2P compliance | 30+ | Abhinav | Long-standing. |
+| Push notification opt-in (~7.6% delivery) | 40+ | Abhinav / UX | Backend fixed; low rate is a permission/UX problem (~10% opt-in). |
+| Plaid card-linking success rate declining | RECURRING | Shailesh / Sandeep | May 18–24: 6/21 successful (~29%); mostly user self-drop-off. |
+| Debt misclassification ("car" keyword) | Found May 26–27 | Sandeep / Nilesh | Nilesh partially fixed; Sandeep fixing classification logic. Category breakdown only (totals were correct). |
 
-## Metrics (Amplitude-verified May 21, 16:30 UTC)
-- **DAU (real users):** May 14: 16, May 15: 15, May 16: 14, May 17: 9, May 18: 9, May 19: 16, May 20: 18, May 21: 7 (10 PM IST — day not complete)
-- **This week so far:** May 19: 16, May 20: 18 (strong), May 21: 7 (day not complete at compile time).
-- **Email delivery:** ~94% delivered, 48% open rate (healthy)
-- **Push notification delivery:** ~7.6% — backend fix deployed, low rate is permission opt-in issue
-- **Plaid card linking:** 78-80% drop-off. Card matching algorithm improved (last-4-digit priority).
-
-## What Changed May 21 (from 9 PM IST team call)
-- *MoneyLine UNBLOCKED:* Kathleen responded. Samder forwarded links. 8+ day blocker resolved.
-- *V2 dev is LIVE:* Sandeep confirmed V2 deployed on dev environment. Testing can begin immediately.
-- *TestFlight launch TOMORROW:* Pankaj uploading build. 10-user validation (5 Darwin audit users + 5 Sandeep users). Tarun leads QA. Darwin/Samder test business flows.
-- *Simplified budgeting approach decided:* Show minimum monthly obligations from tradelines FIRST → then offer detailed budget. Reduces drop-off for complex/low-score users (Darwin's proposal, team agreed).
-- *Card matching algorithm improved:* Sandeep reversed priority to last-4-digit matching. Array uses bank names, Plaid uses brand names — name mismatch was root cause. Fix in data sync service.
-- *Plaid event data for AI responses:* Replace hardcoded messages with dynamic responses using real Plaid events. Sandeep to implement.
-- *Product recommendation engine = V3:* Darwin identified need. Classify users by profile → recommend via MoneyLine. Abhinav confirmed V3 scope.
-- *MoneyLine UI: 3 CTAs:* Cash advance, loans, credit cards → redirect to webview. Pankaj's suggestion, team agreed.
-- *Location data for budgeting:* Deployed on dev. Current city/state/country from Amplitude events. Used for seasonal/regional budgeting context.
-- *Dave Ramsey transcripts: 165 episodes downloaded.* Samder + Sandeep. Need PII cleanup. Training data for financial coaching.
-- *Single mom marketing strategy crystallized:* 100-day focus. Shorts, influencers, referrals, PR angle. 5-10M addressable market. Veterans segment next.
-- *Ventures Lab Q1 metrics:* Darwin organizing for sharing.
+## Metrics
+- **Real DAU:** [NEEDS AMPLITUDE REFRESH — last grounded value mid-May was ~12–18/day; do not quote without a fresh Real-Users-filtered query.]
+- **Push notification delivery:** ~7.6% (permission/opt-in problem, not backend).
+- **Plaid card-linking success:** May 18–24: 6/21 (~29%) — declining; user self-drop-off is the main factor.
+- **Card matching accuracy:** ~95% (two-tier algorithm); ~5% unmatchable.
+- (Email delivery, MAU, card-linked counts: pull fresh from Amplitude/Customer.io before quoting — Abhinav requested a precise investor-metrics set on May 23; that was a separate deliverable.)
 
 ## Upcoming
-- **May 22 (Friday IST):** TestFlight build uploaded (Pankaj). V2 10-user QA begins (Tarun + Darwin + Samder). Sandeep starts new API development. Abhinav delivers progress/task screen logic to Sandeep & Shailesh. Abhinav-Darwin V3 discussion.
-- **This weekend:** Team tests V2 on TestFlight. Samder works on single mom data/budgeting insights.
-- **Monday/Tuesday:** Samder shares single mom marketing findings.
-- **This week:** V2 testing + API development + card matching fix pipeline active.
-- **First week of June:** V2 app release target (revised).
-- **June 22:** V2 chat/AI features live date.
-- **PMF target:** June 30. Series A this year. $1M ARR goal.
+- **June 10:** V2 launch target (confirmed).
+- **June 22:** V2 chat/AI features live.
+- **First week of June:** Listen Labs + Outset AI user interviews (Samder).
+- **June 30:** PMF target. Series A this year. $1M ARR goal.
+- **Near-term:** Land the number-accuracy + tool-call-skipping fixes; finish the returning-user feature; complete V2 QA (Tarun's remaining 3 users + end-to-end + chart retest).
