@@ -1,7 +1,7 @@
 ---
 name: meeting-intelligence
 description: Agent 1 — Deep meeting comprehension, DAILY_STATE updates, contextual task extraction, Decision Log + Blockers + Daily Scrum updates (Sprint Board retired 2026-05-23)
-version: 2.0.0
+version: 2.1.0
 metadata:
   openclaw:
     requires:
@@ -177,6 +177,7 @@ These SKIP conditions are **inclusive, not mutually exclusive**. If a commitment
 - If unsure: flag as `[NEEDS CLARIFICATION]`, don't guess.
 - Never invent owners, deadlines, or details.
 - Distinguish "someone mentioned it" from "someone committed to it." Only commitments go into per-person sections.
+- **Canonical entity names — normalize transcription drift.** The cash-advance / loans / cards partner is **MoneyLion** (`moneylion.com`; Kathleen Lee is BON's POC). Fireflies frequently mis-transcribes it as "Moneyline" / "MoneyLine" — ALWAYS write **MoneyLion** in DAILY_STATE, decisions, blockers, and the Slack summary. Apply the same normalization to person names per the roster (e.g., "Pancaj" → Pankaj). Never propagate a transcript spelling that contradicts a known roster/entity name.
 
 ## Step 6: Write to Notion
 

@@ -81,7 +81,7 @@
 - **DAU May 22 = 5 at 5 PM IST.** Likely ending 6-8. Significant Friday dip vs May 16's 14.
 - **Card linking engine documented:** Sandeep's report shows 97% auto-match. Human-in-the-loop API for remaining 3% planned post-V2 launch (after June 10).
 - **Customer IO push REFRAMED** — ~10% opt-in permission problem, not backend.
-- **MoneyLine UNBLOCKED** — Kathleen responded May 21.
+- **MoneyLion UNBLOCKED** — Kathleen responded May 21.
 - **Darwin's 5 test users for V2:** 1179, 2621, 999, 2750, 2544.
 - **Sandeep's 10 test users:** Shared at 07:52 UTC (includes 2503 internal test — needs swap).
 
