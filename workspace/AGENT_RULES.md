@@ -107,7 +107,7 @@ Always go through the queue-first pattern in `/data/skills/shared-toolkit/SKILL.
 - Reads (query): `Notion-Version: 2025-09-03`, endpoint `POST /v1/data_sources/{id}/query`.
 - Writes (create/update pages): `Notion-Version: 2022-06-28`, endpoints `POST /v1/pages` and `PATCH /v1/pages/{id}`.
 
-**Owner (people) field:** As of 2026-05-23 the team is being invited to the Notion workspace and Notion User IDs are pending capture (see MEMORY.md). Until IDs are populated, do NOT attempt to set Owner — write the first name into Notes/description instead.
+**Owner (people) field:** Notion User IDs are captured for all 8 internal team members (see MEMORY.md → Team Roster, as of 2026-05-29). Set Owner with `{"people": [{"id": "<notion_user_uuid>"}]}` using the roster ID. If a person has no Notion ID (external like Sai, or unmatched), fall back to writing the first name into Notes/description. Never guess an ID.
 
 ---
 

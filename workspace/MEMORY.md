@@ -76,7 +76,7 @@ Identity disambiguation rule: **Sandeep ≠ Samder.** Sandeep = AI engineer (arc
 - Alaska bot: User ID `U0ANY9YTNUR`, Bot ID `B0ANHAVSS78`
 - `alaska@boncredit.ai` user account: `U0ANFSYAH29` (display: "Don't touch" — NOT the bot)
 
-> **Notion User IDs captured 2026-05-29** — the team is in the workspace (pulled from Notion `/v1/users`). Sai is external/not in the workspace → n/a. (The "Alaska" / "Alaska PM" / "Notion MCP" entries in Notion's user list are integrations, not people.) These IDs now unblock writing the Owner (people) field. **Follow-up before relying on Owner writes:** the "skip Owner, write first-name-in-Notes" guidance in `AGENT_RULES.md` + `shared-toolkit` still says paused — verify the Owner-write path once with a real ID, then lift that guidance. Sprint Board writes remain paused entirely (Sprint Board retired — see `memory/system-evolution.md` → v2.2).
+> **Notion User IDs captured 2026-05-29** — the team is in the workspace (pulled from Notion `/v1/users`). Sai is external/not in the workspace → n/a. (The "Alaska" / "Alaska PM" / "Notion MCP" entries in Notion's user list are integrations, not people.) **Owner (people) field writes are now ENABLED** — set Owner with the roster Notion ID (`{"people":[{"id":"..."}]}`); fall back to first-name-in-Notes only if a person has no ID. Paused-guidance lifted in `shared-toolkit`, `AGENT_RULES.md`, and `meeting-intelligence`. Sprint Board writes remain paused entirely (Sprint Board retired — see `memory/system-evolution.md` → v2.2).
 
 ### External Agency — MobileFirst (transitioning off ~May-June 2026)
 - Dev agency BON Credit has worked with for ~1 year
