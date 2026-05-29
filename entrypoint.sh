@@ -8,6 +8,39 @@ echo "[alaska] Starting Alaska AI Project Manager..."
 
 mkdir -p /data/.openclaw
 
+# DEFENSIVE: if the runtime config is corrupted (invalid JSON or suspiciously
+# small), restore from OpenClaw's auto-backup .bak file. If no backup exists,
+# fall through to fresh git copy. This guards the config-merge node script below
+# from crashing on JSON.parse (set -e would kill the boot → crash loop).
+# Note: the merge logic below already strips keys-not-in-git, which handles the
+# "extra unknown keys" failure mode (the 2026-05-27 P0). This block handles the
+# WORSE case: actual JSON corruption from an interrupted write.
+if [ -f /data/.openclaw/openclaw.json ]; then
+  CONFIG_SIZE=$(stat -c%s /data/.openclaw/openclaw.json 2>/dev/null || stat -f%z /data/.openclaw/openclaw.json 2>/dev/null || echo 0)
+  CONFIG_VALID=$(node -e "try { JSON.parse(require('fs').readFileSync('/data/.openclaw/openclaw.json','utf8')); console.log('ok'); } catch(e) { console.log('bad'); }" 2>/dev/null || echo bad)
+
+  if [ "$CONFIG_VALID" != "ok" ] || [ "$CONFIG_SIZE" -lt 200 ]; then
+    echo "[alaska] ⚠️  Runtime config is CORRUPTED (size=$CONFIG_SIZE, parse=$CONFIG_VALID)"
+    if [ -f /data/.openclaw/openclaw.json.bak ]; then
+      BAK_SIZE=$(stat -c%s /data/.openclaw/openclaw.json.bak 2>/dev/null || stat -f%z /data/.openclaw/openclaw.json.bak 2>/dev/null || echo 0)
+      BAK_VALID=$(node -e "try { JSON.parse(require('fs').readFileSync('/data/.openclaw/openclaw.json.bak','utf8')); console.log('ok'); } catch(e) { console.log('bad'); }" 2>/dev/null || echo bad)
+      if [ "$BAK_VALID" = "ok" ] && [ "$BAK_SIZE" -ge 200 ]; then
+        cp /data/.openclaw/openclaw.json /data/.openclaw/openclaw.json.broken-$(date +%s)
+        cp /data/.openclaw/openclaw.json.bak /data/.openclaw/openclaw.json
+        echo "[alaska] ✅ Restored runtime config from .bak (size=$BAK_SIZE). Broken version archived."
+      else
+        echo "[alaska] ⚠️  .bak is also corrupted (size=$BAK_SIZE, parse=$BAK_VALID). Falling through to fresh git copy."
+        cp /data/.openclaw/openclaw.json /data/.openclaw/openclaw.json.broken-$(date +%s)
+        rm /data/.openclaw/openclaw.json
+      fi
+    else
+      echo "[alaska] ⚠️  No .bak file present. Falling through to fresh git copy."
+      cp /data/.openclaw/openclaw.json /data/.openclaw/openclaw.json.broken-$(date +%s)
+      rm /data/.openclaw/openclaw.json
+    fi
+  fi
+fi
+
 if [ ! -f /data/.openclaw/openclaw.json ]; then
   # First deploy: copy git config directly
   cp /opt/default-config/openclaw.json /data/.openclaw/openclaw.json
