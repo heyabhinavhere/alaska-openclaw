@@ -129,10 +129,13 @@ a debt question:
 
 ```
 *User 2762 — debt*
-FICO 612 (fair, Spinwheel) · 3 cards · $4.2k balance / $6.8k limit · 62% util (high)
+VantageScore 3.0: 612 (fair, Equifax · pulled May 24) · 3 cards · $4.2k bal / $6.8k limit · 62% util (high)
 Weighted APR 24.99% · ~$87/mo interest · min due $142 · none overdue
 Cash on hand $5.2k · est. income $4.2k/mo _(from deposit patterns)_
 ```
+
+(The credit `source` is normally `array` — use its `model`/`bureau`/`as_of`,
+e.g. "VantageScore 3.0, Equifax, pulled May 24". It's a VantageScore, not FICO.)
 
 Use exact numbers (flat policy). First names only. No section is guaranteed —
 if a block is null, the user just doesn't have that data linked yet; say so
@@ -151,7 +154,8 @@ number as if it were precise:
 | `spending` | `category_sum (approx)` | add `_(approx — current-month categories)_` |
 | `debt` | `plaid` | real-time — no qualifier |
 | `debt` | `spinwheel` | add `_(from credit bureau, may lag)_` |
-| `credit` | `spinwheel` / `array` | name the bureau, as in the example |
+| `credit` | `array` | canonical — show score + model + bureau + "(pulled `as_of`)" |
+| `credit` | `spinwheel (signup snapshot…)` | only appears when there's no Array pull yet — flag it: "(signup estimate, may be stale)" |
 
 Cash on hand is always current linked balances (no inference) — no qualifier
 needed. If `served_stale` was set, the freshness caveat already covers the
