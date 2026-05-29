@@ -33,7 +33,7 @@ The calling skill provides a single extraction context:
 | `due_at_iso` | no | If extraction includes a date/deadline, the caller parses it to ISO |
 | `priority` | no | One of: `P0`, `P1`, `P2`, `P3`, or NULL |
 | `effort` | no | One of: `XS`, `S`, `M`, `L`, `XL`, or NULL |
-| `category` | no | One of: `V2`, `MoneyLine`, `Marketing`, `Infra`, `Card-Matching`, `Customer-IO`, `Other`, or NULL |
+| `category` | no | One of: `V2`, `MoneyLion`, `Marketing`, `Infra`, `Card-Matching`, `Customer-IO`, `Other`, or NULL |
 | `additional_owners` | no | JSON array of additional owner Slack IDs (e.g., multi-owner task from TASK_ASSIGN) |
 
 ## Procedure

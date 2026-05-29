@@ -21,7 +21,7 @@
 - **Sprint 4 (Apr 21-27):** Pipeline fixed Apr 20. Proper planning started.
 - **Sprint 5 (Apr 28-May 4):** V2 testing phase began.
 - **Sprint 6 (May 5-11):** Goa retreat week. No formal sprint tasks assigned.
-- **Sprint 7 (May 12-18):** Post-Goa execution. No tasks on board yet. MoneyLine integration assigned.
+- **Sprint 7 (May 12-18):** Post-Goa execution. No tasks on board yet. MoneyLion integration assigned.
 
 ---
 
@@ -45,7 +45,7 @@
 - V2 multi-thread memory feature implemented, under testing
 - V2 app release: first week of June; V2 chat/AI features live: June 22
 
-### MoneyLine Partnership (May 14)
+### MoneyLion Partnership (May 14)
 - Approval received. Integration assigned to Nilesh. Kathleen Lee is BON's POC.
 - Sandbox credentials partially received (Channel ID + Zone ID).
 - One screen + chat product recommendations. Links redirect via boncredit.ai URLs.
@@ -58,7 +58,7 @@
 | Plaid card linking ~68-70% drop-off | 32+ | UX overhaul planned |
 | Twilio A2P campaign registration | 25+ | Temporary direct method working |
 | Android build pending Play Store | 3+ | iOS approved, waiting on Play Store |
-| MoneyLine sandbox credentials | NEW | Partial. Shailesh sending questions. |
+| MoneyLion sandbox credentials | NEW | Partial. Shailesh sending questions. |
 | Push notifications 7.6% delivery | 40+ | iOS fix deployed May 7. Android still broken. |
 
 ### Customer.io (31 campaigns, May 15)
@@ -69,7 +69,7 @@
 - Transaction Summary Email is the best-performing campaign
 
 ### Key Decisions (as of May 15)
-1. MoneyLine integration → Nilesh (May 14)
+1. MoneyLion integration → Nilesh (May 14)
 2. V2 chat/AI live: June 22 (May 14)
 3. V2 app release: first week of June (May 14)
 4. Competitor exclusion: Cleo, Albert, Origin (May 14)

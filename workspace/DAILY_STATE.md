@@ -96,7 +96,7 @@
 7. **Bug ownership formalized** — Sandeep fixes + features, Shailesh validates backend (DB verification), Tarun frontend QA; 24h turnaround. (May 25)
 8. **Card matching ~95%** (two-tier algorithm); ~5% unmatchable (AMEX dual numbering, new/reissued cards) → post-launch user flagging. (May 22–23)
 9. **WhatsApp → Twilio primary** (Plivo backup). (May 20)
-10. **MoneyLine = webview only** (Kathleen hosts the UI via static URL; no backend API from us). (May 15)
+10. **MoneyLion = webview only** (Kathleen hosts the UI via static URL; no backend API from us). (May 15)
 
 ## Active Blockers
 | Blocker | Days Active | Owner | Status |

@@ -58,7 +58,7 @@ Build a draft proposal for next week. Priority order:
 
 1. **P0 carryover** — anything critical that didn't finish.
 2. **P0 commitments from recent meetings** — Decisions in `DAILY_STATE.md` that imply a task this week.
-3. **In-flight features close to landing** — V2 launch, TestFlight, MoneyLine integration, etc.
+3. **In-flight features close to landing** — V2 launch, TestFlight, MoneyLion integration, etc.
 4. **Founder-priority items** — anything Darwin or Samder flagged in the last team call.
 5. **Anything else from Backlog (Notion)** with P1+ priority, only if capacity remains.
 

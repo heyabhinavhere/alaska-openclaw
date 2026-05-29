@@ -69,7 +69,7 @@ Identity disambiguation rule: **Sandeep ≠ Samder.** Sandeep = AI engineer (arc
 | Sandeep | Sandeep Singh | U0AQFJV9B32 | `333d872b-594c-813a-bf0a-0002e1a1dc22` | AI Engineer | Engineer — Python, LangGraph, CredGPT, DevOps | India |
 | Shailesh | Shailesh Kumar | U0AQ1UZHZ8D | `335d872b-594c-81f1-a3a5-00027a396e76` | AI Engineer | Engineer — Python, joined Apr 1, fully ramped | India |
 | Tarun | Tarun Kumar | U0AS70U9KM5 | `366d872b-594c-81b9-a832-00024351d0b5` | QA Intern | Engineer — Pankaj doing KT, fresher | India |
-| Nilesh | Nilesh Kumar | U0B17Q59J75 | `365d872b-594c-8170-8049-0002881c6567` | Backend Engineer | Engineer — joined ~May 5, MoneyLine integration | India |
+| Nilesh | Nilesh Kumar | U0B17Q59J75 | `365d872b-594c-8170-8049-0002881c6567` | Backend Engineer | Engineer — joined ~May 5, MoneyLion integration | India |
 | Sai | Sai | _external_ | _n/a — external, not in workspace_ | External (MobileFirst) | External — Backend/Data, transitioning off to Nilesh | India |
 
 **Bot / system accounts:**

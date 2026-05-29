@@ -43,7 +43,7 @@
 ### Nilesh (Backend Engineer):
 - Deploy Customer IO device token fixes - M, P0 Critical, due May 19
 - Complete backend KT with Sai - M, P2 Medium, due May 23
-- Implement MoneyLine webview integration - S, P2 Medium, due May 22
+- Implement MoneyLion webview integration - S, P2 Medium, due May 22
 
 ### Samder (CEO):
 - Complete single mom cohort research + deck - M, P1 High, due May 20
