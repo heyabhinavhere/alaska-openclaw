@@ -2,11 +2,11 @@
 
 > **Audience:** the parallel V4 Claude agents (KB, Watchers V1, 360-profile) + any future session.
 > **Purpose:** make the V1-V3 stabilization scope visible so we don't collide on shared files.
-> **Status:** COMPLETE — A–E + G + H shipped & live; channel-scope in PR #22; F deferred (Abhinav's call).
-> **Branches/PRs:** Wave 1 = PR #16 (merged), Wave 2 = PR #18 (merged), Wave 3 = PR #20 (merged), Wave 4 = PR #22 (channel-scope + this final wrap). Worktree: `.claude/worktrees/fix+v1-v3-stabilization`, base `origin/main`.
+> **Status:** COMPLETE — A–E + G + H shipped & live; channel-scope (PR #22); Issue I root-caused + MoneyLion naming/Issue J fixed (PR #23 + live writes); F deferred (Abhinav's call).
+> **Branches/PRs:** Wave 1 = PR #16 (merged), Wave 2 = PR #18 (merged), Wave 3 = PR #20 (merged), Wave 4 = PR #22 (channel-scope + final wrap), Wave 5 = PR #23 (MoneyLion naming + Issue I follow-on). Worktree: `.claude/worktrees/fix+v1-v3-stabilization`, base `origin/main`.
 > **Owner:** Abhinav + stabilization agent
 > **Deploy posture:** PR → review → merge to `main` → Railway auto-deploys
-> **Last updated:** 2026-05-29
+> **Last updated:** 2026-05-30
 
 ---
 
@@ -65,12 +65,15 @@ Status values: `investigating` · `proposed` · `approved` · `shipped` · `decl
 | — | Notion User IDs captured (all 8 internal members) + Owner-field writes re-enabled (graceful fallback) | — | ✅ **LIVE** | #20 |
 | — | Channel-scope policy (membership = access control, no allowlist) + MEMORY-in-channels guidance reconciled | — | 🟦 in PR #22 | #22 |
 | F | Over-scoped GitHub token — full `repo` read+WRITE, not read-only | DEFERRED — Abhinav owns the read-only token swap | ⏸️ **deferred** | — |
+| I | Blocker/context propagation broken — channel blockers seen but never captured (classifier still observation-only), stale blockers (Play Store) linger in DAILY_STATE, no lifecycle/resolution | Root-cause + honest data fix now; **pipeline DEFERRED to Watchers** (it absorbs the never-built v2-task-model Phase D/E) | ✅ root-caused; live data corrected; pipeline deferred | #23 |
+| J | "MoneyLine" naming hallucination — real partner is **MoneyLion** (moneylion.com); Fireflies mis-transcription + a seed typo propagated into memory/skills/state | Fix now — correct everywhere + a Meeting-Intelligence normalization rule (recurrence-stopper) | ✅ **repo LIVE via #23; live DAILY_STATE + system-evolution + `task_categories` DB corrected directly** | #23 |
 
 ### Waves shipped
 - **Wave 1 (PR #16):** A–E behavioral guardrails. Spine in `alaska-core`: *bold in thinking; honest about facts & limits; restrained about actions & disclosure.* New `slack-commands` sections (`Code & repo questions`, `Action restraint`) sit below the `Intent-driven actions` block — no overlap with Watchers/360 handlers.
 - **Wave 2 (PR #18):** Issue H — workspace on the persistent `/data` volume (symlink + `lib/sync_workspace.sh` + `tests/test_workspace_persistence.sh`); `DAILY_STATE.md` reconstructed from the May-28 call + Slack as the seed.
 - **Wave 3 (PR #20):** Issue G — tiered memory (lean `MEMORY.md` ~13K + `memory/system-evolution.md` archive); Notion User IDs captured; Owner-field writes re-enabled.
 - **Wave 4 (PR #22):** channel-scope policy made explicit; `AGENTS.md` MEMORY-in-channels guidance reconciled; this final wrap.
+- **Wave 5 (PR #23, 2026-05-30):** Issue J — corrected "MoneyLine" → **MoneyLion** across `MEMORY.md` roster, `task-handler`/`sprint-operator` skills, STATE seeds, cron snapshot; added a Meeting-Intelligence normalization rule (Fireflies mis-transcribes "MoneyLion"→"Moneyline" → always write MoneyLion — the recurrence-stopper). Live runtime writes (approved, sha256-guarded + backed up): live `DAILY_STATE.md` (removed the resolved Play-Store blocker, which Abhinav confirmed live, + spelling fix), live `system-evolution.md`, and the `task_categories` DB row rename (0 tasks referenced it). **Issue I** root-caused: only v2-task-model Phases A–C shipped; **Phase D (classifier observe→act) + E never built** → channel blockers are seen-not-acted. That pipeline is Watchers V1's scope (Watchers absorbs Phase C), so stabilization did NOT build it — only the honest data corrections above.
 
 ### V4 coordination outcome — CLEAN, no collisions
 Watchers V1 (PR #15, docs) and 360-profile (PR #19) both landed on `main` alongside the waves; 360 even **extended** the Wave-1 `TOOLS.md` capability manifest (added the User-Profile-360 access + boundary) — coordination worked. The `migrations/0003` slot went to 360-profile (stabilization never took it). `intent-classifier` left untouched by stabilization (Watchers' v1.2 bump unblocked).
@@ -79,6 +82,7 @@ Watchers V1 (PR #15, docs) and 360-profile (PR #19) both landed on `main` alongs
 - **Issue F:** swap the GitHub token to a fine-grained read-only one (Contents:read + commit/PR read). Stabilization agent supplies the exact scopes on request. (Currently the "READ ONLY" red line is enforced only by instructions, not the token.)
 - **Owner-writes:** confirm the first real blocker Owner-write populates the people field (graceful first-name-in-Notes fallback makes it safe regardless).
 - **KB coordination:** KB agent to add a capability/access dimension (`architecture.md` + `integrations/github.md`) converging with the `TOOLS.md` "What you can and cannot reach" manifest (Issue E knowledge-half).
+- **MoneyLion naming — 3 residual flags (from Wave 5):** (a) KB spec references `integrations/moneyline.md` → should be `moneylion.md` (KB owner); (b) live OpenClaw cron-prompt dashboard still says "MoneyLine" in Sprint Operator + Pre-Call Brief (repo snapshot fixed in #23; live dashboard synced via Alaska on 2026-05-30); (c) `migrations/0001` seed row literally says `'MoneyLine'` — applied/immutable, live DB already renamed, only matters for a from-scratch DB reseed (→ a future migration, not an edit to 0001).
 
 ---
 
