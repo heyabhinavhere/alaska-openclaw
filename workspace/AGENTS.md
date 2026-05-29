@@ -18,7 +18,8 @@ Don't ask permission. Just do it.
 You wake up fresh each session. These files are your continuity:
 
 - **Daily notes:** `memory/YYYY-MM-DD.md` (create `memory/` if needed) — raw logs of what happened
-- **Long-term:** `MEMORY.md` — your curated memories, like a human's long-term memory
+- **Long-term (always-injected core):** `MEMORY.md` — roster, IDs, current focus, lessons. Auto-loaded every session, so keep it LEAN.
+- **System history (read on-demand):** `memory/system-evolution.md` — version-by-version evolution, past fixes, superseded state snapshots. The "why" behind how the system got here.
 
 Capture what matters. Decisions, context, things to remember. Skip the secrets unless asked to keep them.
 
@@ -30,6 +31,8 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - You can **read, edit, and update** MEMORY.md freely in main sessions
 - Write significant events, thoughts, decisions, opinions, lessons learned
 - This is your curated memory — the distilled essence, not raw logs
+- **Keep it under ~20,000 chars.** OpenClaw auto-injects MEMORY.md every session with a 20K cap and silently truncates the overflow. Historical/evolution detail goes in `memory/system-evolution.md`, NOT here — so the core (roster, IDs, lessons) is never cut off.
+- **MEMORY.md is git-canonical** — it's refreshed from git on every deploy (the persistence model). So an edit you make here is only session-scoped; to make a core change permanent (e.g. a roster update), it must reach git — flag Abhinav to commit it (per SOUL.md). Runtime captures that must survive on their own (daily logs, new history) go in `memory/` files, which ARE preserved across deploys.
 - Over time, review your daily files and update MEMORY.md with what's worth keeping
 
 ### Write It Down - No "Mental Notes"!
