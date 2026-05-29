@@ -84,6 +84,21 @@
 
 ## Alaska System Evolution
 
+### v2.5 (2026-05-28 → 05-29) — Stabilization Sweep
+
+Triggered by the Nilesh ↔ Alaska debt-discrepancy conversation (BON user 2756, May 26-27), which exposed several trust/reliability problems. Full register + cross-agent coordination detail: `docs/superpowers/plans/2026-05-27-alaska-v1-v3-stabilization.md`.
+
+**Shipped & live:**
+- **A–E — behavioral guardrails (PR #16).** New "Honesty & Restraint" spine in `alaska-core`: *bold in thinking; honest about facts & limits; restrained about actions & disclosure.* (A) Grounded reading — for code questions, fetch + quote the real file or say you can't; never invent file paths/line numbers. (B) Third-person restraint — never @-mention or loop in someone other than the requester unprompted (root cause of the rogue Sandeep ping: each Slack surface is an isolated session with no shared memory). (C) Apologize without exposing internals (no "automated session"). (D) Warm, not a cheerleader; no over-claiming actions you can't verify. (E) Capability honesty — split the "never say I don't have access" overshoot (API hiccup = "unavailable"; genuine boundary = say so plainly) + a "what you can/cannot reach" manifest in TOOLS.md.
+- **H — workspace persistence (PR #18).** THE fix for "memory keeps going stale / not updating." `/root/.openclaw/workspace` was on the ephemeral overlay fs and re-seeded from the git image on every deploy → all runtime state reverted (DAILY_STATE kept snapping back to the May-21 stub). Moved to the persistent `/data/workspace` (symlinked from the old path); `lib/sync_workspace.sh` refreshes CONFIG files from git each deploy and preserves STATE files. Verified across two real deploys.
+- **G — MEMORY.md truncation (PR #20).** MEMORY.md split into the lean always-injected core + this on-demand archive (see the Issue G detail entry below).
+- **Notion User IDs + Owner-field writes (PR #20).** All 8 internal members' Notion IDs captured into the roster; Owner (people) writes re-enabled with a first-name-in-Notes fallback for anyone without an ID.
+- **Channel-scope policy (PR #22).** Alaska operates in any Slack channel she's added to (membership = the access control; no allowlist). MEMORY-in-channels guidance reconciled: memory is available everywhere (needed to function); the safeguard is non-disclosure, not withholding.
+
+**Deferred (Abhinav's call):** Issue F — the GitHub token is over-scoped (full `repo` read+WRITE, not read-only); the "READ ONLY" rule is currently enforced only by instructions, not the key itself.
+
+**Meta-lesson:** the two deepest issues (H, G) were NOT in the original report — they surfaced by grounding on the live system (session logs, file mtimes, the truncation log line) rather than trusting assumptions. Fitting, since the whole sweep was about Alaska not making ungrounded claims.
+
 ### v2.4 (May 25-26) — v2 Task Model Activation + Watchers Design
 
 Big session. Three PRs merged, two foundational design docs written, one Slack-discipline regression caught and patched.

@@ -2,11 +2,11 @@
 
 > **Audience:** the parallel V4 Claude agents (KB, Watchers V1, 360-profile) + any future session.
 > **Purpose:** make the V1-V3 stabilization scope visible so we don't collide on shared files.
-> **Status:** ACTIVE
-> **Branch:** `fix/v1-v3-stabilization` (worktree: `.claude/worktrees/fix+v1-v3-stabilization`, base: `origin/main`)
+> **Status:** COMPLETE — A–E + G + H shipped & live; channel-scope in PR #22; F deferred (Abhinav's call).
+> **Branches/PRs:** Wave 1 = PR #16 (merged), Wave 2 = PR #18 (merged), Wave 3 = PR #20 (merged), Wave 4 = PR #22 (channel-scope + this final wrap). Worktree: `.claude/worktrees/fix+v1-v3-stabilization`, base `origin/main`.
 > **Owner:** Abhinav + stabilization agent
 > **Deploy posture:** PR → review → merge to `main` → Railway auto-deploys
-> **Last updated:** 2026-05-28
+> **Last updated:** 2026-05-29
 
 ---
 
@@ -53,21 +53,32 @@ Status values: `investigating` · `proposed` · `approved` · `shipped` · `decl
 
 **Source of A–F:** the Nilesh ↔ Alaska debt-discrepancy conversation (BON user 2756), 2026-05-26 → 27.
 
-| # | Issue (one-line) | Decision | Status | Files |
-|---|------------------|----------|--------|-------|
-| A | Code/repo RCA hallucination (fabricated line-level findings, self-contradiction) | Fix now — grounded reading | **Wave 1 — in PR** | `slack-commands`, `TOOLS.md`, `alaska-core` |
-| B | Autonomous session acted after explicit "don't send" + public @tag of a teammate | Fix now — third-person guard | **Wave 1 — in PR** (root cause verified via session logs) | `slack-commands`, `alaska-core` |
-| C | Internals/architecture leak ("automated session picked it up…") | Fix now | **Wave 1 — in PR** | `SOUL.md`, `alaska-core` |
-| D | Sycophancy + over-claiming ("Day 1", "I'll delete it") | Fix now (light) | **Wave 1 — in PR** | `SOUL.md`, `alaska-core` |
-| E | Capability dishonesty — "never say I don't have access" overshoot | **Both** — KB supplies the *map*, this fix supplies the *discipline* | **Wave 1 (discipline half) — in PR**; KB coordination pending | `TOOLS.md`, `alaska-core` |
-| F | Over-scoped GitHub token — full `repo` read+WRITE, not read-only | Deferred to after A–E; **Abhinav owns the token swap** | `deferred` — logged, no action yet | — (secret change) |
+| # | Issue (one-line) | Decision | Status | PR |
+|---|------------------|----------|--------|----|
+| A | Code/repo RCA hallucination (fabricated findings, self-contradiction across sessions) | Fix now — grounded reading | ✅ **LIVE** | #16 |
+| B | Autonomous session acted after explicit "don't send" + public @tag (root cause verified in session logs: an isolated channel-mention session with no memory of the DM) | Fix now — third-person restraint | ✅ **LIVE** | #16 |
+| C | Internals/architecture leak ("automated session picked it up…") | Fix now — apology/disclosure guard | ✅ **LIVE** | #16 |
+| D | Sycophancy + over-claiming ("Day 1", "I'll delete it") | Fix now (light) | ✅ **LIVE** | #16 |
+| E | Capability dishonesty — "never say I don't have access" overshoot | Both — discipline (now) + KB map (later) | ✅ **LIVE** (discipline half) | #16 |
+| H | Workspace persistence — `/root/.openclaw/workspace` was ephemeral, re-seeded from git every deploy (THE root cause of "memory keeps going stale") | Fix now — move to `/data` volume via symlink + `lib/sync_workspace.sh` (CONFIG refresh / STATE preserve) | ✅ **LIVE + verified across 2 deploys** | #18 |
+| G | MEMORY.md (~30.5K) exceeded the 20K inject cap → silently truncated (lost the whole Lessons section) | Fix now — tiered memory (lean core + `memory/system-evolution.md`) | ✅ **LIVE + verified** | #20 |
+| — | Notion User IDs captured (all 8 internal members) + Owner-field writes re-enabled (graceful fallback) | — | ✅ **LIVE** | #20 |
+| — | Channel-scope policy (membership = access control, no allowlist) + MEMORY-in-channels guidance reconciled | — | 🟦 in PR #22 | #22 |
+| F | Over-scoped GitHub token — full `repo` read+WRITE, not read-only | DEFERRED — Abhinav owns the read-only token swap | ⏸️ **deferred** | — |
 
-### Wave 1 (2026-05-28) — what shipped in this PR
-Five behavioral guardrails, all **additive text** (no schema, no migration, no cron-payload change → no OpenClaw dashboard sync). Spine principle added to `alaska-core`: *bold in thinking; honest about facts & limits; restrained about actions & disclosure.* New `slack-commands` sections are **separate named sections** (`Code & repo questions`, `Action restraint`) — they do NOT touch the `Intent-driven actions` block where Watchers V1 + 360-profile add handlers. `intent-classifier` deliberately untouched (avoids the Watchers v1.2 bump). `migrations/0003` slot untouched.
+### Waves shipped
+- **Wave 1 (PR #16):** A–E behavioral guardrails. Spine in `alaska-core`: *bold in thinking; honest about facts & limits; restrained about actions & disclosure.* New `slack-commands` sections (`Code & repo questions`, `Action restraint`) sit below the `Intent-driven actions` block — no overlap with Watchers/360 handlers.
+- **Wave 2 (PR #18):** Issue H — workspace on the persistent `/data` volume (symlink + `lib/sync_workspace.sh` + `tests/test_workspace_persistence.sh`); `DAILY_STATE.md` reconstructed from the May-28 call + Slack as the seed.
+- **Wave 3 (PR #20):** Issue G — tiered memory (lean `MEMORY.md` ~13K + `memory/system-evolution.md` archive); Notion User IDs captured; Owner-field writes re-enabled.
+- **Wave 4 (PR #22):** channel-scope policy made explicit; `AGENTS.md` MEMORY-in-channels guidance reconciled; this final wrap.
 
-**Coordination asks logged:**
-- KB agent: add a capability/access dimension to KB (natural home `architecture.md` + `integrations/github.md`) so it converges with the `TOOLS.md` "What you can and cannot reach" manifest this PR adds (Issue E knowledge-half + the corrected GitHub facts + Issue F).
-- Watchers V1 / 360-profile: when you add handlers to `slack-commands`, they slot into the `Intent-driven actions` block; my additions are below it (`Code & repo questions`, `Action restraint`) — no overlap expected.
+### V4 coordination outcome — CLEAN, no collisions
+Watchers V1 (PR #15, docs) and 360-profile (PR #19) both landed on `main` alongside the waves; 360 even **extended** the Wave-1 `TOOLS.md` capability manifest (added the User-Profile-360 access + boundary) — coordination worked. The `migrations/0003` slot went to 360-profile (stabilization never took it). `intent-classifier` left untouched by stabilization (Watchers' v1.2 bump unblocked).
+
+### Open follow-ups (Abhinav's call)
+- **Issue F:** swap the GitHub token to a fine-grained read-only one (Contents:read + commit/PR read). Stabilization agent supplies the exact scopes on request. (Currently the "READ ONLY" red line is enforced only by instructions, not the token.)
+- **Owner-writes:** confirm the first real blocker Owner-write populates the people field (graceful first-name-in-Notes fallback makes it safe regardless).
+- **KB coordination:** KB agent to add a capability/access dimension (`architecture.md` + `integrations/github.md`) converging with the `TOOLS.md` "What you can and cannot reach" manifest (Issue E knowledge-half).
 
 ---
 
