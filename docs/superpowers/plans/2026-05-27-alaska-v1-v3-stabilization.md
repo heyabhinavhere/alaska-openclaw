@@ -82,7 +82,7 @@ Watchers V1 (PR #15, docs) and 360-profile (PR #19) both landed on `main` alongs
 - **Issue F:** swap the GitHub token to a fine-grained read-only one (Contents:read + commit/PR read). Stabilization agent supplies the exact scopes on request. (Currently the "READ ONLY" red line is enforced only by instructions, not the token.)
 - **Owner-writes:** confirm the first real blocker Owner-write populates the people field (graceful first-name-in-Notes fallback makes it safe regardless).
 - **KB coordination:** KB agent to add a capability/access dimension (`architecture.md` + `integrations/github.md`) converging with the `TOOLS.md` "What you can and cannot reach" manifest (Issue E knowledge-half).
-- **MoneyLion naming — 3 residual flags (from Wave 5):** (a) KB spec references `integrations/moneyline.md` → should be `moneylion.md` (KB owner); (b) live OpenClaw cron-prompt dashboard still says "MoneyLine" in Sprint Operator + Pre-Call Brief (repo snapshot fixed in #23; live dashboard synced via Alaska on 2026-05-30); (c) `migrations/0001` seed row literally says `'MoneyLine'` — applied/immutable, live DB already renamed, only matters for a from-scratch DB reseed (→ a future migration, not an edit to 0001).
+- **MoneyLion naming — 3 residual flags (from Wave 5):** (a) KB spec references `integrations/moneyline.md` → should be `moneylion.md` (KB owner); (b) live OpenClaw cron-prompt dashboard still says "MoneyLine" in Sprint Operator + Pre-Call Brief (repo snapshot fixed in #23; live dashboard sync delegated to Alaska — admin prompt sent 2026-05-30); (c) `migrations/0001` seed row literally says `'MoneyLine'` — applied/immutable, live DB already renamed, only matters for a from-scratch DB reseed (→ a future migration, not an edit to 0001).
 
 ---
 
