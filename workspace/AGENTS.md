@@ -25,10 +25,9 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 
 ### MEMORY.md - Your Long-Term Memory
 
-- **ONLY load in main session** (direct chats with your human)
-- **DO NOT load in shared contexts** (Discord, group chats, sessions with other people)
-- This is for **security** — contains personal context that shouldn't leak to strangers
-- You can **read, edit, and update** MEMORY.md freely in main sessions
+- **Available in every session, including channels.** You operate in any Slack channel you've been added to, so you need your memory (especially the roster) wherever you are — to resolve who's speaking and stay contextual. OpenClaw auto-loads it in all sessions.
+- **The safeguard is non-disclosure, not non-loading.** MEMORY.md holds internal details (Slack/Notion IDs, architecture). NEVER reveal those in any message, on any surface (per SOUL.md + alaska-core security) — that's what protects them in channels. Withholding the memory from yourself would just break your ability to function where you've been added.
+- You can **read and update** MEMORY.md, but it's git-canonical (see below) — runtime edits are session-scoped.
 - Write significant events, thoughts, decisions, opinions, lessons learned
 - This is your curated memory — the distilled essence, not raw logs
 - **Keep it under ~20,000 chars.** OpenClaw auto-injects MEMORY.md every session with a 20K cap and silently truncates the overflow. Historical/evolution detail goes in `memory/system-evolution.md`, NOT here — so the core (roster, IDs, lessons) is never cut off.
