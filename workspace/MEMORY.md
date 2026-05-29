@@ -62,21 +62,21 @@ Identity disambiguation rule: **Sandeep ≠ Samder.** Sandeep = AI engineer (arc
 
 | First Name | Full Name | Slack ID | Notion User ID | Role | Authority | Location |
 |------------|-----------|----------|----------------|------|-----------|----------|
-| Abhinav | Abhinav Jain | U07GKLVA9FE | _TBD (invite pending)_ | Head of Product & Design | **Admin** — only one who can change Alaska behavior, approve sprints, modify pipeline | India |
-| Samder | Samder Khangarot | U0APEUXD9DH | _TBD (invite pending)_ | Co-founder CEO | Founder — marketing, partnerships, investors | US (SF) |
-| Darwin | Darwin Tu | U0APK8VTT62 | _TBD (invite pending)_ | Co-founder COO | Founder — finance, credit analysis, user audits | US (SF) |
-| Pankaj | Pankaj Pal | U0AQ0817FJM | _TBD (invite pending)_ | Frontend Engineer | Engineer — Flutter, Node.js, bon_app | India |
-| Sandeep | Sandeep Singh | U0AQFJV9B32 | _TBD (invite pending)_ | AI Engineer | Engineer — Python, LangGraph, CredGPT, DevOps | India |
-| Shailesh | Shailesh Kumar | U0AQ1UZHZ8D | _TBD (invite pending)_ | AI Engineer | Engineer — Python, joined Apr 1, fully ramped | India |
-| Tarun | Tarun Kumar | U0AS70U9KM5 | _TBD (invite pending)_ | QA Intern | Engineer — Pankaj doing KT, fresher | India |
-| Nilesh | Nilesh Kumar | U0B17Q59J75 | _TBD (invite pending)_ | Backend Engineer | Engineer — joined ~May 5, MoneyLine integration | India |
-| Sai | Sai | _external_ | _do not invite_ | External (MobileFirst) | External — Backend/Data, transitioning off to Nilesh | India |
+| Abhinav | Abhinav Jain | U07GKLVA9FE | `2a9d872b-594c-81ef-98fe-0002d3a18657` | Head of Product & Design | **Admin** — only one who can change Alaska behavior, approve sprints, modify pipeline | India |
+| Samder | Samder Khangarot | U0APEUXD9DH | `277d872b-594c-81bf-bc19-000200a4cde5` | Co-founder CEO | Founder — marketing, partnerships, investors | US (SF) |
+| Darwin | Darwin Tu | U0APK8VTT62 | `2d7d872b-594c-8104-ad82-0002b9189854` | Co-founder COO | Founder — finance, credit analysis, user audits | US (SF) |
+| Pankaj | Pankaj Pal | U0AQ0817FJM | `333d872b-594c-8167-a2ef-000206cbeabf` | Frontend Engineer | Engineer — Flutter, Node.js, bon_app | India |
+| Sandeep | Sandeep Singh | U0AQFJV9B32 | `333d872b-594c-813a-bf0a-0002e1a1dc22` | AI Engineer | Engineer — Python, LangGraph, CredGPT, DevOps | India |
+| Shailesh | Shailesh Kumar | U0AQ1UZHZ8D | `335d872b-594c-81f1-a3a5-00027a396e76` | AI Engineer | Engineer — Python, joined Apr 1, fully ramped | India |
+| Tarun | Tarun Kumar | U0AS70U9KM5 | `366d872b-594c-81b9-a832-00024351d0b5` | QA Intern | Engineer — Pankaj doing KT, fresher | India |
+| Nilesh | Nilesh Kumar | U0B17Q59J75 | `365d872b-594c-8170-8049-0002881c6567` | Backend Engineer | Engineer — joined ~May 5, MoneyLine integration | India |
+| Sai | Sai | _external_ | _n/a — external, not in workspace_ | External (MobileFirst) | External — Backend/Data, transitioning off to Nilesh | India |
 
 **Bot / system accounts:**
 - Alaska bot: User ID `U0ANY9YTNUR`, Bot ID `B0ANHAVSS78`
 - `alaska@boncredit.ai` user account: `U0ANFSYAH29` (display: "Don't touch" — NOT the bot)
 
-> **Notion User IDs are TBD as of 2026-05-23.** Abhinav is inviting the team to the Notion workspace as part of the stabilization plan. Once invites are accepted, capture each Notion user ID and replace the placeholders above. Until then, agents should NOT attempt to write the Owner (people) field — fall back to writing the first name into the Notes/description field. Sprint Board writes are paused entirely (Sprint Board retired — see `memory/system-evolution.md` → v2.2).
+> **Notion User IDs captured 2026-05-29** — the team is in the workspace (pulled from Notion `/v1/users`). Sai is external/not in the workspace → n/a. (The "Alaska" / "Alaska PM" / "Notion MCP" entries in Notion's user list are integrations, not people.) These IDs now unblock writing the Owner (people) field. **Follow-up before relying on Owner writes:** the "skip Owner, write first-name-in-Notes" guidance in `AGENT_RULES.md` + `shared-toolkit` still says paused — verify the Owner-write path once with a real ID, then lift that guidance. Sprint Board writes remain paused entirely (Sprint Board retired — see `memory/system-evolution.md` → v2.2).
 
 ### External Agency — MobileFirst (transitioning off ~May-June 2026)
 - Dev agency BON Credit has worked with for ~1 year
