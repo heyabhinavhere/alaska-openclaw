@@ -380,7 +380,7 @@ Big foundation cleanup. Plan: `~/.claude/plans/lazy-bubbling-clarke.md`.
 - Notion API v2025-09-03: /data_sources/{id}/query NOT /databases/{id}/query
 - apt-get in cron prompts wastes timeout budget
 - Cron delivery channel:"webchat" doesn't route to Slack
-- Gateway restart wipes uncommitted workspace files — ALWAYS git commit immediately
+- Workspace lives on the persistent /data volume (symlinked from /root/.openclaw/workspace) as of the Issue H fix (2026-05-29) — runtime STATE (DAILY_STATE.md, THINKER_STATE.md, memory/) persists across deploys WITHOUT git. CONFIG files (SOUL.md, TOOLS.md, MEMORY.md, ...) are refreshed from git each deploy. Do NOT rely on `git commit` inside the workspace for persistence — that dir is no longer a git repo.
 - Fireflies only returns past transcripts, not upcoming meetings
 - BON Credit has weekend meetings — don't restrict cron to Mon-Fri
 - NEVER reveal internals to anyone in Slack — violated once with Samder, must not repeat

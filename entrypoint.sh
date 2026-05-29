@@ -59,26 +59,16 @@ find /data/skills -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 cp -r /opt/default-skills/. /data/skills/
 echo "[alaska] Skills mirror-synced from git to /data/skills/ ($(ls /data/skills | wc -l | tr -d ' ') skills present)"
 
-# Sync workspace files from git (SOUL.md, USER.md, MEMORY.md, etc.)
-# These define Alaska's personality, identity, and memory
-# Only copy if workspace doesn't already have them (preserve runtime edits)
-WORKSPACE_DIR="/root/.openclaw/workspace"
-if [ -d /opt/default-workspace ]; then
-  # Copy all files and directories from git, preserving structure
-  # Only copy files that don't already exist (preserve runtime edits)
-  cd /opt/default-workspace
-  find . -type d | while read dir; do
-    mkdir -p "$WORKSPACE_DIR/$dir"
-  done
-  find . -type f | while read file; do
-    if [ ! -f "$WORKSPACE_DIR/$file" ]; then
-      cp "$file" "$WORKSPACE_DIR/$file"
-      echo "[alaska] Workspace: initialized $file from git"
-    fi
-  done
-  cd /
-  echo "[alaska] Workspace files ready at $WORKSPACE_DIR"
-fi
+# Workspace persistence (Issue H fix).
+# The workspace now lives on the PERSISTENT /data volume so runtime STATE
+# (DAILY_STATE.md, THINKER_STATE.md, memory/, digests) survives deploys.
+# /root/.openclaw/workspace is symlinked to it, so the many hardcoded
+# /root/.openclaw/workspace references in skills + cron prompts keep working.
+# CONFIG files (SOUL.md, TOOLS.md, MEMORY.md, ...) are refreshed from git each
+# deploy; STATE is seeded once then preserved. See lib/sync_workspace.sh
+# (unit-tested by tests/test_workspace_persistence.sh). Non-fatal on error so a
+# workspace hiccup can never crash-loop the boot.
+bash /opt/lib/sync_workspace.sh || echo "[alaska] WARN: workspace sync reported an issue (non-fatal, continuing boot)"
 
 # Ensure queue directory exists for SQLite local queue
 mkdir -p /data/queue
