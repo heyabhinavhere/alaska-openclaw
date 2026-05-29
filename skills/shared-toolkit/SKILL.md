@@ -64,7 +64,7 @@ Before ANY Notion write, verify:
    - Meeting Type: `standup` / `planning` / `review` / `ad-hoc`
    - Backlog Status: `New` / `Triaged` / `Ready for Sprint` / `Deferred`
 
-2. **Required fields are populated.** Never leave Due Date empty. If missing, flag as `[NEEDS DUE DATE]` and ask the team. (Owner field is paused as of 2026-05-23 — see "Owner field — paused" below.)
+2. **Required fields are populated.** Never leave Due Date empty. If missing, flag as `[NEEDS DUE DATE]` and ask the team. (Owner field is ENABLED as of 2026-05-29 — see "Owner field — enabled" below; use the roster Notion IDs, fallback to first-name-in-Notes only if a person has no ID.)
 
 3. **All data was explicitly stated, not inferred.** If you're unsure whether something was said or decided, flag as `[NEEDS CLARIFICATION]` and ask. Never invent details.
 
@@ -104,14 +104,14 @@ Phone:                 {"phone_number": "+1234567890"}
 - Writing Owner as `{"rich_text": [{"text": {"content": "Pankaj"}}]}` — wrong. Owner is a `people` field requiring `{"people": [{"id": "<uuid>"}]}`.
 - Using `Notion-Version: 2025-09-03` on a `POST /v1/pages` write — some shapes will be rejected.
 
-### Owner field — PAUSED as of 2026-05-23
+### Owner field — ENABLED as of 2026-05-29
 
-The Owner (people) field on Sprint Board / future task DBs requires a Notion User ID. The team is being invited to the Notion workspace as part of v2.2 stabilization; IDs are pending.
+Notion User IDs are now captured in `MEMORY.md` → Team Roster for all 8 internal team members, so the Owner (people) field can be written.
 
-Until IDs are populated in `MEMORY.md` → Team Roster:
-- **Do NOT attempt to set Owner.**
-- Write the first name into the Notes / description / rich-text field instead, prefixed with `Owner: `.
-- This will be migrated to the proper `people` field once IDs are captured.
+To set Owner:
+- Look up the person's **Notion User ID** in `MEMORY.md` → Team Roster and write `{"people": [{"id": "<notion_user_uuid>"}]}` (per the Write Contract above).
+- **Graceful fallback — never fail the write:** if the person has no Notion User ID (external like Sai, or a new/unmatched person), fall back to writing the first name into the Notes/description field prefixed with `Owner: `, exactly as before.
+- **Never guess a Notion User ID.** Not in the roster → use the fallback. Read the page back after writing to confirm the field populated (wrong API version/shape fails silently — see headers note above).
 
 ---
 
@@ -730,7 +730,7 @@ Every agent must verify data before writing or posting. This is the final gate b
 ### Before Writing to Notion
 - [ ] All extracted data was **explicitly stated** (not inferred from context)
 - [ ] Select field values match existing options **exactly** (see Section 1)
-- [ ] Required fields are populated (Due Date on any task entry; Owner is paused per v2.2 — see "Owner field — paused" above)
+- [ ] Required fields are populated (Due Date on any task entry; Owner set via roster Notion ID per "Owner field — enabled" above, fallback to first-name-in-Notes only if no ID)
 - [ ] No duplicate entries — check for existing similar entries first
 - [ ] Page/database IDs are real, not fabricated
 

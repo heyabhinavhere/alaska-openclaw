@@ -198,7 +198,7 @@ One entry per person with:
 One entry per decision with: decision, category, made by, context, affects, status. Use exact JSON shapes from `shared-toolkit` → Notion Write Contract.
 
 ### 6d. Blockers Database
-New blockers or status updates to existing ones. Owner field is PAUSED (see shared-toolkit) — write the first name into Notes until Notion User IDs are populated.
+New blockers or status updates to existing ones. Set the Owner (people) field using the blocker owner's Notion User ID from MEMORY.md → Team Roster (see shared-toolkit "Owner field — enabled"). If the owner has no Notion ID (external/unmatched), fall back to first-name-in-Notes.
 
 ### 6e. Proposals Database (only for genuinely new work that needs team confirmation)
 Only create proposals for truly new commitments that weren't already discussed. If the meeting just discussed existing work, no proposal needed — just update DAILY_STATE.md.
