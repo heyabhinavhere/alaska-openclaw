@@ -123,12 +123,31 @@ a debt question:
 *User 2762 — debt*
 FICO 612 (fair, Spinwheel) · 3 cards · $4.2k balance / $6.8k limit · 62% util (high)
 Weighted APR 24.99% · ~$87/mo interest · min due $142 · none overdue
-Cash on hand $5.2k · est. income $4.2k/mo
+Cash on hand $5.2k · est. income $4.2k/mo _(from deposit patterns)_
 ```
 
 Use exact numbers (flat policy). First names only. No section is guaranteed —
 if a block is null, the user just doesn't have that data linked yet; say so
 plainly ("hasn't linked a bank yet") rather than inventing.
+
+**Signal source transparency.** Several metric blocks carry a `source` field.
+When a number is *inferred* or *approximate* rather than a clean exact value,
+append a short italic qualifier so the reader knows — don't present a derived
+number as if it were precise:
+
+| Block | `source` value | How to render |
+|---|---|---|
+| `income` | `plaid_bank` | exact — no qualifier |
+| `income` | `plaid_income_signals` | add `_(est. from deposit patterns)_` |
+| `spending` | `plaid_bank` | exact — no qualifier |
+| `spending` | `category_sum (approx)` | add `_(approx — current-month categories)_` |
+| `debt` | `plaid` | real-time — no qualifier |
+| `debt` | `spinwheel` | add `_(from credit bureau, may lag)_` |
+| `credit` | `spinwheel` / `array` | name the bureau, as in the example |
+
+Cash on hand is always current linked balances (no inference) — no qualifier
+needed. If `served_stale` was set, the freshness caveat already covers the
+whole message.
 
 ### Presenting `mode: deep_dive` (chat exchanges)
 `chat_turns` holds the most recent real exchanges (proactive/system prompts are
