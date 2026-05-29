@@ -121,6 +121,53 @@ def _split_chat_turns(recent_turns: list[dict]) -> tuple[list[dict], list[dict]]
     return real, proactive
 
 
+def _mismo_score(obj: Any) -> dict | None:
+    """Parse a MISMO credit_score dict (Array's format) into a flat record.
+
+    Shape: {"@_Value": "501", "@_Date": "2026-05-24",
+            "@CreditRepositorySourceType": "Equifax",
+            "@_ModelNameTypeOtherDescription": "EquifaxVantageScore3.0", ...}.
+    Returns {value:int, date, bureau, model} or None. The value is a STRING in
+    the API — this is the parse the old code was missing (it expected an int and
+    silently dropped the dict)."""
+    if not isinstance(obj, dict):
+        return None
+    val = _num(obj.get("@_Value"))
+    if val is None:
+        return None
+    return {
+        "value": int(val),
+        "date": obj.get("@_Date"),
+        "bureau": obj.get("@CreditRepositorySourceType"),
+        "model": (obj.get("@_ModelNameTypeOtherDescription")
+                  or obj.get("@_ModelNameType")),
+    }
+
+
+def _extract_array_score(sections: dict[str, Any]) -> dict | None:
+    """Array is the canonical credit score — it's the only source BON refreshes
+    (re-pulled on each Array fetch). Prefer credit_report_history (latest by
+    report_date), then the current credit_report.credit_score. Returns the
+    parsed record + as_of date, or None if no Array score is present."""
+    candidates = []
+    for row in (sections.get("credit_report_history") or []):
+        if not isinstance(row, dict):
+            continue
+        rec = _mismo_score(row.get("credit_score"))
+        if rec:
+            # report_date is the score's date; created_at is row-insert time
+            # (can differ — e.g. Maite: report_date May 24, created_at Mar 23).
+            rec["as_of"] = row.get("report_date") or rec.get("date")
+            candidates.append(rec)
+    if candidates:
+        return max(candidates, key=lambda r: r.get("as_of") or "")
+    rec = _mismo_score(_get(sections, "credit_report", "credit_score"))
+    if rec:
+        rec["as_of"] = rec.get("date")
+        return rec
+    return None
+
+
 def summarize(sections: dict[str, Any]) -> dict[str, Any]:
     """Produce the lean headline metric block. Missing/empty sections yield
     None metrics rather than errors."""
@@ -151,22 +198,32 @@ def summarize(sections: dict[str, Any]) -> dict[str, Any]:
         "credit_activated": bool(profile.get("is_credit_activated")),
     }
 
-    # ---- Credit score (spinwheel primary, array fallback) ----
-    score = sw_profile.get("creditScore")
-    score_source = "spinwheel" if score is not None else None
-    if score is None:
-        # credit_report.credit_score is an object of unknown shape; try a
-        # plain number if present, else leave None.
-        cr_score = _get(sections, "credit_report", "credit_score")
-        if isinstance(cr_score, (int, float)):
-            score = cr_score
-            score_source = "array"
-    score = int(score) if isinstance(score, (int, float)) else None
-    credit = {
-        "score": score,
-        "score_band": _score_band(score),
-        "source": score_source,
-    }
+    # ---- Credit score ----
+    # Array is canonical — it's the ONLY source BON refreshes (re-pulled on each
+    # Array fetch). Spinwheel is a SIGNUP-ONLY snapshot, stale after day 1, so we
+    # use it solely as a fallback when there's no Array pull yet, and label it.
+    arr = _extract_array_score(sections)
+    if arr is not None:
+        score = arr["value"]
+        credit = {
+            "score": score,
+            "score_band": _score_band(score),
+            "source": "array",
+            "model": arr.get("model"),      # e.g. "EquifaxVantageScore3.0"
+            "bureau": arr.get("bureau"),    # e.g. "Equifax"
+            "as_of": arr.get("as_of"),      # date of the score
+        }
+    else:
+        sw = sw_profile.get("creditScore")
+        score = int(sw) if isinstance(sw, (int, float)) else None
+        credit = {
+            "score": score,
+            "score_band": _score_band(score),
+            "source": "spinwheel (signup snapshot, may be stale)" if score is not None else None,
+            "model": None,
+            "bureau": None,
+            "as_of": None,
+        }
 
     # ---- Debt (Plaid card_profile primary, spinwheel fallback) ----
     debt_balance = _num(card.get("total_cc_balance_exact"))

@@ -287,6 +287,7 @@ INTENT_PROFILES: dict[str, list[str]] = {
     ],
     "debt_situation": [
         "profile",
+        "credit_report_history",   # Array score (canonical) — see summarizer credit block
         "tradeline_history",
         "spinwheel_credit_report",
         "plaid_profiles",          # card_profile has the aggregates
@@ -325,6 +326,8 @@ INTENT_PROFILES: dict[str, list[str]] = {
     "full_picture": [
         "profile",
         "persona",
+        "credit_report_history",   # Array score (canonical); was missing -> only
+                                   # stale Spinwheel showed on broad lookups
         "tradeline_history",
         "spinwheel_credit_report",
         "plaid_profiles",

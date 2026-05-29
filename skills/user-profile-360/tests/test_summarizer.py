@@ -35,10 +35,18 @@ def _full_sections() -> dict:
             },
         },
         "spinwheel_credit_report": {
-            "profile_details": {"creditScore": 712},
+            "profile_details": {"creditScore": 712},  # higher, but signup-stale
             "credit_card_summary": {"currentOutstandingBalance": 4180.0,
                                     "creditUtilization": 0.61, "noOfCreditCards": 3},
         },
+        # Array (canonical, refreshed). Lower than Spinwheel here on purpose —
+        # Array must still win because Spinwheel is a signup snapshot.
+        "credit_report_history": [
+            {"report_date": "2026-05-20", "created_at": "2026-05-20T00:00:00+00:00",
+             "credit_score": {"@_Value": "705", "@_Date": "2026-05-20",
+                              "@CreditRepositorySourceType": "Equifax",
+                              "@_ModelNameTypeOtherDescription": "EquifaxVantageScore3.0"}},
+        ],
         "subscriptions": [
             {"monthly_cost_normalized": 15.99, "is_active": True},
             {"monthly_cost_normalized": 9.99, "is_active": True},
@@ -74,8 +82,11 @@ def test_full_user_metrics():
     assert m["identity"]["location"] == "Austin, TX"
     assert m["identity"]["days_since_signup"] is not None
     assert m["linking"] == {"card_linked": True, "bank_linked": True, "credit_activated": True}
-    assert m["credit"]["score"] == 712 and m["credit"]["score_band"] == "good"
-    assert m["credit"]["source"] == "spinwheel"
+    # Array (705) wins over the higher-but-stale Spinwheel signup snapshot (712).
+    assert m["credit"]["score"] == 705 and m["credit"]["score_band"] == "good"
+    assert m["credit"]["source"] == "array"
+    assert m["credit"]["bureau"] == "Equifax"
+    assert m["credit"]["as_of"] == "2026-05-20"
     assert m["debt"]["total_cc_balance"] == 4180.0
     assert m["debt"]["source"] == "plaid"          # card_profile preferred
     assert m["debt"]["utilization"] == 0.615
@@ -152,6 +163,74 @@ def test_score_and_util_bands():
     assert "good" in summarizer._util_band(0.25)
     # percent form normalizes the same as fraction form
     assert summarizer._util_band(62) == summarizer._util_band(0.62)
+
+
+def test_credit_array_primary_over_stale_spinwheel():
+    # The Maite (2544) regression: fresh Array MISMO 501 must beat stale
+    # Spinwheel signup 490. Before the fix, the MISMO dict was dropped and only
+    # 490 showed.
+    sections = {
+        "profile": {"first_name": "M", "created_at": "2026-03-23T00:00:00+00:00"},
+        "spinwheel_credit_report": {"profile_details": {"creditScore": 490}},
+        "credit_report_history": [
+            {"report_date": "2026-05-24",
+             "credit_score": {"@_Value": "501", "@_Date": "2026-05-24",
+                              "@CreditRepositorySourceType": "Equifax",
+                              "@_ModelNameTypeOtherDescription": "EquifaxVantageScore3.0"}},
+        ],
+    }
+    m = summarizer.summarize(sections)
+    assert m["credit"]["score"] == 501
+    assert m["credit"]["source"] == "array"
+    assert m["credit"]["bureau"] == "Equifax"
+    assert m["credit"]["as_of"] == "2026-05-24"
+
+
+def test_credit_spinwheel_fallback_when_no_array():
+    # No Array data at all -> fall back to Spinwheel, clearly labeled stale.
+    sections = {
+        "profile": {"first_name": "N"},
+        "spinwheel_credit_report": {"profile_details": {"creditScore": 600}},
+    }
+    m = summarizer.summarize(sections)
+    assert m["credit"]["score"] == 600
+    assert "spinwheel" in m["credit"]["source"] and "stale" in m["credit"]["source"]
+
+
+def test_credit_picks_latest_array_in_history():
+    # Multiple Array snapshots -> pick the latest by report_date.
+    sections = {
+        "profile": {"first_name": "H"},
+        "credit_report_history": [
+            {"report_date": "2026-01-10",
+             "credit_score": {"@_Value": "640", "@_Date": "2026-01-10"}},
+            {"report_date": "2026-05-01",
+             "credit_score": {"@_Value": "690", "@_Date": "2026-05-01"}},
+            {"report_date": "2026-03-15",
+             "credit_score": {"@_Value": "660", "@_Date": "2026-03-15"}},
+        ],
+    }
+    m = summarizer.summarize(sections)
+    assert m["credit"]["score"] == 690 and m["credit"]["as_of"] == "2026-05-01"
+
+
+def test_credit_falls_back_to_credit_report_when_history_empty():
+    # No history rows, but the current credit_report.credit_score MISMO is present.
+    sections = {
+        "profile": {"first_name": "C"},
+        "credit_report_history": [],
+        "credit_report": {"credit_score": {"@_Value": "588", "@_Date": "2026-05-10",
+                                            "@CreditRepositorySourceType": "Equifax"}},
+    }
+    m = summarizer.summarize(sections)
+    assert m["credit"]["score"] == 588 and m["credit"]["source"] == "array"
+
+
+def test_mismo_score_parse():
+    assert summarizer._mismo_score({"@_Value": "712", "@_Date": "2026-05-01"})["value"] == 712
+    assert summarizer._mismo_score({"@_Value": "not-a-number"}) is None
+    assert summarizer._mismo_score(650) is None      # plain number isn't MISMO
+    assert summarizer._mismo_score(None) is None
 
 
 def _run_all():
