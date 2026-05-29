@@ -132,6 +132,20 @@ def test_identity_mismatch_passthrough():
     os.unlink(db)
 
 
+def test_no_data_empty_profile():
+    # Nonexistent user_id: API returns 200 and echoes the id (so identity check
+    # passes) but the profile is empty. Must surface as no_data, not a blank
+    # "real" user.
+    db = _fresh_db()
+    p = {"user_id": 999999, "fetched_at": "2026-05-29T00:00:00+00:00", "profile": {}}
+    with _Mock(lambda path, params=None: (200, json.dumps(p).encode())):
+        out = lookup.lookup("999999", "user_id", "user_summary",
+                            "U1", "admin", "dm", db_path=db)
+    assert out["status"] == "no_data", out["status"]
+    assert out["mode"] is None
+    os.unlink(db)
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

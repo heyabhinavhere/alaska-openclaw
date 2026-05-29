@@ -125,6 +125,19 @@ def lookup(
     if f.served_stale:
         out["notes"].append("Served from stale cache — BON API was unreachable.")
 
+    # 2b. Nonexistent-user guard. The profile endpoint returns 200 + an empty
+    # payload for unknown user_ids (it echoes the id back, so the identity check
+    # passes). A real user — even a brand-new dormant one — always has profile
+    # data (they registered). An empty profile means the id is almost certainly
+    # wrong, so don't present a blank profile as a real (dormant) user.
+    if not f.sections.get("profile"):
+        out["status"] = "no_data"
+        out["message"] = (
+            f"User {user_id} returned no profile data — the ID is likely wrong "
+            f"(or a brand-new signup with nothing yet). Ask them to double-check it."
+        )
+        return out
+
     # 3. Redact toxic PII from raw sections (always).
     redacted = redactor.redact_sections(f.sections)
 
