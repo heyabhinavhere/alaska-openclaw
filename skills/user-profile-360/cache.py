@@ -222,14 +222,17 @@ def reap_orphan_inflight(
 
 def claim_inflight(
     user_id: int,
-    section: str,
+    lock_key: str,
     claimed_by: str,
     db_path: str = DEFAULT_DB_PATH,
 ) -> bool:
-    """Try to claim a fetch for (user_id, section). Returns True if this caller
-    now holds the claim, False if someone else already does. Reaps orphans
-    first so a dead claim never blocks forever."""
-    parent = sections.get_parent(section)
+    """Try to claim a fetch lock for (user_id, lock_key). Returns True if this
+    caller now holds the claim, False if someone else already does. Reaps
+    orphans first so a dead claim never blocks forever.
+
+    lock_key is opaque — the caller decides granularity. client.py uses a
+    single per-user lock (one API call returns the whole profile, so the dedup
+    unit is the user, not the individual section)."""
     reap_orphan_inflight(db_path)
     conn = _connect(db_path)
     try:
@@ -238,7 +241,7 @@ def claim_inflight(
             INSERT INTO user_profile_inflight (user_id, section, claimed_by)
             VALUES (?, ?, ?)
             """,
-            (user_id, parent, claimed_by),
+            (user_id, lock_key, claimed_by),
         )
         conn.commit()
         return True
@@ -251,16 +254,15 @@ def claim_inflight(
 
 def release_inflight(
     user_id: int,
-    section: str,
+    lock_key: str,
     db_path: str = DEFAULT_DB_PATH,
 ) -> None:
-    """Release a fetch claim (call after the cache write, in a finally block)."""
-    parent = sections.get_parent(section)
+    """Release a fetch lock (call after the cache write, in a finally block)."""
     conn = _connect(db_path)
     try:
         conn.execute(
             "DELETE FROM user_profile_inflight WHERE user_id = ? AND section = ?",
-            (user_id, parent),
+            (user_id, lock_key),
         )
         conn.commit()
     finally:
