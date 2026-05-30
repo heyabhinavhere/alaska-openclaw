@@ -22,27 +22,19 @@ This file is auto-loaded into context at the start of **every** session, and Ope
 
 ## 🧭 Currently working on (next-session entry point)
 
-**As of 2026-05-27 (afternoon):**
+**As of 2026-05-30. → FULL HANDOFF: read `memory/2026-05-30-v4-session-handoff.md` first.** That doc is the complete continuation record for the V4 build (state, the KB co-build, the 05-27 incident + lessons, open PRs, key findings). This section is just the orientation.
 
-- **Phases A.1, A.2, A.3, B, C** of the v2 task model — all merged and live in production.
-- **Watchers V1** — designed + ALL design questions answered (2026-05-27). NOT YET BUILT. Design with locked decisions (#1-#16) lives in `docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md`.
-- **BON Knowledge Base** — designed + authoring decision locked (Abhinav-only). Abhinav is actively seeding the initial KB files in `workspace/knowledge/` as of 2026-05-27.
+**The active workstream: co-build the BON Knowledge Base** (Abhinav + Claude together, not independently). The KB unblocks Watchers V1.
+- KB status: ~24 files seeded locally but rough + UNTRACKED; Abhinav rewriting them properly. Done: README, architecture, integrations/*. Remaining: data-models/*, definitions/*, playbooks/*. Missing: `integrations/user-profile-api.md` (the 360 admin API).
+- **KB authoring principle (settled):** integration files describe the EXTERNAL SYSTEM + a 2-line pointer; the operating model (MI pipeline, "SQLite is source of truth", cadence) lives ONCE in `architecture.md`, with current-vs-V4-target marked honestly. Test per line: *"external-system/domain fact, or how-Alaska-works fact?"* — the latter does NOT go in integration files.
 
-**All design decisions are locked. Build artifacts ready:**
+**Live:** Phases A.1/A.2/A.3/B/C + the 360 profile (`user-profile-360`, migration 0003). **Note: v2 task tables are DORMANT (0 rows in prod)** — Phase B never populated them; verify it fires before building on it.
 
-1. ✅ **Spec:** `docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md` — 16 locked decisions, schema, action chain DSL, conversation flows, templates, worked examples.
-2. ✅ **Research:** `docs/superpowers/research/2026-05-27-openclaw-native-primitives.md` — OpenClaw native primitives surveyed; per-watcher cron pattern CONFIRMED; 3 critical gotchas documented (enabled:true, jobId-not-id, HTTP deny list).
-3. ✅ **Plan:** `docs/superpowers/plans/2026-05-27-alaska-watchers-v1.md` — full Phase W.0 → W.4 implementation plan, 15 tasks, ready for subagent-driven-development execution.
+**Open PRs:** #24 entrypoint config guard = MERGED (live). #26 reconciled Watchers V1 plan = OPEN, mergeable. Stale `feat/watchers-v1-plan` branch = DELETE (fully salvaged).
 
-**NEXT (when Abhinav signs off + KB Tier 1 done):**
-- Execute the plan task-by-task per `superpowers:subagent-driven-development`
-- Estimated 2-3 weeks of focused work
+**Build sequence:** co-build KB → commit KB → merge #26 → build Watchers V1 (W.0→W.4) → Phase D (as a watcher template) → Phase E cutover → the bigger "complete new Alaska" vision (Abhinav hasn't shared it yet — ask).
 
-**Build sequencing locked: Watchers V1 first, then Phase D (as a specific watcher template), then Phase E.** Phase D will be re-expressed as the "unacked-task-assignment escalation" watcher rather than a bespoke workflow.
-
-**Migration locked: dual-write Phase C tables + new watchers table for 2 weeks of clean dual operation, then hard-cut.**
-
-If picking this up fresh in a new session: read the two specs (Watchers V1 + BON KB) + `memory/system-evolution.md` (v2.4 entry in particular). All design decisions are locked in the spec — go straight to OpenClaw research → impl plan → build.
+**Deploy hygiene (hard lesson from 05-27):** NEVER `railway up` from local unless local == origin/main; deploy via GitHub push → Railway auto-deploy; always branch off CURRENT main (`git fetch` + verify 0-behind). Main moves fast. Production is currently CLEAN (forensic audit confirmed).
 
 ---
 
