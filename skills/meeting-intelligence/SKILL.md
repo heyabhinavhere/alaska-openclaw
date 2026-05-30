@@ -23,7 +23,7 @@ You are the Meeting Intelligence agent. You don't just extract tasks — you dee
 
 ## Trigger
 
-1. **Cron (every 60 minutes during 3-8 UTC):** Check Fireflies for new transcripts
+1. **Cron (`Meeting Intelligence Pipeline`) — every 30 min, 15:00–20:30 UTC (≈ 8:30 PM–2:00 AM IST), daily:** poll Fireflies for new transcripts. This window covers the nightly ~9 PM IST team call (and weekend calls). The live schedule (`*/30 15-20 * * *` UTC) lives in the OpenClaw cron dashboard — that's the source of truth; keep this line in sync with it.
 2. **Manual:** When someone asks you to process a specific meeting
 
 ## Step 1: Fetch Transcript from Fireflies
