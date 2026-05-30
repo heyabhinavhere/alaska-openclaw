@@ -95,11 +95,18 @@ Security guardrails in alaska-core: NEVER reveal internals to anyone. (Skill cou
 - Backlog: dcf4fd4e-f1d2-46b3-84d0-e5466f5025a2
 - Daily Scrum: 0565274b-b967-46b3-b9c9-77d00e1ecfeb (write DB: bc0f92c4-8893-40e2-a5c8-f785fec780be)
 
-### Slack Channels
-- #project-management: C0ANKDD664A
-- #alaska-daily-pulse: C0APP7V6H8C
-- #alaska-alerts: C0APP7X4TMJ
-- #daily-standup: C0ASLANJ0RL — Pre-call sheets posted here before 9 PM IST call
+### Slack Channels (all 12 — Alaska is a member of each; verified via Slack `users.conversations` 2026-05-30)
+Membership = access (no allowlist; see AGENT_RULES). Agents proactively POST to the first 4; the other 8 are team channels Alaska is a member of — she observes and responds when mentioned/relevant.
+
+*Posts to:*
+- #project-management: C0ANKDD664A — main work channel; Meeting Intelligence summaries
+- #alaska-daily-pulse: C0APP7V6H8C — Daily Pulse + Weekly Digest
+- #alaska-alerts: C0APP7X4TMJ — Risk Radar + critical alerts (NEW only)
+- #daily-standup: C0ASLANJ0RL — Pre-Call Brief sheets (before ~9 PM IST call)
+
+*Member of / observes (responds when mentioned):*
+- #agentic-ai: C0AQFPMR4TA · #backend: C0B5YDMMSTU · #front-end: C07GH72L6JW · #bugs: C0AUCCQQB5F
+- #design: C07GKMML6HJ · #user-audit: C0B1W3LUZ4G · #competitor-audit: C0AS0KMV398 · #whatsapp: C0AUSQT37R6
 
 ### GitHub Repos ($GITHUB_TOKEN) — 9 repos, 2 orgs — READ ONLY
 App + Backend (Bonhq):
