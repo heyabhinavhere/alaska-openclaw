@@ -30,6 +30,24 @@ Abhinav's `knowledge-v2/` drafts (canonical copy: `BON Credit Project/knowledge-
 - **Owner header decided:** Owner = Abhinav, full stop (KB maintained by Abhinav now → Alaska in future). Drop per-file `Owner:` (always Abhinav, redundant); keep per-file `Status:`; state "KB Owner/Maintainer: Abhinav (→ Alaska future)" once in README; domain expert (e.g., Sandeep/Plaid) goes in each file's `People` as SME. This standardizes toward the 12-file `Status` convention (only fireflies.md had `Owner`).
 - **Still to create:** `data-models/*` (5; `user.md` is the anchor → points to user-profile-360), `playbooks/*` (3), integrations `notion`/`slack`/`moneyline`/`user-profile-api`. Then copy `knowledge-v2/` → repo `workspace/knowledge/` + commit → unblocks Watchers V1.
 
+## 1b. D.1 KICKOFF — the locked rule + execution checklist (read this to start D.1)
+
+**The KB rule, FINAL form (capability vs. workflow) — supersedes the looser framing in §2:**
+> Every KB file answers: **"What is this, and what can Alaska DO with it?"** (the capabilities/affordances of BON's systems + integrations + APIs). It NEVER answers "how does Alaska's workflow use it." Workflow lives in skills + `docs/`, which the KB points to.
+
+- **KB (`knowledge/`) = "what can be done" + BON knowledge.** Fireflies API + what's queryable; Amplitude Real Users filter; Plaid affordances; BON's product/system architecture (`knowledge/architecture.md`). Alaska reads it to know her toolbox.
+- **Alaska workflow = "how Alaska does it"** (MI pipeline, task graph, feeders, cadence, source-of-truth) → **skills** (each skill IS a workflow) + a `docs/alaska-operating-model.md` overview. **NOT the KB.**
+- **Integration files bridge:** end with "→ used by the [X] skill; see it / `docs/alaska-operating-model.md` for the pipeline."
+- **CORRECTION to §2 below:** the operating model does NOT belong in `knowledge/architecture.md` (that file = BON *product/system* architecture, pure BON — leave it as Abhinav wrote it). The "Alaska's operating model" section drafted in the 2026-05-30 chat goes to `docs/alaska-operating-model.md`, NOT the KB. (§2's "operating model lives in architecture.md" line is the thing this corrects.)
+
+**D.1 execution checklist (fresh session — do in this order):**
+1. **Re-home** the operating-model section (drafted in the 2026-05-30 chat; content = the write-path map: one writer `task-handler` + 5 feeders, the cadence table, the current-vs-V4 caveat) → create `docs/alaska-operating-model.md`. Leave `knowledge/architecture.md` pure BON.
+2. **Trim** `knowledge-v2/integrations/fireflies.md` → external-system facts + a pointer to the MI skill / operating-model doc. Same trim for `notion.md`, `slack.md` if they carry pipeline detail.
+3. **Draft** `knowledge-v2/integrations/user-profile-api.md` from the live `user-profile-360` skill code (`skills/user-profile-360/client.py`, `sections.py`) — the capability/contract of Sandeep's BON admin API.
+4. **Co-build** (Abhinav + Claude): `data-models/*` (5; `user.md` anchors → points to `user-profile-360`), `definitions/*` (review the 3 existing), `playbooks/*` (3 — the query recipes ARE capabilities), integration `moneyline.md`.
+5. **Owner-header cleanup:** drop per-file `Owner:` → state "KB Owner/Maintainer: Abhinav (→ Alaska future)" once in README; keep per-file `Status:`; domain SME in each file's `People`.
+6. **Reconcile + commit:** the canonical KB-in-progress is `BON Credit Project/knowledge-v2/` (OUTSIDE the repo — Abhinav's prep area). Copy it into the repo's `workspace/knowledge/` and commit (git-tracked) → **this unblocks D.2 (Watchers V1).**
+
 ## 2. THE KB AUTHORING PRINCIPLE (settled 2026-05-30 — apply to every file)
 
 **The test for every line:** *"Is this a fact about the external system / BON's domain, or a fact about how Alaska works?"*
