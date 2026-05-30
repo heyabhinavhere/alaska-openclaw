@@ -12,8 +12,14 @@
 - ✅ Phase A.1 schema (tasks, task_events, blockers, etc.) — live in production
 - ✅ Phase B task-handler skill — live in production
 - ✅ Phase C reminder-dispatcher + scheduled_actions table — live in production (will be migrated)
-- ⏳ BON Knowledge Base Tier 1 files (Abhinav seeding in parallel) — REQUIRED before Phase W.1 starts
+- 🛑 **BON Knowledge Base Tier 1 files — must be GIT-TRACKED on the deployed branch (main).** This is the hard gate, not "files on Abhinav's laptop." The KB is currently local + undeployed (`workspace/knowledge/` is **not in git on main** — a clean `main` checkout has none of these files). `sync_workspace.sh` lists `knowledge` in `WS_CONFIG_DIRS`, so the KB *will* deploy once committed — but it isn't committed yet. **W.1 cannot start until the KB Tier-1 files are committed to main; Pre-flight P.2's `ls` runs against the repo checkout, not someone's disk.** See the gating task in New Dependencies below and Pre-flight P.2. Tier-1 files the plan gates on: `integrations/plaid.md`, `integrations/amplitude.md`, `integrations/customerio.md`, `integrations/user-profile-api.md` (admin 360 profile API surface), `definitions/metrics.md` (full Tier-1 set in `docs/superpowers/specs/2026-05-26-bon-knowledge-base.md` §Tier 1).
 - ✅ OpenClaw `cron.add` API access — verified via Phase A.2 and Phase C usage
+- ✅ `user-profile-360` skill (live on main since 2026-05-29) — the canonical identity→email→profile resolver for watcher action chains (`invoke_skill` target; replaces the never-built `identity-resolver` the spec's DSL example referenced)
+
+**New Dependencies (added in the 2026-05-30 reconciliation pass against `origin/main`):**
+- 🛑 **Commit the BON KB to the deployed branch line.** The Tier-1 files are currently untracked/local. Before W.1: `git add workspace/knowledge/...` and land them on main. Verify with `git ls-files workspace/knowledge/` (git-tracked check), NOT a disk `ls`. (See Delta 4 / reconciliation doc.)
+- **Add KB file `integrations/user-profile-api.md`** to the Tier-1 set and W1.1's keyword map — `user-profile-360` consumes Sandeep's `/api/admin/users/{id}/profile` (a higher surface than the Postgres-schema `data-models/user.md`); watcher drafts that enrich via `lookup.py` need this contract. (See Delta 5.)
+- **`user-profile-360` is the canonical `invoke_skill` resolver** — list it in W1.1/W2.1's action-chain step catalog as the identity→email→profile resolver (the phantom `identity-resolver` does not exist). (See Delta 3.)
 
 **Spec reference:** `docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md` (locked decisions #1-#16)
 **Research reference:** `docs/superpowers/research/2026-05-27-openclaw-native-primitives.md`
@@ -24,26 +30,32 @@
 
 ### P.1: Verify clean main, create branch
 
+> ⚠️ **BRANCH OFF `main`, NOT `feat/watchers-v1-plan`.** The plan branch is stale (33 commits behind production at authoring time) and building/deploying from it would **regress production** — it would delete the live `user-profile-360` skill, revert workspace persistence, and drop migration `0003`. Always branch from a freshly-pulled `main`. This is non-negotiable.
+
 - [ ] **Step 1: Confirm clean working tree on main**
 
 ```bash
 cd alaska-openclaw
 git checkout main && git pull origin main
 git status
+git rev-list --count HEAD..origin/main   # MUST be 0 — if not, you're not on current main
 ```
 
-Expected: `nothing to commit, working tree clean`.
+Expected: `nothing to commit, working tree clean`, and `0` commits behind origin/main.
 
-- [ ] **Step 2: Verify BON KB Tier 1 files exist**
+- [ ] **Step 2: Verify BON KB Tier 1 files are GIT-TRACKED on main**
+
+The gate is *committed to the repo*, not *present on a laptop*. Pre-flight runs against the repo checkout, so the files must be tracked in git:
 
 ```bash
-ls workspace/knowledge/integrations/plaid.md
-ls workspace/knowledge/integrations/amplitude.md
-ls workspace/knowledge/integrations/customerio.md
-ls workspace/knowledge/definitions/metrics.md
+git ls-files workspace/knowledge/integrations/plaid.md
+git ls-files workspace/knowledge/integrations/amplitude.md
+git ls-files workspace/knowledge/integrations/customerio.md
+git ls-files workspace/knowledge/integrations/user-profile-api.md
+git ls-files workspace/knowledge/definitions/metrics.md
 ```
 
-Expected: all files present. If KB Tier 1 is incomplete, STOP and resolve before continuing — watcher-creator skill depends on these.
+Expected: every command prints its path (proving it's git-tracked). If any prints **nothing**, the KB is not committed to main yet — **STOP.** W.1 depends on these files being on the deployed branch (they ship via `sync_workspace.sh`'s `WS_CONFIG_DIRS`). A plain `ls` is NOT sufficient — a clean `main` checkout would have none of these even if they exist on Abhinav's disk. Commit the KB to main first (see New Dependencies), then resume.
 
 - [ ] **Step 3: Create feature branch**
 
@@ -55,19 +67,22 @@ git checkout -b feat/v2-watchers-v1
 
 ## Phase W.0 — Foundation (schema + intent classifier)
 
-### Task W0.1: Migration 0003 — watchers + watcher_fires tables
+### Task W0.1: Migration 0004 — watchers + watcher_fires tables
+
+> **Migration number is `0004`, not `0003`.** Main already carries `migrations/0003_user_profile_360.sql` (Sandeep's 360 skill, applied live 2026-05-29). The runner globs lexically, so a `0003_watchers_v1.sql` would collide with the live 360 migration. The next free number is `0004`.
 
 **Files:**
-- Create: `migrations/0003_watchers_v1.sql`
+- Create: `migrations/0004_watchers_v1.sql`
 
 - [ ] **Step 1: Write the migration**
 
-Create `migrations/0003_watchers_v1.sql`:
+Create `migrations/0004_watchers_v1.sql`:
 
 ```sql
--- Migration 0003: Watchers V1 schema
+-- Migration 0004: Watchers V1 schema
 -- Spec: docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md
 -- Adds watchers + watcher_fires tables for the proactive-agency primitive.
+-- (0003 is taken by 0003_user_profile_360.sql — do NOT reuse it.)
 
 PRAGMA foreign_keys = ON;
 
@@ -153,23 +168,24 @@ CREATE INDEX IF NOT EXISTS idx_watcher_fires_watcher ON watcher_fires(watcher_id
 ```bash
 sqlite3 /tmp/test-watchers.db < migrations/0001_v2_task_model.sql
 sqlite3 /tmp/test-watchers.db < migrations/0002_classifier_secondary_intents.sql
-sqlite3 /tmp/test-watchers.db < migrations/0003_watchers_v1.sql
+sqlite3 /tmp/test-watchers.db < migrations/0003_user_profile_360.sql
+sqlite3 /tmp/test-watchers.db < migrations/0004_watchers_v1.sql
 sqlite3 /tmp/test-watchers.db ".schema watchers"
 sqlite3 /tmp/test-watchers.db ".schema watcher_fires"
 rm /tmp/test-watchers.db
 ```
 
-Expected: both tables print with all CHECK constraints and indexes.
+Expected: both tables print with all CHECK constraints and indexes. (The chain applies `0003_user_profile_360.sql` first so the test DB mirrors the real migration order on main.)
 
 - [ ] **Step 3: Confirm migration runner picks it up**
 
-The runner at `migrations/run_migrations.sh` uses `shopt -s nullglob` to glob all `.sql` files in order. No code change needed — file naming `0003_*` ensures it runs after 0001 and 0002.
+The runner at `migrations/run_migrations.sh` uses `shopt -s nullglob` to glob all `.sql` files in order, wraps each in an atomic transaction, and records applied migrations in a `_migrations` tracking table. No code change needed — file naming `0004_*` ensures it runs after `0003_user_profile_360.sql`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add migrations/0003_watchers_v1.sql
-git commit -m "feat(watchers): add migration 0003 — watchers + watcher_fires tables"
+git add migrations/0004_watchers_v1.sql
+git commit -m "feat(watchers): add migration 0004 — watchers + watcher_fires tables"
 ```
 
 ### Task W0.2: Extend intent-classifier with WATCHER_REQUEST intent
@@ -193,9 +209,9 @@ Use Edit to update the "9 intent types" → "10 intent types" table and the prom
 | `WATCHER_REQUEST` | User asking Alaska to set up an ongoing watch / scheduled report / recurring action that's MORE than a simple reminder. Distinguishes from REMINDER_REQUEST: WATCHER_REQUEST involves data queries, conditional logic, or persistent observation. | "every Monday show me DAU and retention", "alert me whenever a user below 580 signs up", "track failed Plaid users daily and send them gift card emails", "send me a bar chart of Plaid failures every week" |
 ```
 
-And update the prompt's "Return JSON" intent enum from 9 values to 10 (add `WATCHER_REQUEST`).
+And update the prompt's hard-coded intent enum from 9 values to 10. The live `skills/intent-classifier/SKILL.md` (version `1.1.0`, 9 intents: TASK_CREATE/UPDATE/ASSIGN/BLOCKER, REMINDER_REQUEST, DECISION_RECORDED, STATUS_QUERY, NON_WORK_CHAT, AMBIGUOUS) has the enum inline as `"ONE of these intent types: …"` — add `WATCHER_REQUEST` as the 10th name in BOTH the intent table AND that inline prompt enum. Edit the live prompt enum, not a remembered older one.
 
-Also update the "Disambiguation rules" subsection (added in v1.1) to distinguish REMINDER_REQUEST vs WATCHER_REQUEST:
+Also APPEND to the EXISTING "Disambiguation rules (v1.1 — tuned from May 18-24 replay findings)" subsection — do NOT recreate the block (it already holds META-COMMENTS / STANDUP CONTEXT / SHARING-vs-ASSIGNING / MULTI-INTENT rules). Add the REMINDER_REQUEST vs WATCHER_REQUEST rule:
 
 ```
 - REMINDER_REQUEST vs WATCHER_REQUEST: 
@@ -260,7 +276,11 @@ The body of the SKILL.md covers (per the spec's "Step-by-step flow" §):
 
 1. RECEIVE — invoke trigger
 2. PARSE INTENT — categorize (simple reminder vs scheduled report vs event watch vs external action vs template activation)
-3. LOAD RELEVANT KB — keyword match against KB index, load matched files
+3. LOAD RELEVANT KB — keyword match against KB index, load matched files. Keyword map includes:
+   - "plaid / bank linking / card link" → `integrations/plaid.md`
+   - "DAU / retention / metric / segmentation" → `integrations/amplitude.md` + `definitions/metrics.md`
+   - "campaign / email / gift card / push" → `integrations/customerio.md`
+   - "user / profile / credit band / debt / utilization" → `integrations/user-profile-api.md` (the admin 360 profile API contract: endpoints, `X-Admin-Key`, `BON_API_BASE_URL`/`BON_ADMIN_API_KEY`, section catalog + intents — needed when a watcher enriches a user via `user-profile-360`'s `lookup.py`)
 4. DRAFT WATCHER INTERNALLY using KB definitions
 5. ASK FOLLOW-UP QUESTIONS (only true ambiguities — KB resolves technical ones)
 6. PRESENT DRAFT to creator with plain-English action chain summary
@@ -268,13 +288,25 @@ The body of the SKILL.md covers (per the spec's "Step-by-step flow" §):
 8. ON CONFIRMATION — insert watcher row + call cron.add + DM creator + DM Abhinav if applicable
 9. ON DECLINE — update status, DM creator with reason
 
-Include explicit `cron.add` payload examples (per the spec's "Migration path" §) showing the right shape for `kind=cron` (recurring) and `kind=at` (one-shot).
+Include explicit `cron.add` payload examples (per the spec's "Migration path" §) showing the right shape for `kind=cron` (recurring) and `kind=at` (one-shot). **Use the canonical live schema shown in W3.2/W4.1** — `payload.kind: "agentTurn"`, `agentId`/`sessionKey`/`sessionTarget`/`wakeMode`, AND the `delivery: {"mode": "none", "channel": "slack"}` block (all 14 live crons carry it; `mode:"none"` suppresses OpenClaw default delivery while the skill posts its own Slack messages). Do NOT omit the delivery block.
 
 Include cost projection logic (compute monthly $ from action chain step costs × fire frequency). Tier mapping: free <$0.50, low $0.50-$3, medium >$3 (= >$3/day for the approval gate), high (external write OR >$15/day). Cost shown ONLY in Abhinav's approval DM.
 
 Include the stagger logic: at creation, roll `random.randint(0, 300)` and store in `stagger_seconds`. When constructing the `cron.add` payload, the trigger time is shifted by stagger.
 
+**Scaling / concurrency note:** the live runtime baseline is **13 enabled crons** (per `config/cron-jobs-backup.json`; CLAUDE.md's "~14" is an approximation). The watcher feature adds 4 event-poller crons + 1 janitor + N per-watcher crons on top of that 13. The constraint stagger protects is **`maxConcurrentRuns=8`** — without stagger, e.g. 30 watchers all firing at `0 9 * * *` would queue behind the 8-slot limit. The `stagger_seconds` 0-300 spread is what keeps the per-minute fan-out under that ceiling.
+
 Include the action_chain JSON shape with the 9 step types from the spec (load_knowledge, invoke_skill, format, draft_for_approval, send_dm, send_channel, send_email_cio, attach_chart, create_task).
+
+**Identity / email / profile resolution uses `user-profile-360`** (the canonical `invoke_skill` target). The spec's worked-examples DSL chained a `{"step":"invoke_skill","skill":"identity-resolver",...}` step — **`identity-resolver` does not exist** (it was aspirational in the spec). Use the real live skill instead, one shot via `lookup.py`:
+
+```json
+{"step":"invoke_skill","skill":"user-profile-360",
+ "command":"python3 /data/skills/user-profile-360/lookup.py --query {{user_id}} --query-type user_id --intent user_summary --requester-slack-id {{creator}} --requester-authority {{authority}} --channel-type dm",
+ "output_var":"profile"}
+```
+
+It resolves identity AND returns email/profile in one call (JSON on stdout, cached in 4 tables). Pick `--query-type` by the value (`email` for an email, `user_id` for a numeric id, `name`/`phone` as needed) and the **narrowest `--intent`**: `user_summary` for cheap email-only resolution; `credit_health` / `debt_situation` / `full_picture` for enriched alerts. Repeated enrichment of the same user hits `user_profile_cache`, so cost stays low.
 
 Anti-patterns:
 1. Never write to `watchers` table without also calling `cron.add` in the same atomic flow (use the write-ahead pattern: INSERT row with `status='pending_cron_create'`, call cron.add, UPDATE row with cron_id + status='active').
@@ -429,11 +461,11 @@ Create `skills/watcher-dispatcher/SKILL.md` covering:
      - Exit (resume happens when user replies — handled by slack-commands)
 7. Execute action chain step-by-step. For each step:
    - load_knowledge: read files into context
-   - invoke_skill: cross-skill invocation, capture output_var
+   - invoke_skill: cross-skill invocation, capture output_var. Identity/email/profile resolution uses **`user-profile-360`** (`python3 /data/skills/user-profile-360/lookup.py …`) — NOT the phantom `identity-resolver`. Use the narrowest `--intent` (e.g. `user_summary` for email-only resolution) to keep per-fire cost down; repeated enrichment of the same user hits `user_profile_cache`.
    - format: render template with vars
    - send_dm / send_channel / send_email_cio: external delivery
    - attach_chart: fetch + attach
-   - create_task: invoke task-handler
+   - create_task: invoke task-handler. If the resulting task surfaces to Notion, populate the **Owner (people)** field from the roster Notion User ID (`{"people":[{"id":"..."}]}`) — Owner-field writes are now ENABLED (per `workspace/MEMORY.md`). Fall back to first-name-in-Notes only if a person has no Notion ID. **Do NOT target the Sprint Board** — it remains paused/retired.
 8. Update watcher row: last_fired_at, fire_count++, memory_state with new fact_key, last_action_summary.
 9. Log fire row: outcome='acted' or 'failed' or 'skipped_empty'.
 10. Check expires_at: if now >= expires_at, set status='expired', call cron.remove(openclaw_cron_id).
@@ -581,9 +613,9 @@ python3 lib/migrate_phase_c_to_watchers.py --dry-run
 
 Expected: prints proposed migrations without writing.
 
-- [ ] **Step 3: Add to entrypoint.sh — RUN ONCE after 0003 migration**
+- [ ] **Step 3: Add to entrypoint.sh — RUN ONCE after the 0004 migration**
 
-`entrypoint.sh` already runs migrations via `bash /opt/migrations/run_migrations.sh`. Add a one-time idempotency-checked call to the Python migration:
+`entrypoint.sh` already runs migrations via `bash /opt/migrations/run_migrations.sh /data/queue/alaska.db /opt/migrations`. This insertion is a clean **ADD** — main's `entrypoint.sh` has the migration-runner block but no Phase C Python hook, so there's no conflict. Add a one-time idempotency-checked call to the Python migration:
 
 ```bash
 # One-time Phase C → Watchers migration (idempotent — safe to re-run)
@@ -594,7 +626,7 @@ if [ -f /data/queue/alaska.db ] && [ ! -f /data/.openclaw/.phase_c_migrated ]; t
 fi
 ```
 
-The marker file `/data/.openclaw/.phase_c_migrated` ensures we run exactly once.
+**Placement (confirm on insert):** this block must land **after** the migration-runner block (so `0004_watchers_v1.sql` has created the `watchers`/`watcher_fires` tables) and **before** `exec openclaw gateway run`. `PYTHONPATH=/opt/lib` is already exported at the top of `entrypoint.sh`, so the script's imports resolve. The marker file `/data/.openclaw/.phase_c_migrated` ensures we run exactly once.
 
 - [ ] **Step 4: Commit**
 
@@ -704,9 +736,9 @@ metadata:
 
 Procedure: invoked with `event_type` in cron payload. Reads `event_pollers.last_polled_at` for that type, queries the source for events since then, finds matching watchers via `SELECT FROM watchers WHERE trigger_type='event' AND json_extract(trigger_config, '$.event_name')=?`, dispatches the watcher-dispatcher for each (watcher, event) pair, updates last_polled_at.
 
-- [ ] **Step 2: Add a small event_pollers state table to migration 0003**
+- [ ] **Step 2: Add a small event_pollers state table to migration 0004**
 
-Update `migrations/0003_watchers_v1.sql` to add:
+Update `migrations/0004_watchers_v1.sql` to add:
 
 ```sql
 CREATE TABLE IF NOT EXISTS event_pollers (
@@ -724,12 +756,39 @@ INSERT OR IGNORE INTO event_pollers (event_type, last_polled_at) VALUES
 
 - [ ] **Step 3: Add the 4 event-poller cron entries to cron-jobs-backup.json**
 
-Each entry has schedule per the spec table (e.g., new_signup every 15 min, bug_closed every 30 min). Payload message: "Run event-poller for event_type=<name>".
+Each entry has a schedule per the spec table (e.g., new_signup every 15 min, bug_closed every 30 min). **Match the live `config/cron-jobs-backup.json` schema exactly** (`{version, jobs:[...]}`) — read the file first and copy the shape of an existing job. The real per-job shape is:
+
+```json
+{
+  "id": "<uuidv4>",
+  "agentId": "main",
+  "sessionKey": "agent:main:main",
+  "name": "Event Poller — new_signup",
+  "enabled": true,
+  "createdAtMs": 0,
+  "updatedAtMs": 0,
+  "schedule": {"kind": "cron", "expr": "*/15 * * * *", "tz": "UTC"},
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+    "kind": "agentTurn",
+    "message": "Run /data/skills/event-poller/SKILL.md procedure for event_type=new_signup.",
+    "timeoutSeconds": 300
+  },
+  "delivery": {"mode": "none", "channel": "slack"}
+}
+```
+
+Key points (per the live schema — verified against all 14 entries in `config/cron-jobs-backup.json`):
+- `payload.kind` is **`agentTurn`** (not `user-message`).
+- Include `agentId: "main"`, `sessionKey: "agent:main:main"`, `sessionTarget: "isolated"`, `wakeMode: "now"`.
+- **KEEP the `delivery: {"mode": "none", "channel": "slack"}` block** — ALL 14 live crons carry it. `mode: "none"` SUPPRESSES OpenClaw's default delivery so the agent's raw turn output isn't auto-posted anywhere; the skill then posts its own Slack messages via the `action=send` pattern. Omitting the block entirely is NOT equivalent — it lets OpenClaw apply default delivery behavior, which would mis-post. (An earlier reconciliation note wrongly claimed live entries had no delivery field; verified false — keep the block.)
+- One entry per event type: `new_signup` (`*/15 * * * *`), `bug_closed` (`*/30 * * * *`), `pr_merged` (`*/30 * * * *`), `task_status_changed` (`*/30 * * * *`) — adjust exprs to the spec table.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add skills/event-poller/SKILL.md migrations/0003_watchers_v1.sql config/cron-jobs-backup.json
+git add skills/event-poller/SKILL.md migrations/0004_watchers_v1.sql config/cron-jobs-backup.json
 git commit -m "feat(watchers): add event-poller skill + 4 V1 event types (Phase W.3)"
 ```
 
@@ -771,16 +830,30 @@ Procedure:
 
 - [ ] **Step 2: Add the janitor cron entry to cron-jobs-backup.json**
 
+Match the live `config/cron-jobs-backup.json` schema (read the file first and copy an existing job's shape):
+
 ```json
 {
+  "id": "<uuidv4>",
+  "agentId": "main",
+  "sessionKey": "agent:main:main",
   "name": "Watcher Janitor",
   "enabled": true,
+  "createdAtMs": 0,
+  "updatedAtMs": 0,
   "schedule": {"kind": "cron", "expr": "0 4 * * *", "tz": "UTC"},
-  "payload": {"kind": "user-message", "message": "Run /data/skills/watcher-janitor/SKILL.md procedure."},
-  "delivery": {"mode": "none"},
-  "timeoutSeconds": 180
+  "sessionTarget": "isolated",
+  "wakeMode": "now",
+  "payload": {
+    "kind": "agentTurn",
+    "message": "Run /data/skills/watcher-janitor/SKILL.md procedure.",
+    "timeoutSeconds": 180
+  },
+  "delivery": {"mode": "none", "channel": "slack"}
 }
 ```
+
+`payload.kind` is **`agentTurn`** (not `user-message`); include `agentId`/`sessionKey`/`sessionTarget`/`wakeMode`; **KEEP the `delivery: {"mode": "none", "channel": "slack"}` block** to match all 14 live crons — `mode: "none"` suppresses OpenClaw's default delivery (the janitor posts its own Slack messages via `action=send`). Dropping the block lets OpenClaw apply default delivery, which mis-posts.
 
 - [ ] **Step 3: Commit**
 
@@ -813,6 +886,7 @@ For each scenario verify:
 - Confirmation DM has the right plain-English action chain summary
 - Cost shown only when applicable (>$3/day)
 - Approval routing correct (self vs Abhinav)
+- For scenarios that resolve a user's email/profile (Example 1 weekly card-linkage, Example 2 gift-card emails): the action chain invokes **`user-profile-360`** (`lookup.py`, `--query-type email|user_id`, narrowest `--intent`), NOT the phantom `identity-resolver`. The spec's DSL `identity-resolver` step is aspirational — the replay must wire the real `user-profile-360` skill and confirm email resolution succeeds at that step.
 
 - [ ] **Step 3: Replay execution**
 
@@ -853,7 +927,7 @@ gh pr create --base main --head feat/v2-watchers-v1 \
 - [ ] **Step 2: After merge — Alaska deploys**
 
 Send Alaska a comprehensive activation brief (matching the pattern used for Phase B/C activation):
-- Verify migration 0003 + Phase C migration script ran
+- Verify migration 0004 + Phase C migration script ran
 - Verify event-poller crons registered in OpenClaw dashboard
 - Verify janitor cron registered
 - Exercise the 5 scenarios live in production
@@ -861,7 +935,7 @@ Send Alaska a comprehensive activation brief (matching the pattern used for Phas
 
 - [ ] **Step 3: After 2 weeks of clean dual operation — hard-cut**
 
-- Drop `scheduled_actions` and `routine_proposals` tables (migration 0004)
+- Drop `scheduled_actions` and `routine_proposals` tables (migration `0005_drop_phase_c.sql` — `0004` is the watchers migration; both tables really exist in `0001_v2_task_model.sql`, so this is a real drop, not a no-op)
 - Deprecate `reminder-dispatcher` skill (move to `skills/_deprecated/`)
 - DM Abhinav: "Phase C dual-write window complete. Watchers is now the sole scheduling primitive."
 
@@ -874,6 +948,10 @@ After all phases land, before declaring V1 live:
 ### Static checks
 
 ```bash
+# Migration file is 0004 (NOT 0003 — 0003 is user_profile_360 on main)
+ls migrations/0004_watchers_v1.sql
+! ls migrations/0003_watchers_v1.sql 2>/dev/null   # must NOT exist (collides with 0003_user_profile_360.sql)
+
 # Migration applied
 sqlite3 /data/queue/alaska.db ".tables" | grep -E "watchers|watcher_fires"
 
@@ -890,6 +968,13 @@ ls skills/watcher-janitor/SKILL.md
 # Updated skills
 grep "WATCHER_REQUEST" skills/intent-classifier/SKILL.md
 grep "watcher-creator" skills/slack-commands/SKILL.md
+
+# Identity resolution wired to the REAL skill (no phantom identity-resolver)
+grep "user-profile-360" skills/watcher-creator/SKILL.md skills/watcher-dispatcher/SKILL.md
+! grep -r "identity-resolver" skills/watcher-creator skills/watcher-dispatcher   # must find nothing
+
+# BON KB Tier-1 is git-tracked (gates W.1 — disk presence is NOT enough)
+git ls-files workspace/knowledge/integrations/user-profile-api.md
 
 # Migration script + entrypoint integration
 ls lib/migrate_phase_c_to_watchers.py
@@ -954,6 +1039,8 @@ After writing this plan, I reviewed against the spec checklist:
 
 ## Execution Handoff
 
+> **Where watcher-system history goes:** record watcher-system milestones, the Phase C dual-write window, and the hard-cut in **`memory/system-evolution.md`**, NOT `MEMORY.md`. `MEMORY.md` is the lean, always-injected core (~20k-char cap) — only the team roster, Notion IDs, and data-source IDs live there. Bloating it truncates the injected core (Issue G, 2026-05-29).
+
 This plan is ready for execution. Two paths:
 
 **1. Subagent-Driven (recommended)** — use `superpowers:subagent-driven-development`. Dispatch one subagent per task, with two-stage review (spec compliance then code quality) after each. Fast iteration, fresh context per task, no context pollution.
@@ -963,6 +1050,8 @@ This plan is ready for execution. Two paths:
 **Estimated effort:** 2-3 weeks of focused work. Larger than Phases B and C because of the broader surface area (new tables, new skills, migration script, event pollers, janitor, template library).
 
 **Prerequisites confirmed before kickoff:**
-- BON KB Tier 1 files exist (Abhinav's parallel work)
+- 🛑 BON KB Tier 1 files are **committed to main / git-tracked** (verify with `git ls-files workspace/knowledge/`, not a disk `ls`) — they are currently untracked/local and gate Phase W.1
+- Branch off freshly-pulled `main` (NOT the stale `feat/watchers-v1-plan` branch, which would regress prod)
 - All 16 spec decisions locked
+- `user-profile-360` is live on main (the identity/email resolver; `identity-resolver` was never built)
 - OpenClaw research findings reviewed (no surprises)
