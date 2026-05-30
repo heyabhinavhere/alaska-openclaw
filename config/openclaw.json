@@ -39,7 +39,7 @@
           "path": "fireflies"
         },
         "action": "agent",
-        "messageTemplate": "Fireflies webhook received. A new meeting transcript is ready.\n\nWebhook payload: {{json}}\n\nUse the Fireflies API to fetch the full transcript using the meetingId. Then extract: decisions, action items (with owners and deadlines), blockers, scope changes, and open questions. Write the structured meeting note to the Meeting Notes database in Notion. Create tasks in the Sprint Board for each action item (status: Backlog). Post a summary to Slack.",
+        "messageTemplate": "Fireflies webhook received. A new meeting transcript is ready.\n\nWebhook payload: {{json}}\n\nUse the Fireflies API to fetch the full transcript using the meetingId. Then extract: decisions, action items (with owners and deadlines), blockers, scope changes, and open questions. Write the structured meeting note to the Meeting Notes database in Notion. Create a task for each action item via the task-handler skill (the Sprint Board is RETIRED — do NOT write to it). Post a summary to Slack.",
         "deliver": true,
         "channel": "slack"
       }

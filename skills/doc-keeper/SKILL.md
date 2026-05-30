@@ -127,7 +127,7 @@ Every Friday, generate and post to Slack + save as a Notion page:
 • [Active risks/blockers summary]
 
 *Next Week Preview*
-• [What's planned based on sprint board]
+• [What's planned — from DAILY_STATE.md `This Week's Goals`]
 
 *Team Highlights*
 • [Positive callouts — who shipped, who unblocked something]
