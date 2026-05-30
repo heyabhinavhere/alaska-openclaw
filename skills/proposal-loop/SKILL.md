@@ -193,7 +193,7 @@ Final task list:
 [If tasks were removed]: Removed: [list]
 [If tasks were added]: Added: [list]
 
-Handing off to Sprint Operator to add these to the sprint board.
+Handing off to Sprint Operator — confirmed items are reflected in DAILY_STATE.md via the next Meeting Intelligence run.
 ```
 
 ## Step 6: Hand Off to Sprint Operator
