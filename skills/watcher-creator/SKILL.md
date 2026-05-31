@@ -140,24 +140,36 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 
 `approved_by_slack_id`/`approved_at` stay NULL through the draft and stay NULL forever for self-approved watchers — that NULL *is* the "self-approved" signal (schema line 31). If the creator edits the draft ("change time to 10 AM", "cap at 30"), `UPDATE` the reserved row's fields and re-present — never allocate a new id.
 
-**6b. Present the draft** for the creator. NO JSON, NO cost (cost is private — Step 7). Format:
+**6b. Present the draft** for the creator. NO JSON, NO cost (cost is private — Step 7), and **NO internals** — the draft is plain English only. NEVER expose KB/file names (`amplitude.md`, …), raw event names (`add_card_successful`, `exit_step`, …), skill names, "load KB", cron expressions, the stagger, or the expiry one-shot. Describe what the watcher *does for the user*, not how it's wired. The `action_chain` (with all that detail) goes silently into the DB; the user sees only the plain summary. **Compute every date/day-of-week you show by running `python3` in the watcher's timezone (see 6c) — never name a weekday you worked out by hand.** Format:
 
 ```
 *Watcher W-N* (draft — confirm to activate):
 
-*What:* <NL description>
-*Trigger:* <schedule + tz, OR event + filter>
-*Action:*
-  1. <plain-English step>
-  2. <plain-English step>
-  ...
-*Recipient:* <where output goes>
-*Memory:* <strict — won't repeat on the same fact / or "none — each run stands alone">
-*Expires:* <date / "never">
-*Sources:* <KB files used>
-<If rung 0:> *Per-fire approval:* ON — I'll DM you each run's draft for your yes before it goes out.
+*What:* <1–2 plain-English sentences: what it watches/reports and what you'll receive — NO internal terms>
+*When:* <schedule in plain English ("Every weekday at 9:30 AM IST") OR event in plain English ("Whenever a user below 580 signs up")>
+*Sends to:* <"you" / "#channel-name">
+*Repeats on the same finding?* <"No — reports every run" / "Won't re-alert on the same thing">
+*Expires:* <a date you computed in 6c, e.g. "Friday, June 5" / "Never">
+<If rung 0:> *Approval:* I'll show you each run before it sends.
 
-Confirm "yes", or edit: "change time to 10 AM", "cap at 30", "expire after Dec 31".
+Confirm "yes", or edit — e.g. "change to 10 AM", "add retention", "expire after Aug 31".
+```
+
+Example of a good `*What:*` (plain, leak-free): *"Every weekday morning, a one-line summary of yesterday's active users with the week-over-week change, the card-linking success rate, and the step where most people drop off."* — NOT "Load KB → query `add_card_successful`/`add_card_initiate` → format → DM."
+
+**6c. Resolve dates deterministically.** Whenever you state a date, weekday, "first fire", or "expires" to the user — OR compute the actual `expires_at`/`starts_at` you store — do it with `python3` + `zoneinfo` in the watcher's timezone. NEVER reason about the calendar yourself (LLM weekday math is unreliable — it has produced "Monday June 2" when June 2 was a Tuesday). Compute `now()` in the tz, then the next scheduled occurrence, and for "for one week / N runs" count the real schedule occurrences:
+
+```bash
+python3 -c "
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+tz=ZoneInfo('Asia/Kolkata'); now=datetime.now(tz)
+d=now.date()+timedelta(days=1); fires=[]
+while len(fires)<5:            # e.g. 5 weekday runs
+    if d.weekday()<5: fires.append(d)
+    d+=timedelta(days=1)
+print('first', fires[0].strftime('%A %b %-d'), '| last', fires[-1].strftime('%A %b %-d'))
+"
 ```
 
 **Template activation** lands here too: read the template JSON from `/data/skills/watcher-creator/templates/<id>.json`, pre-fill its fields, ask only its `parameters_to_ask`, map its `trigger` → `trigger_type`+`trigger_config` and its `action_chain`/`memory_strategy`/`cost_class` onto the watcher, then present. If the template carries a **`gated`** field, the activation/confirmation reply MUST honestly flag it: `Activated, but <gated.reason>.` (The `gated` field is the single source of truth for readiness — don't hardcode a template list here. Current gates: `stale-task` + `cross-person-task-assign` → Phase B task data; `deploy-impact` → a deploy event.)
@@ -189,6 +201,8 @@ Reply: 'approve W-N' / 'decline W-N because <reason>' / 'modify W-N: <changes>'.
 ### Step 8: ON CONFIRMATION — activate (write-ahead transition)
 
 Triggered by the creator's "yes" (self-approve) OR Abhinav's `approve W-N` (gated). The row already exists at `pending_approval` (reserved in Step 6, `openclaw_cron_id` NULL); activation only moves it forward. **Never flip a cron-type watcher to `active` before its cron exists** — the write-ahead order below keeps the row ahead of the cron, so a crash leaves a reconcilable orphan, never a cron firing against a missing row.
+
+**Steps 8a–8c are SILENT.** Never narrate the row reserve/transition, the stagger, the cron expression, `cron.add`, or the expiry one-shot to the user — those are internal plumbing (forbidden in Slack: "Now I need to create the cron job…", "the stagger was 260s so the expr shifts from 0 4 to 4 4…"). The ONLY user-facing message in this step is the 8d confirmation.
 
 **8a. Mark activation in flight** — flip to the `pending_cron_create` write-ahead marker (and stamp the approver iff Abhinav gated it):
 
@@ -240,9 +254,9 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 ```
 (Event watchers: no cron id was returned — `UPDATE watchers SET status='active' WHERE watcher_id='$WATCHER_ID';`, leaving `openclaw_cron_id` NULL.)
 
-**8d. Confirm in Slack** (no cost, one message):
-- To the creator: `Watcher W-N active. <First fire: Monday 9 AM IST.> Reply "@alaska pause W-N" anytime, or "@alaska show W-N" for details.`
-- If Abhinav approved: also DM Abhinav `Activated W-N for <creator first name>.`
+**8d. Confirm in Slack** (no cost, one message, NO mechanics — no cron/stagger/expr/one-shot talk). Use the day+date you computed in 6c (never a hand-derived weekday):
+- To the creator: `Watcher W-N active. First fire: <computed day + date + time, e.g. "Monday, June 1, 9:30 AM IST">.<for a time-bounded watcher: " Runs every weekday through <computed last-fire day + date>, then auto-expires.">` Then: `Reply "@alaska pause W-N" anytime, or "@alaska show W-N" for details.`
+- If Abhinav approved a gated watcher: also DM Abhinav `Activated W-N for <creator first name>.`
 
 ### Step 9: ON DECLINE (Abhinav)
 
@@ -266,7 +280,8 @@ No cron was created (decline happens before activation), so there's nothing to r
 7. **Never omit the `delivery: {"mode":"none","channel":"slack"}` block.** The dispatcher posts its own Slack; without the block OpenClaw mis-posts the raw turn output.
 8. **Never load or cite the deleted Postgres-schema models directory.** It no longer exists. User/profile/credit context comes from `integrations/user-profile-api.md`; identity/email resolution from the `user-profile-360` skill.
 9. **Never invent KB definitions or watcher fields when uncertain.** If the KB doesn't resolve a technical question and it's not a human-intent ambiguity you can ask about, flag `[NEEDS CLARIFICATION]` rather than guessing. No fabricated metrics, filters, or dates (shared-toolkit anti-hallucination).
-10. **Never include internal narration or skill names in user-facing replies** (shared-toolkit Communication Standards). The draft/confirmation IS the output — no "Let me query…" / "the watcher-creator drafted…".
+10. **Never leak internals into ANY user-facing watcher message** (draft, edit, confirmation, `@alaska show`). Forbidden: KB/file names (`amplitude.md`), raw event/property names (`add_card_successful`, `exit_step`), skill names, "load KB", cron expressions, the stagger, the expiry one-shot, and process/pipeline narration ("Let me query…", "Now I need to create the cron job…", "the stagger was 260s…"). Plain English about what the watcher does for the user; all the wiring lives silently in the DB (shared-toolkit Communication Standards + SOUL.md security).
+11. **Never state a date or weekday you computed by hand.** Resolve every human-facing date/weekday (first fire, "expires", "runs through …") AND every stored `starts_at`/`expires_at` with `python3` + `zoneinfo` in the watcher's timezone (Step 6c). LLM calendar arithmetic is unreliable — it has labeled a Tuesday "Monday." Compute, don't guess.
 
 ## Frequency and cost
 
