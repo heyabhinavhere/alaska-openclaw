@@ -1,0 +1,15 @@
+{
+  "id": "stale-task",
+  "display_name": "Stale Task Watcher",
+  "description": "Daily check for your active tasks unchanged >7 days",
+  "trigger": {"type": "cron", "expr": "0 4 * * *", "tz": "Asia/Kolkata"},
+  "action_chain": [
+    {"step": "invoke_skill", "skill": "task-handler", "args": {"action": "query_stale", "owner_slack_id": "{{creator}}", "days_stale": 7}, "output_var": "stale_tasks"},
+    {"step": "format", "template": "stale_task_nudge", "args": {"tasks": "{{stale_tasks}}"}, "output_var": "nudge"},
+    {"step": "send_dm", "to": "{{creator}}", "content": "{{nudge}}", "skip_if_empty": true}
+  ],
+  "memory_strategy": "strict_entity_set",
+  "cost_class": "free",
+  "parameters_to_ask": [],
+  "gated": {"on": "phase_b_task_data", "reason": "waiting on Phase B task data — I'll run but find nothing until tasks start flowing"}
+}

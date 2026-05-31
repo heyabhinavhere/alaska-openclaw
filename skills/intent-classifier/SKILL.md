@@ -1,7 +1,7 @@
 ---
 name: intent-classifier
-description: Classify every non-trivial Slack message Alaska sees into one of 9 intent types. Writes classification + secondary intents + entities + reasoning to intent_inbox / classifier_audit. Phase A runs in OBSERVATION MODE — no downstream action. Phases B+ wire the action paths.
-version: 1.1.0
+description: Classify every non-trivial Slack message Alaska sees into one of 10 intent types. Writes classification + secondary intents + entities + reasoning to intent_inbox / classifier_audit. Phase A runs in OBSERVATION MODE — no downstream action. Phases B+ wire the action paths.
+version: 1.2.0
 metadata:
   openclaw:
     always: true
@@ -16,7 +16,7 @@ metadata:
 
 Also read `/data/skills/shared-toolkit/SKILL.md` for communication standards, queue-first patterns, and the Slack channel ID list.
 
-You are the Intent Classifier. Every non-trivial Slack message Alaska sees gets classified into one of 9 intent types so downstream handlers know what to do. **Phase A: OBSERVATION ONLY. Write to classifier_audit and log everything. Do NOT take downstream action.**
+You are the Intent Classifier. Every non-trivial Slack message Alaska sees gets classified into one of 10 intent types so downstream handlers know what to do. **Phase A: OBSERVATION ONLY. Write to classifier_audit and log everything. Do NOT take downstream action.**
 
 ## Trigger modes
 
@@ -25,7 +25,7 @@ You are the Intent Classifier. Every non-trivial Slack message Alaska sees gets 
 
 The cron prompt that invokes this skill in batched mode supplies the channel/messages. The DM-handling context supplies one message and expects an immediate intent result.
 
-## The 9 intent types
+## The 10 intent types
 
 | Intent | Definition | Example messages |
 |---|---|---|
@@ -34,6 +34,7 @@ The cron prompt that invokes this skill in batched mode supplies the channel/mes
 | `TASK_ASSIGN` | Asking someone else (one or more) to do work | "@Shailesh @Tarun look at users 2854, 2891, 2894 in 48h", "Pankaj should fix this", "can someone QA this PR?" |
 | `TASK_BLOCKER` | Reporting a blocker on own or others' work | "blocked on Plaid docs", "can't proceed until X is merged", "waiting on Sandeep" |
 | `REMINDER_REQUEST` | Asking for a future-fire reminder or recurring routine | "remind me about X in 5 days", "every Friday at 5 PM DM me my open tasks", "follow up with Pankaj on T-42 tomorrow" |
+| `WATCHER_REQUEST` | Asking Alaska to set up an ongoing watch / scheduled report / recurring conditional action that's MORE than a simple reminder — involves a data query, a threshold/condition, or persistent observation | "every Monday show me DAU + retention", "alert me whenever a user below 580 signs up", "track failed Plaid users daily and email them", "send me a bar chart of Plaid failures every week", "activate the bug-cluster watcher" |
 | `DECISION_RECORDED` | A decision being made | "let's go with approach A", "we're cancelling X", "decided to use Twilio not Plivo" |
 | `STATUS_QUERY` | Question about state | "what's on my plate?", "any blockers?", "what shipped this week?", "sprint status" |
 | `NON_WORK_CHAT` | Banter, greetings, social | "good morning", "lunch?", "lol", emoji-only |
@@ -55,11 +56,11 @@ You are classifying Slack messages from BON Credit team members for the Alaska
 AI project manager. Classify this message into ONE of these intent types:
 
 TASK_CREATE / TASK_UPDATE / TASK_ASSIGN / TASK_BLOCKER / REMINDER_REQUEST /
-DECISION_RECORDED / STATUS_QUERY / NON_WORK_CHAT / AMBIGUOUS
+WATCHER_REQUEST / DECISION_RECORDED / STATUS_QUERY / NON_WORK_CHAT / AMBIGUOUS
 
 Return JSON with this exact shape:
 {
-  "intent": "<primary intent, one of the 9>",
+  "intent": "<primary intent, one of the 10>",
   "secondary_intents": ["<other intent>", ...],  // empty array [] if single-intent; populated for multi-intent messages
   "confidence": <0.0 to 1.0>,
   "entities": {
@@ -96,6 +97,8 @@ Disambiguation rules (v1.1 — tuned from May 18-24 replay findings):
   - Reminder request that also implies new work "build new API and remind me on date X" → intent=REMINDER_REQUEST, secondary_intents=["TASK_CREATE"]
   - Decision + immediate follow-up "Let's go with approach A and Pankaj will start it Monday" → intent=DECISION_RECORDED, secondary_intents=["TASK_ASSIGN"]
   Use the `secondary_intents` array sparingly — most messages are single-intent. Only flag genuine multi-intent cases. Default to `[]`.
+
+- **REMINDER_REQUEST vs WATCHER_REQUEST:** REMINDER_REQUEST = a simple "ping me about X at time T" — message text only, no data lookup. WATCHER_REQUEST = an ongoing observation that involves DATA or a CONDITION ("show me <metric>", "alert me when X happens", "track X and do Y", "send me a chart every week"). Anything referencing a metric, chart, query, threshold/condition, or an external data source (Amplitude, Plaid, GitHub, Customer.io) is WATCHER_REQUEST. Plain "remind me / DM me at <time>" with no data lookup stays REMINDER_REQUEST.
 
 Team roster (for @ resolution):
 [Resolve from /root/.openclaw/workspace/MEMORY.md → Team Roster]

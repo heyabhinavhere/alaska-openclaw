@@ -1,0 +1,14 @@
+{
+  "id": "cross-person-task-assign",
+  "display_name": "Unacked Assignment Escalation",
+  "description": "Every 2h, find tasks assigned to someone other than the assigner that are still unaccepted (status pending_acceptance) and escalate by age — nudge the assignee at 2h, loop in the assigner at 24h, escalate to Abhinav at 48h.",
+  "trigger": {"type": "cron", "expr": "0 */2 * * *", "tz": "Asia/Kolkata"},
+  "action_chain": [
+    {"step": "invoke_skill", "skill": "follow-through", "args": {"action": "escalate_unacked_assignments", "tiers_hours": [2, 24, 48]}, "output_var": "result"},
+    {"step": "send_dm", "to": "{{creator}}", "content": "{{result.digest}}", "skip_if_empty": true}
+  ],
+  "memory_strategy": "strict_entity_set",
+  "cost_class": "free",
+  "parameters_to_ask": [],
+  "gated": {"on": "phase_b_task_data", "reason": "waiting on Phase B task data — I'll run but find nothing until cross-person task assignments start flowing"}
+}

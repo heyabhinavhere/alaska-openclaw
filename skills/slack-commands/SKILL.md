@@ -340,6 +340,14 @@ Reply: 'approve RP-N' / 'decline RP-N because <reason>' / 'modify RP-N: <changes
 Expires in 7 days if no response.
 ```
 
+### WATCHER_REQUEST handler
+
+Triggered by: "watch X", "track X and do Y", "alert me when Z", "every Monday show me …", "every Tuesday create …", or "@alaska activate <template>" — the classifier's WATCHER_REQUEST label. (A bare reminder with no data query is REMINDER_REQUEST, not this — see the REMINDER-vs-WATCHER disambiguation rule in intent-classifier.)
+
+1. Read `/data/skills/watcher-creator/SKILL.md` and execute its procedure end-to-end.
+2. watcher-creator owns the entire conversational flow — parse intent, load the BON KB, draft the watcher, run its single clarifier round, route the $3/day approval gate, and (on confirmation) reserve the `watchers` row and `cron.add`. slack-commands does NOTHING here beyond routing.
+3. Return watcher-creator's reply text verbatim as the DM response — no narration or summaries of your own.
+
 ### STATUS_QUERY / DECISION_RECORDED / NON_WORK_CHAT / AMBIGUOUS
 
 These intents are NOT handled here in Phase B. Fall through to the existing slack-commands sections (Status Check, My Tasks, Help, General Questions). The classifier output is still logged to `classifier_audit` per Phase A observation mode — we just don't take action.
@@ -389,6 +397,94 @@ If the proposal has expired (`expires_at < now()` AND `status='pending'`):
 - UPDATE: `status='expired'`.
 - DM the proposer once: `Your routine proposal RP-N expired after 7 days with no response from Abhinav. Send it again when you want to revisit.`
 - This expiration check can run on every routine-proposal cron tick (see C5) or lazily on the next approval-reply attempt.
+
+## Watcher Approval (creation gate + per-fire)
+
+Two distinct watcher approval grammars land here. **Disambiguate by the word `fire`:** `approve W-N fire` is a per-fire approval (a specific drafted run); `approve W-N` (no `fire`) is the creation gate for a `>$3/day`/external/other-recipient watcher. They act on different objects and have different approvers, so check the grammar first.
+
+### A. Creation gate — `approve W-N` / `decline W-N because <reason>` / `modify W-N: <changes>` (Abhinav-only)
+
+This is the reply to watcher-creator's Step 7 routing DM (a watcher sitting at `status='pending_approval'`).
+
+1. **Verify the sender is Abhinav** (`U07GKLVA9FE`). If not: `Only Abhinav can approve watchers.` Stop.
+2. **Look up the watcher.** `SELECT status FROM watchers WHERE watcher_id='W-N';` If no row: `No watcher W-N.` If `status != 'pending_approval'`: `W-N is already <status>.` Stop. (Idempotent — a second `approve` after activation is a no-op.)
+3. **On `approve`:** Read `/data/skills/watcher-creator/SKILL.md` and execute its **Step 8** for W-N — the row is already reserved at `pending_approval`, so Step 8 stamps `approved_by_slack_id='U07GKLVA9FE'` + `approved_at`, transitions `pending_approval → pending_cron_create → cron.add → active`, and sends the Step 8d confirmations to the creator and Abhinav. Do NOT re-implement the activation SQL here — delegate to watcher-creator so the write-ahead lifecycle stays in one place.
+4. **On `decline`:** parse the reason (after `because`/`—`/`:`), then execute watcher-creator **Step 9** for W-N (`status='cancelled'`, `decline_reason`, DM the creator). No cron exists yet (decline precedes activation), so nothing to remove.
+5. **On `modify`:** parse the change, `UPDATE` the reserved row's drafted fields (keep `status='pending_approval'`), and re-DM Abhinav the updated proposal in watcher-creator Step 7 format. Modify alone is NOT activation — a final `approve W-N` is still required.
+
+### B. Per-fire approval — `approve W-N fire` / `decline W-N fire <reason>` / `modify W-N fire: <change>` (creator-only)
+
+This is the reply to a rung-0 watcher's `awaiting_approval` draft (dispatcher Step 7). The approver is the watcher's **creator** (locked decision #14), not necessarily Abhinav.
+
+1. **Look up the watcher + the pending fire.**
+   ```bash
+   sqlite3 /data/queue/alaska.db \
+     "SELECT created_by_slack_id, status FROM watchers WHERE watcher_id='W-N';"
+   sqlite3 /data/queue/alaska.db \
+     "SELECT id, fact_key, action_summary FROM watcher_fires \
+      WHERE watcher_id='W-N' AND outcome='awaiting_approval' ORDER BY fired_at DESC LIMIT 1;"
+   ```
+2. **Authority check:** the replying user must equal `watchers.created_by_slack_id`. If not: `Only the watcher's creator can approve its fires.` Stop.
+3. If no `awaiting_approval` fire row: `Nothing's pending approval for W-N.` Stop. If the watcher's `status != 'active'` (paused/expired/cancelled since the draft): `W-N is <status> now — not sending.` and `UPDATE` the fire `outcome='declined'`, `action_summary` noting `watcher_inactive`. Stop.
+4. **On `approve`:** execute the remaining acting steps recorded in the fire's `action_summary` (the draft + resolved args + remaining steps the dispatcher stored), following **watcher-dispatcher Step 8 acting+record semantics**. Then:
+   - `UPDATE watcher_fires SET outcome='approved', action_summary=<append result> WHERE id=<fire_id>;`
+   - Apply the memory update the dispatcher deferred for rung-0 (its anti-pattern #7 — memory advances only on a real action): `UPDATE watchers SET memory_state=<{"last_fact_key":"<fire fact_key>","last_fired_at":"<now>"}>, last_fired_at=CURRENT_TIMESTAMP, fire_count=fire_count+1, last_action_summary=<...> WHERE watcher_id='W-N';`
+   - Reply to the creator (one line): `Sent W-N.`
+   - On execution failure: `UPDATE` the fire `outcome='failed'`, `error=<short>`; DM Abhinav once; do NOT advance `last_fact_key` (next scheduled fire re-drafts).
+5. **On `decline`:** parse the reason; `UPDATE watcher_fires SET outcome='declined', action_summary=<reason> WHERE id=<fire_id>;`. No send, and do NOT touch `memory_state` — the next scheduled fire should re-draft fresh. Reply: `Skipped W-N this round.`
+6. **On `modify`:** parse the change, re-draft with it, DM the creator the new draft, and keep `outcome='awaiting_approval'` (`UPDATE` the fire's `action_summary` to the new draft). Re-approval required.
+
+**Anti-patterns (watcher approval):** never let a non-creator approve a per-fire draft, or a non-Abhinav approve a creation gate. Never advance `memory_state.last_fact_key` on a decline or a failure. Never re-implement watcher-creator's activation or the dispatcher's acting logic here — delegate/follow them so there's one source of truth. Never double-send: the `awaiting_approval → approved/declined` transition is the lock; if the fire row is no longer `awaiting_approval`, it was already resolved.
+
+## Watcher Management
+
+Explicit watcher commands (matched by their grammar — not the intent classifier): `@alaska watchers`, `@alaska show W-N`, `@alaska pause/resume/delete W-N`, `@alaska modify W-N: <change>`, `@alaska watcher templates`, `@alaska activate <template>`.
+
+**Authority (applies to `show`/`pause`/`resume`/`delete`/`modify` on a specific W-N):** the requester must be the watcher's **creator** (`watchers.created_by_slack_id`) OR **Abhinav** (`U07GKLVA9FE`). Otherwise: `That's not your watcher.` Resolve once with `SELECT created_by_slack_id, status FROM watchers WHERE watcher_id='W-N';` (no row → `No watcher W-N.`).
+
+**Cost privacy:** cost (`cost_class`, any projection) is shown ONLY when the requester is Abhinav. Never expose it to a non-Abhinav creator in `show` or anywhere else (matches watcher-creator / dispatcher cost-privacy rules).
+
+### `@alaska watchers` — list the requester's active watchers
+```bash
+sqlite3 /data/queue/alaska.db \
+  "SELECT watcher_id, description, trigger_type, status FROM watchers \
+   WHERE created_by_slack_id='<requester>' AND status IN ('active','paused') \
+   ORDER BY watcher_id;"
+```
+Render one line per watcher: `W-N · <description> · <trigger summary> · <status>`. If none: `No active watchers — say "watch …" or "activate <template>" to create one.`
+
+### `@alaska watchers all` — Abhinav-only
+If requester ≠ `U07GKLVA9FE`: `Only Abhinav can list everyone's watchers.` Else the same query without the `created_by_slack_id` filter, grouped by creator first name (from MEMORY.md).
+
+### `@alaska show W-N`
+After the authority check, render: description; trigger (schedule+tz, or event+filter, plain English); action chain as numbered prose (render the `action_chain` JSON the same way watcher-creator Step 6 does — never dump JSON); recipient; memory strategy + `last_fact_key` presence ("last fired on <fact>"/"—"); expiry; per-fire approval ON/OFF; the **last 5 fires** —
+```bash
+sqlite3 /data/queue/alaska.db \
+  "SELECT fired_at, outcome, COALESCE(error,'') FROM watcher_fires \
+   WHERE watcher_id='W-N' ORDER BY fired_at DESC LIMIT 5;"
+```
+Append `cost_class` **only if the requester is Abhinav**.
+
+### `@alaska pause W-N`
+`UPDATE watchers SET status='paused' WHERE watcher_id='W-N' AND status='active';` Do **not** remove the cron — the dispatcher bails on a non-active row (Step 1), so a paused watcher's cron fires a cheap no-op. Reply: `Paused W-N — it won't act until you resume it.`
+
+### `@alaska resume W-N`
+`UPDATE watchers SET status='active' WHERE watcher_id='W-N' AND status='paused';` (Event watchers resume too — the poller skips non-active rows, so this just re-includes it.) Reply: `Resumed W-N.`
+
+### `@alaska delete W-N`
+`UPDATE watchers SET status='cancelled' WHERE watcher_id='W-N';` then, for a cron-type watcher with a non-NULL `openclaw_cron_id`, call the in-session **`cron.remove`** on that id (event watchers have no per-watcher cron — skip). Reply: `Deleted W-N.` (We soft-cancel + remove the cron rather than hard-DELETE the row, so `watcher_fires` history stays referentially intact.)
+
+### `@alaska modify W-N: <change>`
+After the authority check, parse the change and `UPDATE` the affected fields. Then:
+- **Trigger changed** (schedule/event): `cron.remove` the old `openclaw_cron_id`, then `cron.add` the new one (re-roll stagger), and store the new id — reuse watcher-creator Step 8b/8c.
+- **Cost class rises** (crosses >$3/day, OR adds an external write, OR changes recipient away from the creator): re-gate — set `status='pending_approval'` and route to Abhinav (watcher-creator Step 7). Modify alone is not re-activation in that case.
+- **Otherwise** (description, volume_cap, memory, recipient still self, cost unchanged): apply in place, reply `Updated W-N.`
+
+### `@alaska watcher templates`
+List the pre-built templates from `/data/skills/watcher-creator/templates/*.json` — read each file's `display_name` + `description` (do not hardcode the list; there are 5 today: bug-cluster, customer-signal, stale-task, deploy-impact, cross-person-task-assign). If a template carries a `gated` field, append `(not ready yet — <gated.reason>)`.
+
+### `@alaska activate <template>`
+Route to watcher-creator: read `/data/skills/watcher-creator/SKILL.md` and run its template-activation path (Step 6) for `<template>` — it reads the template JSON, asks only `parameters_to_ask`, and runs the normal draft→confirm→approve→activate flow. slack-commands does nothing beyond routing.
 
 ## Code & repo questions
 

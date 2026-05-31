@@ -1,0 +1,15 @@
+{
+  "id": "bug-cluster",
+  "display_name": "Bug Cluster Watcher",
+  "description": "Weekly bug topic clustering — alerts if any topic has 3+ reports in past 7 days",
+  "trigger": {"type": "cron", "expr": "0 16 * * 5", "tz": "Asia/Kolkata"},
+  "action_chain": [
+    {"step": "load_knowledge", "kb_files": ["integrations/notion.md", "playbooks/common-queries.md"]},
+    {"step": "invoke_skill", "skill": "thinker", "args": {"action": "cluster_bugs_by_topic", "window_days": 7}, "output_var": "clusters"},
+    {"step": "format", "template": "bug_cluster_report", "args": {"clusters": "{{clusters}}", "threshold": 3}, "output_var": "report"},
+    {"step": "send_dm", "to": "{{creator}}", "content": "{{report}}", "skip_if_empty": true}
+  ],
+  "memory_strategy": "strict_entity_set",
+  "cost_class": "free",
+  "parameters_to_ask": []
+}
