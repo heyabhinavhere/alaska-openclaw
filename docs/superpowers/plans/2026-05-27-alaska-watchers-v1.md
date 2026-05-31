@@ -26,6 +26,27 @@
 
 ---
 
+## Gen 1 — locked updates (2026-05-31)
+
+> This plan was written 2026-05-27. The updates below (naming, autonomy rung, the 5th template, the KB gate now satisfied, the `data-models/` deletion, the Phase-B pre-flight) **supersede** the relevant parts further down. Apply them during the build. *(Watcher generations are now `Gen 1`, `Gen 2`, … — `V` is reserved for Alaska's product versions V4/V5. Branch/skill names below can stay; only the concept is renamed.)*
+
+**1. Autonomy rung (NEW — ship Rung 0 + Rung 1; Rung 2 = Gen 2).** A clean name for the per-fire approval dimension, plus a future promotion path. Add to the `watchers` schema (W0.1, done below):
+- **Rung 0 = draft-only** (`per_fire_approval=1`): every fire pauses at `draft_for_approval` and waits for a human yes. For external sends / variable-cost / risky actions.
+- **Rung 1 = act-and-report** (`per_fire_approval=0`): fires, acts, reports after. For read-only / internal / informational actions (reports, alerts, nudges). **Default.**
+- **Rung 2 = earned autonomy** — a Rung-0 watcher promoted to act without per-fire approval after a clean track record. **NOT in Gen 1** — the column exists now as the baseline so Gen 2 adds "graduation" (`@alaska graduate W-N`) with no migration. watcher-creator sets the rung (0 or 1) at creation by action risk; dispatcher reads it (rung 0 → pause for approval; rung 1 → act). Gen 1 rejects `autonomy_rung=2` at creation.
+
+**2. Templates — all 5 ship (W1.2 adds a 5th).** The 4 below PLUS **`cross-person-task-assign.json`** — the folded-in Phase D (locked decision #15): "task assigned but unacked → escalate at 2h / 24h / 48h." Readiness:
+- **Work immediately:** `customer-signal`, `bug-cluster`.
+- **Dependency-gated (build + ship, but inert until the dep lands — flag at activation):** `cross-person-task-assign` + `stale-task` need the **Phase B task graph to actually fire** (DORMANT, 0 rows — see #6); `deploy-impact` needs a `deploy_succeeded` event Sandeep must wire. The watcher-creator's activation reply must say so honestly: *"Activated, but waiting on \<Phase B task data / a deploy event\> — I'll run but find nothing until then."*
+
+**3. KB gate — ✅ SATISFIED.** The hard 🛑 gate (Dependencies / Pre-flight P.2: "BON KB must be git-tracked on main") is **met** — the KB shipped to main in **PR #33 (2026-05-31)**, 18 files under `workspace/knowledge/`, deploying via `sync_workspace.sh`'s `WS_CONFIG_DIRS`. **W.1 is unblocked**; P.2's `git ls-files` checks now pass.
+
+**4. `data-models/` is deleted — fix template `kb_files`.** Do NOT copy the spec's `kb_files` verbatim in W1.2 (the spec predates the deletion). Fixes: `customer-signal`'s `data-models/card-linkage.md` → **`integrations/plaid.md`**; any `data-models/user.md` → **`integrations/user-profile-api.md`**; any `data-models/credit-profile.md` → **`integrations/array.md` + `definitions/personas.md`**. (W1.1's keyword map is already correct.)
+
+**5. Pre-flight P.0 — verify Phase B fires.** Dependencies marks Phase B "✅ live," but it's **wired-but-DORMANT (0 rows in prod)** — no task has been created end-to-end. Watchers lean on the task graph (`create_task` step; the cross-person + stale-task templates; the `task_status_changed` poller). **Before the task-graph-dependent pieces work, confirm Phase B actually fires** (a real DM/meeting commitment creates a task row). `customer-signal` + `bug-cluster` don't need it, so the build isn't blocked — but the task-dependent pieces stay inert until it's confirmed. (Tracked as Ops-4.)
+
+---
+
 ## Pre-flight
 
 ### P.1: Verify clean main, create branch
@@ -120,6 +141,8 @@ CREATE TABLE IF NOT EXISTS watchers (
   recipient           TEXT NOT NULL,
   per_fire_approval   BOOLEAN NOT NULL DEFAULT 0,
   per_fire_approver   TEXT,
+  autonomy_rung       INTEGER NOT NULL DEFAULT 1
+                      CHECK (autonomy_rung IN (0,1,2)),  -- Gen 1: 0=draft-only, 1=act-and-report; 2 (earned autonomy) is Gen 2
   volume_cap          INTEGER,
 
   -- Memory
