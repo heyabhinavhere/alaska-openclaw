@@ -1,6 +1,6 @@
 ---
 name: watcher-janitor
-description: Nightly reconciliation between OpenClaw's cron store and the watchers table. Removes orphan WATCHER crons (no live watcher row), self-heals watchers stuck mid-activation (write-ahead crashes), expires stale unapproved drafts, and reports anything it can't auto-fix to Abhinav. Never touches non-watcher (infrastructure) crons.
+description: Nightly reconciliation between OpenClaw's cron store and the watchers table. Removes orphan WATCHER crons (no live watcher row), self-heals watchers stuck mid-activation (write-ahead crashes), expires stale unapproved drafts, flags rogue off-pipeline crons (improvised instead of created via watcher-creator), and reports anything it can't auto-fix to Abhinav. Never auto-deletes anything outside the watcher pipeline.
 version: 1.0.0
 metadata:
   openclaw:
@@ -42,6 +42,18 @@ For each **watcher cron** whose `W-N` has NO row with `status IN ('active','paus
 
 This is the steady-state cleanup for a deleted/expired watcher whose cron lingered.
 
+### Step 3b: Flag rogue (off-pipeline) crons — defense-in-depth
+
+The rule that's supposed to stop a hand-built recurring cron (a "report/alert" that should have gone through watcher-creator) is a prompt instruction, so it can be skipped. This step catches that leak within 24h.
+
+A recurring cron is **legitimate** if it is EITHER:
+- a **watcher cron** (Step 2 — `Watcher W-N`, backed by a `watchers` row), OR
+- a **skill-runner** infra cron — its `payload.message` references a skill path (`/data/skills/.../SKILL.md`). Every real infra cron (Meeting Intelligence, Daily Pulse, Risk Radar, the event-pollers, this janitor, reminder-dispatcher, …) runs a skill, so it carries that reference.
+
+**Flag any cron that is NEITHER** — an ad-hoc inline-prompt cron with no `/data/skills/` reference and no matching watcher row. That's the signature of an improvised cron that should have been a watcher (e.g. a hand-built "Daily Metrics DM" that queries Amplitude and DMs a person). **Do NOT remove it.** DM Abhinav: `Found cron(s) created outside the watcher pipeline (no skill, no watcher row): <name> (<id>), schedule <expr>. Looks like a watch/report that bypassed watcher-creator — want me to delete it and set it up properly as a watcher?` Abhinav decides.
+
+This is a flag-only heuristic on purpose: a rare false positive is just a harmless question, and we never auto-delete a cron we don't fully understand. If a legitimate infra cron ever lacks a skill reference, add the reference (or confirm it once) so it stops being flagged — no allowlist to maintain.
+
 ### Step 4: Self-heal watchers stuck mid-activation (`pending_cron_create`)
 
 These are write-ahead crashes from watcher-creator Step 8 (row reserved + flipped to `pending_cron_create`, but `cron.add`/the final flip didn't finish). Only act on rows `created_at < datetime('now','-10 minutes')` so you never race an in-flight creation.
@@ -78,13 +90,14 @@ For each watcher `status='expired' AND openclaw_cron_id IS NOT NULL` whose cron 
 
 ### Step 8: Summary
 
-Log one audit line (task_events `comment` or stdout): `janitor: removed N orphan crons, healed P stuck activations, expired Q stale drafts, flagged R orphan watchers, swept S expired crons.` The Abhinav/creator DMs from Steps 4–6 are the only user-facing output; if nothing needed fixing, stay silent.
+Log one audit line (task_events `comment` or stdout): `janitor: removed N orphan crons, healed P stuck activations, expired Q stale drafts, flagged R orphan watchers + T rogue crons, swept S expired crons.` The Abhinav/creator DMs from Steps 3b–6 are the only user-facing output; if nothing needed fixing, stay silent.
 
 ## Anti-patterns
 
 1. **Never remove an infrastructure cron.** Only crons matching `^Watcher W-[0-9]+\b` / targeting watcher-dispatcher are in scope (Step 2). A wrongly-removed Meeting Intelligence or Daily Pulse cron is catastrophic — when unsure, leave it and (if truly suspicious) flag it to Abhinav.
 2. **Never delete watcher ROWS.** Reconcile via status changes (`cancelled`/`expired`/`active`) and `cron.remove`; `watcher_fires` history stays referentially intact.
 3. **Never auto-recreate an unexpected orphan.** Only the known mid-activation case (Step 4) self-heals; an active-with-NULL-cron (Step 6) gets human eyes, never a blind `cron.add`.
+3b. **Never auto-delete a flagged rogue cron (Step 3b).** It's a heuristic catch on an off-pipeline cron you may not fully understand — flag it to Abhinav and let him decide. Auto-deleting risks killing a legitimate infra cron that merely lacked a skill reference.
 4. **Never duplicate a cron.** In Step 4, always check the cron.list snapshot for an existing `Watcher W-N` before adding a new one.
 5. **Never reconcile against assumptions.** Operate on the actual `cron.list` snapshot taken in Step 1, not on what you expect to be there.
 6. **Never narrate internals to users.** The only user-facing messages are the targeted Abhinav/creator DMs (shared-toolkit Communication Standards).
