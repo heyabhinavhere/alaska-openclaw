@@ -446,14 +446,16 @@ Explicit watcher commands (matched by their grammar — not the intent classifie
 
 **Cost privacy:** cost (`cost_class`, any projection) is shown ONLY when the requester is Abhinav. Never expose it to a non-Abhinav creator in `show` or anywhere else (matches watcher-creator / dispatcher cost-privacy rules).
 
+**Report only what the row says — never assume.** A watcher's recipient, schedule, and status are whatever its `watchers` row stores — NOT inferred from where you're chatting. ("We're talking in #x, so all my watchers must post to #x" is exactly the wrong move that misled a real `@alaska watchers` reply.) Read every field you report from the table *this turn*; if you didn't read it, don't state it. Applies to `watchers`, `show`, and any "what watchers do I have" question.
+
 ### `@alaska watchers` — list the requester's active watchers
 ```bash
 sqlite3 /data/queue/alaska.db \
-  "SELECT watcher_id, description, trigger_type, status FROM watchers \
+  "SELECT watcher_id, description, trigger_type, status, recipient FROM watchers \
    WHERE created_by_slack_id='<requester>' AND status IN ('active','paused') \
    ORDER BY watcher_id;"
 ```
-Render one line per watcher: `W-N · <description> · <trigger summary> · <status>`. If none: `No active watchers — say "watch …" or "activate <template>" to create one.`
+Render one line per watcher, stating the **actual destination from each row's `recipient`** (resolve `slack_dm`→"your DM", `slack_channel`→the real "#channel-name", `email`→the address) — never assume "this channel": `W-N · <description> · <trigger summary> · → <destination> · <status>`. If none: `No active watchers — say "watch …" or "activate <template>" to create one.`
 
 ### `@alaska watchers all` — Abhinav-only
 If requester ≠ `U07GKLVA9FE`: `Only Abhinav can list everyone's watchers.` Else the same query without the `created_by_slack_id` filter, grouped by creator first name (from MEMORY.md).
