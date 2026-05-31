@@ -32,7 +32,9 @@ Categorize the request into one of:
 - **external action** — produces an external write (Customer.io email, channel post) with variable cost ("daily gift-card emails to failed Plaid users"). High-stakes: `autonomy_rung=0`.
 - **template activation** — `@alaska activate <template>`. Jump to Step 6 (Template activation) with the template's defaults pre-filled.
 
-Extract the raw signal: cadence/schedule, the metric or condition, the recipient (default = the DM sender), any volume hints, any time-bound ("for two weeks").
+Extract the raw signal: cadence/schedule, the metric or condition, the recipient (default = the sender), any volume hints, any time-bound ("for two weeks").
+
+**Draft EXACTLY what they asked — never a generic substitute.** Capture the specific metric, segment, filter, and fields they named — e.g. "users *below 600 credit score* who signed up, with their *name + phone number*" is a filtered PII list, NOT a generic "signup funnel" report. If you find yourself drafting a tidy template-shaped report that doesn't contain what they literally requested, you've misread — re-read their words and draft *that*. The draft's *What* must restate their actual ask.
 
 ### Step 2: LOAD RELEVANT KB
 
@@ -60,7 +62,12 @@ Using the KB, fill in the watcher's five properties:
    - cron: `{"expr": "0 9 * * 1", "tz": "Asia/Kolkata"}` (parse "every Monday 9 AM IST" → cron expr + IANA tz).
    - event: `{"event_name": "new_signup", "filter": {"credit_score": {"op": "<", "value": 580}}}`.
 2. **action_chain** — ordered JSON array of steps (Step 3a below).
-3. **recipient** — `{"type": "slack_dm"|"slack_channel"|"email", "id": "<U…|C…|email>"}`. Default `slack_dm` to the creator.
+3. **recipient** — `{"type": "slack_dm"|"slack_channel"|"email", "id": "<U…|C…|email>"}`. Default `slack_dm` to the creator; a channel request ("post here / to #x") sets `slack_channel`.
+   **PII GUARD (mandatory — this is customer financial data).** If the output would contain *individual* PII — names, phone numbers, emails, individual credit scores, addresses (as opposed to aggregate counts/rates) — it MUST NOT post to a public/team channel:
+   - **Default:** force `recipient` to `slack_dm` (the creator) and say so in the draft: `⚠️ This includes PII (names/phones), so it goes to your DM, not the channel.`
+   - **Only override:** the creator is **Abhinav** (`U07GKLVA9FE`) AND he explicitly confirms the channel AND that channel is **private** (verify with Slack `conversations.info` → `is_private=true`). Then allow `slack_channel`, stamp the override into the recipient JSON (`"pii_override_by":"U07GKLVA9FE","pii_override_at":"<ISO>"`), and warn in the confirmation: `⚠️ This posts customer names/phones/scores to private #x — everyone in it sees them.`
+   - **Refuse** PII to any *public* channel even for Abhinav: `I won't post customer PII to a public channel — private channel or DM only.` A non-Abhinav creator gets DM only (no channel override).
+   - Aggregate / non-PII output (counts, rates, "N users below 600 signed up") → channel freely, no guard.
 4. **memory_strategy** — `strict_entity_set` for "don't re-alert on the same thing" (signup alerts, bug clusters, stale tasks, gift-card sends); `none` for periodic reports that should always fire (weekly metric report, weekly chart).
 5. **Approval** — set `autonomy_rung` + `per_fire_approval` by action risk (Step 5).
 
