@@ -89,8 +89,11 @@ CREATE TABLE IF NOT EXISTS watcher_fires (
   fired_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   fact_key        TEXT,                               -- the fact that triggered this fire (memory dedup)
   outcome         TEXT NOT NULL
+                  -- skipped_pending_approval: a rung-0 (per_fire_approval) watcher's cron fired again
+                  -- while a prior fire's draft is still awaiting the creator's yes — don't double-prompt.
                   CHECK (outcome IN ('acted','skipped_memory','skipped_cooldown','skipped_empty',
-                                     'failed','awaiting_approval','approved','declined')),
+                                     'skipped_pending_approval','failed','awaiting_approval',
+                                     'approved','declined')),
   action_summary  TEXT,                               -- JSON of what was done
   error           TEXT                                -- populated if outcome='failed'
 );
