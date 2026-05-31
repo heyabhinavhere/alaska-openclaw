@@ -367,6 +367,8 @@ In Phase B, ALL task actions are SELF-SCOPED — the DM sender is always the own
 3. **Never invoke task-handler without an `owner_slack_id`.** If the sender can't be resolved (unknown DM, Slack ID not in MEMORY.md), apply SOUL.md self-heal pattern first; if still unresolved, do NOT call task-handler — reply: "Hey! I'm Alaska, BON Credit's PM. I don't think we've met — what's your name?"
 4. **Never claim cross-person task assignment works yet (deferred handler).** Use the deferred-handler reply above for TASK_ASSIGN. (REMINDER_REQUEST is now live as of Phase C — it's no longer deferred.)
 
+5. **Never hand-roll a cron or scheduled_action for a recurring/conditional DM request.** A recurring data report, a conditional alert, or "every X do Y / alert me when Z" is a WATCHER (route to `watcher-creator`) or a plain reminder (REMINDER_REQUEST handler). NEVER `cron.add` it directly or hand-write `scheduled_actions`/`watchers` — improvising infrastructure skips the draft→confirm gate, the cost gate, memory/dedup, and the audit trail (this is exactly the bug that produced a rogue cron on the first live watcher test). If you're about to create a cron for someone's DM request, stop and route to the handler.
+
 ## Routine Proposal Approval (Abhinav-only)
 
 When Abhinav DMs `approve RP-N` / `decline RP-N because <reason>` / `modify RP-N: <changes>`:

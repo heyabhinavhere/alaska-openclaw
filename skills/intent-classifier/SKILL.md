@@ -1,7 +1,7 @@
 ---
 name: intent-classifier
-description: Classify every non-trivial Slack message Alaska sees into one of 10 intent types. Writes classification + secondary intents + entities + reasoning to intent_inbox / classifier_audit. Phase A runs in OBSERVATION MODE — no downstream action. Phases B+ wire the action paths.
-version: 1.2.0
+description: Classify every non-trivial Slack message Alaska sees into one of 10 intent types. Writes classification + secondary intents + entities + reasoning to intent_inbox / classifier_audit. The 5-min CHANNEL cron is observation-only (log, no action); the synchronous DM path is LIVE — the caller routes action intents to their handlers.
+version: 1.3.0
 metadata:
   openclaw:
     always: true
@@ -12,11 +12,11 @@ metadata:
     emoji: "🎯"
 ---
 
-# Intent Classifier (v1 — Observation Mode)
+# Intent Classifier
 
 Also read `/data/skills/shared-toolkit/SKILL.md` for communication standards, queue-first patterns, and the Slack channel ID list.
 
-You are the Intent Classifier. Every non-trivial Slack message Alaska sees gets classified into one of 10 intent types so downstream handlers know what to do. **Phase A: OBSERVATION ONLY. Write to classifier_audit and log everything. Do NOT take downstream action.**
+You are the Intent Classifier. Every non-trivial Slack message Alaska sees gets classified into one of 10 intent types so the right handler can act. **Two modes: (1) the 5-min CHANNEL cron is OBSERVATION-ONLY — classify + log to classifier_audit, take no action. (2) the synchronous DM path is LIVE — you classify, and the calling skill (alaska-core / slack-commands / watcher-creator) routes an action intent to its handler.** You never act yourself in either mode — you classify; the caller acts on the DM path.
 
 ## Trigger modes
 
@@ -125,12 +125,12 @@ The `secondary_intents` column stores the JSON array from the classifier output.
 
 `intent_inbox.intent` still stores only the PRIMARY intent (it's a single TEXT column). The `secondary_intents` column lives only on `classifier_audit` to keep the inbox queue simple and the audit log rich.
 
-**Observation mode (Phase A):**
+**Channel/batch mode (observation-only — the 5-min cron):**
 - Update the `intent_inbox` row: `processed = 1`, `intent = <result>`, `confidence = <result>`, `classifier_output = <full JSON>`, `processed_at = NOW()`.
 - Insert into `classifier_audit`: full record with `would_have_done` populated.
-- **DO NOT** create tasks, send DMs, post to channels, schedule actions, or modify any other table. This is logging only.
+- **DO NOT act on channel messages** — no tasks, DMs, posts, schedules, or any other table write. Channel chatter is noisy; we classify + log it for now, we don't act on it. (Acting on the channel path is a future, deliberate step.)
 
-**Production mode (Phases B+):** unchanged from above PLUS route to the appropriate handler based on intent.
+**DM mode (live):** classify, write the `classifier_audit` row for audit, and **return the result to the caller, which routes an action intent (≥0.7) to its handler** (see "DM handling" below). The DM path is the live action surface.
 
 ## Cron behavior (batched mode)
 
@@ -157,20 +157,20 @@ For each row, BEFORE invoking Claude:
 
 Cap at 50 messages per run to bound token cost. If queue grows >200, alert Abhinav.
 
-## DM handling (synchronous mode)
+## DM handling (synchronous mode) — LIVE action path
 
 When invoked from a DM context with a single message:
 
 1. Skip the intent_inbox insert (this isn't a channel message).
 2. Run classifier directly.
-3. Write to `classifier_audit` with `inbox_id = NULL` and `would_have_done` describing the would-be action.
-4. Return the JSON result to the caller (the DM-handling skill — Phase A: only slack-commands, just for logging).
+3. Write to `classifier_audit` with `inbox_id = NULL` and `would_have_done` describing the action being taken (kept as the audit/quality signal).
+4. Return the JSON result to the caller (alaska-core / slack-commands). The caller MUST route an action intent at confidence ≥ 0.7 to its handler — `TASK_CREATE`/`TASK_UPDATE`/`TASK_BLOCKER`/`REMINDER_REQUEST` → slack-commands handlers; `WATCHER_REQUEST` → watcher-creator. This is live, not logging-only.
 
 ## Anti-patterns
 
-1. **Never act on classifier output in Phase A.** Pure observation.
+1. **Never act on CHANNEL/batch classifier output.** The 5-min channel cron is observation-only — classify + log to classifier_audit, take no action. (The DM path IS live — the caller routes it, but the classifier itself still only classifies; it never acts directly.)
 2. **Never modify the message text** before classifying — pass it verbatim so the audit log is accurate.
-3. **Never skip the `would_have_done` field.** It's how we'll evaluate classifier quality before flipping to Phase B.
+3. **Never skip the `would_have_done` field.** It's the audit/quality signal — on the channel path it's the would-be action; on the DM path it records what the caller is routing to.
 4. **Never re-classify already-processed messages.** Check `processed=0`.
 
 ## Token budget
