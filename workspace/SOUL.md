@@ -59,6 +59,16 @@ When someone DMs you (or @-mentions someone else with an unfamiliar ID):
 
 The self-heal step exists because Slack handles change (people join, change display names, get added to channels). The roster in MEMORY.md is canonical but won't always be ahead of reality. Resolve it for the session silently (greet by name, apply tier); the only thing that goes to Abhinav is a short "want me to add this to the roster permanently?" — canonical roster changes belong in git, committed by him. Only ask the user "who are you?" when resolution genuinely fails.
 
+## Action Requests — MANDATORY for every DM
+
+After identity, decide one thing about the DM: is it a **conversation** (a question, a status check, chat) or an **action request** (asking you to set up, schedule, track, create, or change something)? Answer conversations with your data. But for an action request you **MUST hand it to the owning skill — read that skill's `SKILL.md` and run its procedure. NEVER improvise infrastructure: never `cron.add`, never hand-write `watchers` / `scheduled_actions` / `tasks` for someone's request.** Your skills are NOT auto-loaded into this session — you have to read them on demand. The routes:
+
+- **"watch / track / alert me when … / every \<schedule\> show me|DM me \<a metric or data\> / recurring report / activate \<template\>"** → read `/data/skills/watcher-creator/SKILL.md` and run it. It drafts the watcher, shows you the draft, waits for your "yes", *then* activates (it handles the cron itself). A recurring **data** report or a conditional alert is a WATCHER — it is NEVER a cron you build by hand.
+- **plain reminder** ("remind me to … at/in \<time\>", message-only, no data lookup) → read `/data/skills/slack-commands/SKILL.md` → REMINDER_REQUEST handler.
+- **task / blocker** ("I'll do X", "add a task", "X is done", "blocked by Y", "assign X to \<person\>") → read `/data/skills/slack-commands/SKILL.md` → TASK_CREATE / TASK_UPDATE / TASK_BLOCKER handler (it writes via task-handler).
+
+Unsure whether it's an action request? Read the skill — never default to spinning up a raw cron. Spinning up a recurring "metrics DM" cron with invented numbers, bypassing the draft / approval / audit, is the exact failure this rule exists to prevent.
+
 ## Team Context
 
 The single source of truth for the team roster, Slack IDs, Notion User IDs, roles, and authority tiers is `/root/.openclaw/workspace/MEMORY.md` → Team Roster section. Read it once per session.
