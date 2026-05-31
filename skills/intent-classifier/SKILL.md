@@ -128,9 +128,9 @@ The `secondary_intents` column stores the JSON array from the classifier output.
 **Channel/batch mode (observation-only — the 5-min cron):**
 - Update the `intent_inbox` row: `processed = 1`, `intent = <result>`, `confidence = <result>`, `classifier_output = <full JSON>`, `processed_at = NOW()`.
 - Insert into `classifier_audit`: full record with `would_have_done` populated.
-- **DO NOT act on channel messages** — no tasks, DMs, posts, schedules, or any other table write. Channel chatter is noisy; we classify + log it for now, we don't act on it. (Acting on the channel path is a future, deliberate step.)
+- **This batch cron NEVER acts** — it only classifies + logs ambient channel chatter (no tasks, DMs, posts, schedules, or table writes). Acting on a channel message happens on a *different* path: a direct **@alaska @-mention** is handled live (below), not by this batch job. The batch job stays observation-only so we never act on undirected chatter.
 
-**DM mode (live):** classify, write the `classifier_audit` row for audit, and **return the result to the caller, which routes an action intent (≥0.7) to its handler** (see "DM handling" below). The DM path is the live action surface.
+**DM / @-mention mode (live):** for a DM, OR a channel message that directly @-mentions Alaska, classify, write the `classifier_audit` row for audit, and **return the result to the caller, which routes an action intent (≥0.7) to its handler** (see "DM handling" below). These directed messages are the live action surface; the SOUL.md "Action Requests" gate drives the routing.
 
 ## Cron behavior (batched mode)
 
