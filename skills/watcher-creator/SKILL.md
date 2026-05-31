@@ -160,9 +160,7 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 Confirm "yes", or edit: "change time to 10 AM", "cap at 30", "expire after Dec 31".
 ```
 
-**Template activation** lands here too: pre-fill from the template JSON, ask only its `parameters_to_ask`, then present. For dependency-gated templates, the activation/confirmation reply must honestly flag the gap:
-- `cross-person-task-assign`, `stale-task` → need Phase B task data: `Activated, but waiting on Phase B task data — I'll run but find nothing until tasks start flowing.`
-- `deploy-impact` → needs a deploy event: `Activated, but waiting on a deploy event — I'll run but find nothing until deploys are wired.`
+**Template activation** lands here too: read the template JSON from `/data/skills/watcher-creator/templates/<id>.json`, pre-fill its fields, ask only its `parameters_to_ask`, map its `trigger` → `trigger_type`+`trigger_config` and its `action_chain`/`memory_strategy`/`cost_class` onto the watcher, then present. If the template carries a **`gated`** field, the activation/confirmation reply MUST honestly flag it: `Activated, but <gated.reason>.` (The `gated` field is the single source of truth for readiness — don't hardcode a template list here. Current gates: `stale-task` + `cross-person-task-assign` → Phase B task data; `deploy-impact` → a deploy event.)
 
 ### Step 7: CHECK APPROVAL GATE ($3/day) + cost projection
 

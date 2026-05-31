@@ -1,0 +1,15 @@
+{
+  "id": "customer-signal",
+  "display_name": "Customer Signal Watcher",
+  "description": "Daily Amplitude funnel deltas — alerts on ≥15% drop at any step vs 14-day baseline",
+  "trigger": {"type": "cron", "expr": "0 3 * * *", "tz": "Asia/Kolkata"},
+  "action_chain": [
+    {"step": "load_knowledge", "kb_files": ["integrations/amplitude.md", "definitions/metrics.md", "integrations/plaid.md"]},
+    {"step": "invoke_skill", "skill": "amplitude-analyst", "args": {"query": "funnel_with_baseline", "funnel_id": "{{funnel_id}}", "baseline_days": 14}, "output_var": "funnel"},
+    {"step": "format", "template": "funnel_delta_alert", "args": {"funnel": "{{funnel}}", "threshold_pct": 15}, "output_var": "alert"},
+    {"step": "send_dm", "to": "{{creator}}", "content": "{{alert}}", "skip_if_empty": true}
+  ],
+  "memory_strategy": "strict_entity_set",
+  "cost_class": "low",
+  "parameters_to_ask": ["Which funnel? (card_linkage / signup / activation)"]
+}

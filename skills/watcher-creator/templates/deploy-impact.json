@@ -1,0 +1,16 @@
+{
+  "id": "deploy-impact",
+  "display_name": "Deploy Impact Watcher",
+  "description": "On every deploy event, snapshot key metrics before/after and report delta",
+  "trigger": {"type": "event", "event_name": "deploy_succeeded", "filter": {"repo": "{{repos}}"}},
+  "action_chain": [
+    {"step": "load_knowledge", "kb_files": ["integrations/amplitude.md", "definitions/metrics.md"]},
+    {"step": "invoke_skill", "skill": "amplitude-analyst", "args": {"query": "metric_snapshot", "metrics": ["DAU", "card_linkage_rate", "session_length"], "window": "24h", "anchor": "{{event.timestamp}}"}, "output_var": "snapshot"},
+    {"step": "format", "template": "deploy_impact_report", "args": {"snapshot": "{{snapshot}}", "deploy_meta": "{{event}}"}, "output_var": "report"},
+    {"step": "send_dm", "to": "{{creator}}", "content": "{{report}}"}
+  ],
+  "memory_strategy": "none",
+  "cost_class": "low",
+  "parameters_to_ask": ["Which repos to watch? (default: all 9 BON repos)"],
+  "gated": {"on": "deploy_succeeded_event", "reason": "waiting on a deploy event — I'll run but find nothing until deploys are wired"}
+}
