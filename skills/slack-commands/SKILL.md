@@ -340,6 +340,14 @@ Reply: 'approve RP-N' / 'decline RP-N because <reason>' / 'modify RP-N: <changes
 Expires in 7 days if no response.
 ```
 
+### WATCHER_REQUEST handler
+
+Triggered by: "watch X", "track X and do Y", "alert me when Z", "every Monday show me …", "every Tuesday create …", or "@alaska activate <template>" — the classifier's WATCHER_REQUEST label. (A bare reminder with no data query is REMINDER_REQUEST, not this — see the REMINDER-vs-WATCHER disambiguation rule in intent-classifier.)
+
+1. Read `/data/skills/watcher-creator/SKILL.md` and execute its procedure end-to-end.
+2. watcher-creator owns the entire conversational flow — parse intent, load the BON KB, draft the watcher, run its single clarifier round, route the $3/day approval gate, and (on confirmation) reserve the `watchers` row and `cron.add`. slack-commands does NOTHING here beyond routing.
+3. Return watcher-creator's reply text verbatim as the DM response — no narration or summaries of your own.
+
 ### STATUS_QUERY / DECISION_RECORDED / NON_WORK_CHAT / AMBIGUOUS
 
 These intents are NOT handled here in Phase B. Fall through to the existing slack-commands sections (Status Check, My Tasks, Help, General Questions). The classifier output is still logged to `classifier_audit` per Phase A observation mode — we just don't take action.
