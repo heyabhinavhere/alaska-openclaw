@@ -398,6 +398,44 @@ If the proposal has expired (`expires_at < now()` AND `status='pending'`):
 - DM the proposer once: `Your routine proposal RP-N expired after 7 days with no response from Abhinav. Send it again when you want to revisit.`
 - This expiration check can run on every routine-proposal cron tick (see C5) or lazily on the next approval-reply attempt.
 
+## Watcher Approval (creation gate + per-fire)
+
+Two distinct watcher approval grammars land here. **Disambiguate by the word `fire`:** `approve W-N fire` is a per-fire approval (a specific drafted run); `approve W-N` (no `fire`) is the creation gate for a `>$3/day`/external/other-recipient watcher. They act on different objects and have different approvers, so check the grammar first.
+
+### A. Creation gate — `approve W-N` / `decline W-N because <reason>` / `modify W-N: <changes>` (Abhinav-only)
+
+This is the reply to watcher-creator's Step 7 routing DM (a watcher sitting at `status='pending_approval'`).
+
+1. **Verify the sender is Abhinav** (`U07GKLVA9FE`). If not: `Only Abhinav can approve watchers.` Stop.
+2. **Look up the watcher.** `SELECT status FROM watchers WHERE watcher_id='W-N';` If no row: `No watcher W-N.` If `status != 'pending_approval'`: `W-N is already <status>.` Stop. (Idempotent — a second `approve` after activation is a no-op.)
+3. **On `approve`:** Read `/data/skills/watcher-creator/SKILL.md` and execute its **Step 8** for W-N — the row is already reserved at `pending_approval`, so Step 8 stamps `approved_by_slack_id='U07GKLVA9FE'` + `approved_at`, transitions `pending_approval → pending_cron_create → cron.add → active`, and sends the Step 8d confirmations to the creator and Abhinav. Do NOT re-implement the activation SQL here — delegate to watcher-creator so the write-ahead lifecycle stays in one place.
+4. **On `decline`:** parse the reason (after `because`/`—`/`:`), then execute watcher-creator **Step 9** for W-N (`status='cancelled'`, `decline_reason`, DM the creator). No cron exists yet (decline precedes activation), so nothing to remove.
+5. **On `modify`:** parse the change, `UPDATE` the reserved row's drafted fields (keep `status='pending_approval'`), and re-DM Abhinav the updated proposal in watcher-creator Step 7 format. Modify alone is NOT activation — a final `approve W-N` is still required.
+
+### B. Per-fire approval — `approve W-N fire` / `decline W-N fire <reason>` / `modify W-N fire: <change>` (creator-only)
+
+This is the reply to a rung-0 watcher's `awaiting_approval` draft (dispatcher Step 7). The approver is the watcher's **creator** (locked decision #14), not necessarily Abhinav.
+
+1. **Look up the watcher + the pending fire.**
+   ```bash
+   sqlite3 /data/queue/alaska.db \
+     "SELECT created_by_slack_id, status FROM watchers WHERE watcher_id='W-N';"
+   sqlite3 /data/queue/alaska.db \
+     "SELECT id, fact_key, action_summary FROM watcher_fires \
+      WHERE watcher_id='W-N' AND outcome='awaiting_approval' ORDER BY fired_at DESC LIMIT 1;"
+   ```
+2. **Authority check:** the replying user must equal `watchers.created_by_slack_id`. If not: `Only the watcher's creator can approve its fires.` Stop.
+3. If no `awaiting_approval` fire row: `Nothing's pending approval for W-N.` Stop. If the watcher's `status != 'active'` (paused/expired/cancelled since the draft): `W-N is <status> now — not sending.` and `UPDATE` the fire `outcome='declined'`, `action_summary` noting `watcher_inactive`. Stop.
+4. **On `approve`:** execute the remaining acting steps recorded in the fire's `action_summary` (the draft + resolved args + remaining steps the dispatcher stored), following **watcher-dispatcher Step 8 acting+record semantics**. Then:
+   - `UPDATE watcher_fires SET outcome='approved', action_summary=<append result> WHERE id=<fire_id>;`
+   - Apply the memory update the dispatcher deferred for rung-0 (its anti-pattern #7 — memory advances only on a real action): `UPDATE watchers SET memory_state=<{"last_fact_key":"<fire fact_key>","last_fired_at":"<now>"}>, last_fired_at=CURRENT_TIMESTAMP, fire_count=fire_count+1, last_action_summary=<...> WHERE watcher_id='W-N';`
+   - Reply to the creator (one line): `Sent W-N.`
+   - On execution failure: `UPDATE` the fire `outcome='failed'`, `error=<short>`; DM Abhinav once; do NOT advance `last_fact_key` (next scheduled fire re-drafts).
+5. **On `decline`:** parse the reason; `UPDATE watcher_fires SET outcome='declined', action_summary=<reason> WHERE id=<fire_id>;`. No send, and do NOT touch `memory_state` — the next scheduled fire should re-draft fresh. Reply: `Skipped W-N this round.`
+6. **On `modify`:** parse the change, re-draft with it, DM the creator the new draft, and keep `outcome='awaiting_approval'` (`UPDATE` the fire's `action_summary` to the new draft). Re-approval required.
+
+**Anti-patterns (watcher approval):** never let a non-creator approve a per-fire draft, or a non-Abhinav approve a creation gate. Never advance `memory_state.last_fact_key` on a decline or a failure. Never re-implement watcher-creator's activation or the dispatcher's acting logic here — delegate/follow them so there's one source of truth. Never double-send: the `awaiting_approval → approved/declined` transition is the lock; if the fire row is no longer `awaiting_approval`, it was already resolved.
+
 ## Code & repo questions
 
 When someone asks about source code, a bug's location, "what does function X do," "where is Y," or to trace logic across the codebase:
