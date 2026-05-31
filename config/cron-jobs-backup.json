@@ -553,6 +553,31 @@
         "mode": "none"
       },
       "state": {}
+    },
+    {
+      "id": "080bed83-f8d2-4f3d-bcd7-a63898fc95de",
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "name": "Watcher Janitor",
+      "enabled": true,
+      "createdAtMs": 0,
+      "updatedAtMs": 0,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 4 * * *",
+        "tz": "UTC"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run /data/skills/watcher-janitor/SKILL.md procedure.",
+        "timeoutSeconds": 180
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "state": {}
     }
   ]
 }
