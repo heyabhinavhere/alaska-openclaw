@@ -25,7 +25,11 @@ CREATE TABLE IF NOT EXISTS watchers (
   created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   created_from_msg     TEXT,                          -- Slack permalink to the original request
   status               TEXT NOT NULL
-                        CHECK (status IN ('pending_approval','active','paused','expired','cancelled')),
+                        -- Lifecycle: pending_approval (id reserved at draft; awaiting self/Abhinav confirm)
+                        --   -> pending_cron_create (confirmed; cron registration in flight — write-ahead marker,
+                        --      row exists with openclaw_cron_id NULL; janitor reconciles if stuck here)
+                        --   -> active -> paused/expired ; or pending_approval -> cancelled (declined).
+                        CHECK (status IN ('pending_approval','pending_cron_create','active','paused','expired','cancelled')),
   cost_class           TEXT NOT NULL
                         CHECK (cost_class IN ('free','low','medium','high')),
   approved_by_slack_id TEXT,                          -- NULL if self-approved

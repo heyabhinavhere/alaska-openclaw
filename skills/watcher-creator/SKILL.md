@@ -115,9 +115,32 @@ This is the single most important creation-time decision. **You set the rung; th
 - **`autonomy_rung=1` + `per_fire_approval=0`** (act-and-report — fires, acts, reports after) for **read-only / internal / informational** actions: reports, alerts, nudges, charts, DMs, channel posts of internal data, `create_task`. **This is the default.**
 - **NEVER set `autonomy_rung=2`.** Rung 2 is earned-autonomy / graduation — Gen 2 only. The column exists now as the baseline; reject any request to create at rung 2 (there's no UX for it in Gen 1 anyway).
 
-### Step 6: PRESENT DRAFT (plain English)
+### Step 6: RESERVE THE ID, THEN PRESENT THE DRAFT
 
-Render the draft for the creator. NO JSON, NO cost (cost is private — Step 7). Format:
+**6a. Reserve a stable `W-N` id.** Roll the stagger and INSERT the fully-drafted row at `status='pending_approval'` (`openclaw_cron_id` NULL, `approved_*` NULL) — *before* the id is ever shown. This makes the draft, the Abhinav approval DM, and Abhinav's later `approve/decline/modify W-N` all resolve to the same row (without it, `W-N = MAX+1` could shift between the DM and a later insert and resolve to the wrong watcher). Escape every free-text field per shared-toolkit §1.5 (`q="'"; qq="''"; field_esc="${field//$q/$qq}"`):
+
+```bash
+STAGGER=$(python3 -c "import random; print(random.randint(0,300))")   # thundering-herd offset vs maxConcurrentRuns=8
+
+WATCHER_ID=$(sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT 'W-' || COALESCE(MAX(CAST(SUBSTR(watcher_id, 3) AS INTEGER)) + 1, 1) FROM watchers;")
+
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  INSERT INTO watchers \
+    (watcher_id, description, created_by_slack_id, created_from_msg, status, cost_class, \
+     trigger_type, trigger_config, starts_at, expires_at, \
+     action_chain, recipient, per_fire_approval, per_fire_approver, autonomy_rung, volume_cap, \
+     memory_strategy, knowledge_sources, stagger_seconds) \
+  VALUES \
+    ('$WATCHER_ID', '$description_esc', '$creator_id', '$permalink_esc', 'pending_approval', '$cost_class', \
+     '$trigger_type', '$trigger_config_esc', $starts_at_or_null, $expires_at_or_null, \
+     '$action_chain_esc', '$recipient_esc', $per_fire_approval, $per_fire_approver_or_null, $autonomy_rung, $volume_cap_or_null, \
+     '$memory_strategy', '$knowledge_sources_esc', $STAGGER);"
+```
+
+`approved_by_slack_id`/`approved_at` stay NULL through the draft and stay NULL forever for self-approved watchers — that NULL *is* the "self-approved" signal (schema line 31). If the creator edits the draft ("change time to 10 AM", "cap at 30"), `UPDATE` the reserved row's fields and re-present — never allocate a new id.
+
+**6b. Present the draft** for the creator. NO JSON, NO cost (cost is private — Step 7). Format:
 
 ```
 *Watcher W-N* (draft — confirm to activate):
@@ -147,7 +170,7 @@ Project the watcher's **monthly cost** = (sum of per-step costs) × fire frequen
 
 Decide the route:
 
-- **Self-approve** (creator confirms in Step 6): projected **≤ $3/day** AND no external write AND recipient == creator. Wait for the creator's "yes" → activate (Step 8).
+- **Self-approve** (creator confirms the draft): projected **≤ $3/day** AND no external write AND recipient == creator. Wait for the creator's "yes" → activate (Step 8). The reserved row stays at `pending_approval` until then.
 - **Route to Abhinav**: projected **> $3/day**, OR the chain contains an external write (`send_email_cio`, `send_channel` to a public channel), OR recipient ≠ creator. Reply to the creator: `This needs Abhinav to sign off — flagged as W-N pending.` Then DM Abhinav with the **only** place cost ever appears:
 
 ```
@@ -165,40 +188,24 @@ Reply: 'approve W-N' / 'decline W-N because <reason>' / 'modify W-N: <changes>'.
 
 **Cost values appear ONLY in this Abhinav DM** — never to the creator, never in the Step 6 draft, never in confirmations, never in `@alaska show W-N` for non-Abhinav callers.
 
-### Step 8: ON CONFIRMATION — insert row + cron.add (write-ahead, one flow)
+### Step 8: ON CONFIRMATION — activate (write-ahead transition)
 
-Triggered by the creator's "yes" (self-approve) OR Abhinav's `approve W-N` (gated). Never write the `watchers` row without creating the cron in the same flow.
+Triggered by the creator's "yes" (self-approve) OR Abhinav's `approve W-N` (gated). The row already exists at `pending_approval` (reserved in Step 6, `openclaw_cron_id` NULL); activation only moves it forward. **Never flip a cron-type watcher to `active` before its cron exists** — the write-ahead order below keeps the row ahead of the cron, so a crash leaves a reconcilable orphan, never a cron firing against a missing row.
 
-**8a. Roll stagger** (thundering-herd protection vs `maxConcurrentRuns=8`):
-
-```bash
-STAGGER=$(python3 -c "import random; print(random.randint(0,300))")
-```
-
-Shift the cron fire time by `STAGGER` seconds when you build the cron expression (e.g. "every Monday 9:00 AM IST" with stagger 127 → fires 9:02:07). The user won't notice the offset.
-
-**8b. Generate the W-N id + INSERT the row with `status='pending_cron_create'`, cron_id NULL** (write-ahead). Escape every free-text field per shared-toolkit §1.5 (`q="'"; qq="''"; field_esc="${field//$q/$qq}"`):
+**8a. Mark activation in flight** — flip to the `pending_cron_create` write-ahead marker (and stamp the approver iff Abhinav gated it):
 
 ```bash
-WATCHER_ID=$(sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
-  SELECT 'W-' || COALESCE(MAX(CAST(SUBSTR(watcher_id, 3) AS INTEGER)) + 1, 1) FROM watchers;")
-
 sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
-  INSERT INTO watchers \
-    (watcher_id, description, created_by_slack_id, created_from_msg, status, cost_class, \
-     approved_by_slack_id, approved_at, trigger_type, trigger_config, starts_at, expires_at, \
-     action_chain, recipient, per_fire_approval, per_fire_approver, autonomy_rung, volume_cap, \
-     memory_strategy, knowledge_sources, stagger_seconds) \
-  VALUES \
-    ('$WATCHER_ID', '$description_esc', '$creator_id', '$permalink_esc', 'pending_cron_create', '$cost_class', \
-     $approved_by_or_null, $approved_at_or_null, '$trigger_type', '$trigger_config_esc', $starts_at_or_null, $expires_at_or_null, \
-     '$action_chain_esc', '$recipient_esc', $per_fire_approval, $per_fire_approver_or_null, $autonomy_rung, $volume_cap_or_null, \
-     '$memory_strategy', '$knowledge_sources_esc', $STAGGER);"
+  UPDATE watchers SET status='pending_cron_create' \
+  WHERE watcher_id='$WATCHER_ID';"
+# Abhinav-gated approval: stamp it in the SAME update —
+#   SET status='pending_cron_create', approved_by_slack_id='U07GKLVA9FE', approved_at=CURRENT_TIMESTAMP
+# Self-approved watchers leave approved_by_slack_id / approved_at NULL (that NULL is the self-approved signal).
 ```
 
-> Note: `pending_cron_create` is a transient in-flow marker. If the migration's `status` CHECK rejects it, INSERT with `status='pending_approval'` instead (it's in the enum), then flip to `'active'` in 8d. The point is: the row exists with `openclaw_cron_id` NULL **before** the cron is created, so a crash leaves a recoverable orphan the janitor reconciles — never a cron firing against a missing row.
+**Event watchers** (`trigger_type='event'`) have no per-watcher cron — skip 8a–8b entirely and in 8c flip `pending_approval → active` directly (`openclaw_cron_id` stays NULL by design; the shared event-poller cron for that event type dispatches them).
 
-**8c. Call `cron.add`** (in-session OpenClaw tool call — only Alaska can; external HTTP callers are denied). Use the **canonical live shape** (matches all 14 production crons):
+**8b. Call `cron.add`** (in-session OpenClaw tool call — only Alaska can; external HTTP callers are denied). Shift the cron fire time by the row's `stagger_seconds` when building the expr (e.g. "every Monday 9:00 AM IST" with stagger 127 → fires 9:02:07; the user won't notice). Use the **canonical live shape** (matches all 14 production crons):
 
 ```json
 {
@@ -226,17 +233,16 @@ Non-negotiable fields:
 
 For a **time-bounded** watcher (`expires_at` set), OpenClaw `kind:"cron"` has no native expiry — also `cron.add` a `kind:"at"` one-shot at `expires_at` (`{"kind":"at","atMs":<epoch_ms>}`, `deleteAfterRun:true`) whose message tells the dispatcher to `expire watcher W-N` (it removes the main cron + sets `status='expired'`).
 
-**Event watchers** (`trigger_type='event'`) DON'T get a per-watcher cron — the shared event-poller cron for that event type dispatches them. Skip cron.add; leave `openclaw_cron_id` NULL by design and flip status straight to `'active'` in 8d.
-
-**8d. UPDATE the row with the returned cron id + flip to active** (store `result.jobId`, falling back to `result.id`):
+**8c. UPDATE the row with the returned cron id + flip to active** (store `result.jobId`, falling back to `result.id`):
 
 ```bash
 sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
   UPDATE watchers SET openclaw_cron_id='<jobId>', status='active' \
   WHERE watcher_id='$WATCHER_ID';"
 ```
+(Event watchers: no cron id was returned — `UPDATE watchers SET status='active' WHERE watcher_id='$WATCHER_ID';`, leaving `openclaw_cron_id` NULL.)
 
-**8e. Confirm in Slack** (no cost, one message):
+**8d. Confirm in Slack** (no cost, one message):
 - To the creator: `Watcher W-N active. <First fire: Monday 9 AM IST.> Reply "@alaska pause W-N" anytime, or "@alaska show W-N" for details.`
 - If Abhinav approved: also DM Abhinav `Activated W-N for <creator first name>.`
 
@@ -253,7 +259,7 @@ No cron was created (decline happens before activation), so there's nothing to r
 
 ## Anti-patterns
 
-1. **Never write the `watchers` row without `cron.add` in the same flow.** Use the write-ahead pattern (Step 8): INSERT with `openclaw_cron_id` NULL → `cron.add` → UPDATE with the cron id + `status='active'`. A row with no cron (for a cron-type watcher) is a silent dead watcher. (Event watchers are the sole exception — they ride the shared poller and have no per-watcher cron by design.)
+1. **Never leave a cron-type watcher at `active` without a cron.** Follow the write-ahead lifecycle: reserve at `pending_approval` (Step 6) → on confirmation `pending_cron_create` → `cron.add` → `active` + cron_id (Step 8). The only NULL-cron window is the transient `pending_cron_create`, which the janitor reconciles; a cron-type row at `active` with `openclaw_cron_id` NULL — or one stuck at `pending_cron_create` — is a silent dead watcher. (Event watchers are the sole exception — they ride the shared poller and carry no per-watcher cron by design.)
 2. **Never show cost to the creator.** Cost values live ONLY in Abhinav's approval DM (Step 7). Not in the draft, not in confirmations, not in `@alaska show`.
 3. **Never let a non-Abhinav user edit a KB file.** If a request is "change/update the knowledge base / edit `plaid.md`" and the sender isn't Abhinav (`U07GKLVA9FE`), refuse: `Knowledge base changes go through Abhinav directly.` Do not engage further.
 4. **Never bypass the $3/day gate.** Anything projected >$3/day, OR any external write, OR recipient ≠ creator routes to Abhinav. No self-approve shortcut.
