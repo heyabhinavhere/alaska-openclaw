@@ -44,7 +44,7 @@ This is where "proactive ambient coworker" actually gets built. **Two sub-phases
   - Gives Alaska domain fluency (knows "failed Plaid user", credit buckets, personas) so watcher/skill drafting stops interrogating.
   - **Prerequisite for D.2** — watchers read the KB.
   - Status: README + architecture + integrations drafted (`BON Credit Project/knowledge-v2/`, rough, untracked); remaining: `data-models/*`, `definitions/*`, `playbooks/*`, + integrations `notion`/`slack`/`moneyline`/`user-profile-api`.
-  - Principle: integration files = external-system facts + pointer; the **operating model lives once in `architecture.md`** (with current-vs-V4 framing). KB owner = Abhinav.
+  - Principle (capability-vs-workflow): KB files = "what is this + what can Alaska DO with it" (BON capabilities); the **operating model lives once in `docs/alaska-operating-model.md`** (with current-vs-V4 framing), NOT in the KB. `knowledge/architecture.md` stays pure BON product/system architecture. Integration files = external-system facts + a pointer to the operating-model doc / skill. KB owner = Abhinav.
   - Spec: `docs/superpowers/specs/2026-05-26-bon-knowledge-base.md`. Review: `docs/superpowers/research/2026-05-30-knowledge-v2-review.md`.
   - **Done when:** KB committed to repo `workspace/knowledge/` (git-tracked) → unblocks D.2.
 
@@ -60,7 +60,7 @@ This is where "proactive ambient coworker" actually gets built. **Two sub-phases
 
 ## The complete V4 write-path map (what feeds the task graph)
 
-ONE writer (`task-handler`), MANY feeders. This is the spine of `architecture.md`'s operating-model section.
+ONE writer (`task-handler`), MANY feeders. This is the spine of the operating-model doc (`docs/alaska-operating-model.md`).
 
 | Surface | Feeder | `source` | Phase | Acts today? |
 |---|---|---|---|---|

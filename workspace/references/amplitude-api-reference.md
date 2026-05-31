@@ -318,7 +318,7 @@ Additional step_names that fire but aren't in the main funnel: `otp_sent`, `otp_
 | `input_type` | `credgpt_message_sent` | "typed" or "suggestion" |
 | `message_length` | `credgpt_message_sent` | Character count |
 | `prompt_text` | `credgpt_suggested_prompt_tapped` | The suggested prompt text |
-| `matched_ai_response` | `chat_thread_processed` (Dev only) | The AI's response text |
+| `matched_ai_response` | `chat_thread_processed` (Prod + Dev) | The AI's response text |
 | `entry_point` | `credgpt_chat_started` | How the user entered chat |
 | `amount` | payment events | Dollar amount |
 | `total_amount` | payment events | Total dollar amount |
