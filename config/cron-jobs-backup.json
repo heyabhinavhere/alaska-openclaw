@@ -453,6 +453,106 @@
         "channel": "none"
       },
       "state": {}
+    },
+    {
+      "id": "669c6bc0-d8b7-458b-8538-73d8c3e91331",
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "name": "Event Poller \u2014 new_signup",
+      "enabled": true,
+      "createdAtMs": 0,
+      "updatedAtMs": 0,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/15 * * * *",
+        "tz": "UTC"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run /data/skills/event-poller/SKILL.md procedure for event_type=new_signup.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "state": {}
+    },
+    {
+      "id": "fd0c54bd-ba8c-4525-be2e-3e8c9a6d92d3",
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "name": "Event Poller \u2014 bug_closed",
+      "enabled": true,
+      "createdAtMs": 0,
+      "updatedAtMs": 0,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/30 * * * *",
+        "tz": "UTC"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run /data/skills/event-poller/SKILL.md procedure for event_type=bug_closed.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "state": {}
+    },
+    {
+      "id": "984c3c80-5b22-43a2-88c0-c73607f5bf0f",
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "name": "Event Poller \u2014 pr_merged",
+      "enabled": true,
+      "createdAtMs": 0,
+      "updatedAtMs": 0,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/30 * * * *",
+        "tz": "UTC"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run /data/skills/event-poller/SKILL.md procedure for event_type=pr_merged.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "state": {}
+    },
+    {
+      "id": "9cd00735-dbb1-44f4-bda9-1b9e22e0918d",
+      "agentId": "main",
+      "sessionKey": "agent:main:main",
+      "name": "Event Poller \u2014 task_status_changed",
+      "enabled": true,
+      "createdAtMs": 0,
+      "updatedAtMs": 0,
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/30 * * * *",
+        "tz": "UTC"
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Run /data/skills/event-poller/SKILL.md procedure for event_type=task_status_changed.",
+        "timeoutSeconds": 300
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "state": {}
     }
   ]
 }
