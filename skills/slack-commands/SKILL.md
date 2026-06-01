@@ -1,7 +1,7 @@
 ---
 name: slack-commands
-description: Handle team queries in Slack — status checks, blocker reports, shipped items, sprint info, and ad-hoc questions
-version: 1.1.0
+description: Handle team queries in Slack — status checks, blocker reports, shipped items, sprint info, cross-person task assignment + accept/decline handshake, and ad-hoc questions
+version: 1.2.0
 metadata:
   openclaw:
     always: true
@@ -282,9 +282,9 @@ For every DM Alaska receives, BEFORE falling through to the existing query/help 
 2. Classifier returns `{intent, confidence, entities, would_have_done}`.
 3. If `intent` is one of the action intents below AND `confidence >= 0.7`, run the matching handler. Otherwise fall through to the existing static commands (Status Check, Blocker Report, etc.) — those still work as before for low-confidence or non-action messages.
 
-**`source_ref` construction (used by all handlers below):** build a deterministic identifier from the inbound DM event payload — `slack:dm:<channel_id>:<message_ts>` (e.g., `slack:dm:D08QKABCD:1779042600.001200`). Do NOT call any Slack API to resolve a permalink in this skill. The deterministic form is stable, requires no extra call, and Doc Keeper / Thinker can lazily expand it to a permalink later when displaying in Notion. NEVER pass an empty `source_ref` — `tasks.source_ref` is a TEXT column but the audit log depends on it.
+**`source_ref` construction (used by all handlers below):** build a deterministic identifier from the inbound event payload — `slack:dm:<channel_id>:<message_ts>` for a DM (e.g., `slack:dm:D08QKABCD:1779042600.001200`), or `slack:channel:<channel_id>:<message_ts>` for a channel mention. Do NOT call any Slack API to resolve a permalink in this skill. The deterministic form is stable, requires no extra call, and Doc Keeper / Thinker can lazily expand it to a permalink later when displaying in Notion. NEVER pass an empty `source_ref` — `tasks.source_ref` is a TEXT column but the audit log depends on it.
 
-**Phase B handlers (DMs only — channel-level TASK_CREATE/UPDATE arrives in Phase D):**
+**Phase B self-create handlers (TASK_CREATE / TASK_UPDATE / TASK_BLOCKER are DM-only — channel-level self-create arrives in Phase D; the TASK_ASSIGN handler below works from either a DM or a channel mention):**
 
 ### TASK_CREATE handler
 
@@ -486,20 +486,69 @@ These are pure reads (no `task-handler`, no `tasks`/`blockers` writes). The clas
 
 These intents are NOT handled here in Phase B. Fall through to the existing slack-commands sections (Help, General Questions). The classifier output is still logged to `classifier_audit` per Phase A observation mode — we just don't take action.
 
+### TASK_ASSIGN handler
+
+Triggered by: "assign X to Pankaj", "Sandeep should do Y", "give the chart bug to Sai", "@alaska have Darwin pick up Z" — the classifier's TASK_ASSIGN label, where the work is assigned to **someone other than the sender**. This creates a task at `status='pending_acceptance'` and asks the assignee to accept it.
+
+1. **Resolve the assignee NAME → `owner_slack_id` via the MEMORY.md Team Roster** (first-name match, case-insensitive). Never guess an owner.
+   - **Not in the roster, or the message names no clear assignee** → ask, don't guess: `Who should I assign this to? (couldn't match "<name>" to the team)`. Stop — do not invoke task-handler.
+   - **Ambiguous** (the name matches more than one person, or the phrasing makes the assignee unclear) → ask the sender to disambiguate by first name. Stop.
+   - **Assignee resolves to an external person with no Slack ID** (e.g., Sai is `_external_` in the roster) → we can't DM them to accept. Reply: `<Name> is external — I can't route an acceptance to them. Want me to track it as your own task instead?` Stop (don't open a pending_acceptance task no one can accept).
+   - **Assignee == the sender** → this isn't a cross-person assign; treat it as a normal TASK_CREATE (self-owned) instead.
+2. Read `/data/skills/task-handler/SKILL.md`. Invoke task-handler with:
+   - `extraction`: the verbatim DM/message text (task-handler escapes free text per shared-toolkit §1.5 — pass it raw, don't pre-escape).
+   - `owner_slack_id`: the **assignee's** Slack ID (resolved in step 1).
+   - `creator_slack_id`: the **requester's** Slack ID (the sender).
+   - `assigner_slack_id`: the **requester's** Slack ID (same as creator here — this is what makes task-handler open the task at `pending_acceptance`).
+   - `source`: `slack_dm` if this came as a DM, `slack_channel` if from a channel mention.
+   - `source_ref`: per the preamble construction rule (`slack:dm:<channel_id>:<message_ts>` or `slack:channel:<channel_id>:<message_ts>`).
+   - `is_status_update`: `false`.
+   - `due_at_iso`: if the message carries a date hint, parse to ISO and pass; otherwise omit.
+3. task-handler returns `{task_id, action: "created_pending", status: "pending_acceptance", title, ...}`.
+4. **DM the assignee** (their Slack ID is the resolved `owner_slack_id`) — one line, assigner's first name from the roster:
+   > `<Assigner first name> assigned you <T-N>: <title>. Reply \`accept <T-N>\` or \`decline <T-N>\`.`
+5. **Confirm to the assigner** in the channel/thread they asked in — one line:
+   > `Assigned <T-N> to <assignee first name> — awaiting their acceptance.`
+
+This is the one place slack-commands legitimately initiates contact with a third party (the assignee) without the requester re-confirming — the assign request IS the instruction to do so, so the "don't loop in third parties unprompted" rule (below) is satisfied. Do not also @-mention anyone else.
+
+### Assignment acceptance — `accept T-N` / `decline T-N` (assignee-only)
+
+This is the reply to the TASK_ASSIGN DM (a task sitting at `status='pending_acceptance'`). Matched by the grammar `accept T-\d+` / `decline T-\d+` (case-insensitive) — it does NOT need the intent classifier. The replier is the **assignee** (the task's owner); task-handler enforces that.
+
+1. Parse the `T-N` from the message. Read `/data/skills/task-handler/SKILL.md`. Invoke task-handler with:
+   - `explicit_task_id`: the `T-N`.
+   - `acceptance`: `accept` or `decline` (from the verb).
+   - `owner_slack_id`: the **replier's** own Slack ID (already known from the inbound DM event — no name parsing).
+2. task-handler returns the handshake result (Step 3.5): `{task_id, action: "accepted"|"declined", status, title, owner_slack_id}` on success, or an `error` note (`not_owner` / `not_pending` / `no such task`).
+3. **On `accept`** (`action: "accepted"`):
+   - Reply to the assignee (one line): `Got it — <T-N> is now active.`
+   - **Notify the assigner** so they know it was picked up. Look up the task's assigner to get their Slack ID + the title:
+     ```bash
+     sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+       SELECT assigner_slack_id, title FROM tasks WHERE task_id='<T-N>';"
+     ```
+     DM that `assigner_slack_id` (resolve replier's first name via roster): `<Assignee first name> accepted <T-N>: <title>.` (Skip the DM if `assigner_slack_id` is null/empty or equals the assignee — nothing to notify.)
+4. **On `decline`** (`action: "declined"`):
+   - Reply to the assignee (one line): `Noted, <T-N> declined.`
+   - **Notify the assigner** so they can reassign (same lookup as above): DM the `assigner_slack_id`: `<Assignee first name> declined <T-N>: <title>. You'll want to reassign it.`
+5. **On an `error` note** — reply one line to the replier, no third-party notification:
+   - `not_owner` → `That's not your task to accept — <T-N> was assigned to someone else.`
+   - `not_pending` → `<T-N> isn't awaiting acceptance (it's <status>).`
+   - `no such task` → `I don't have a task <T-N>.`
+
+Notifying the assigner here is authorized for the same reason as the TASK_ASSIGN DM: the assigner explicitly started this handshake, so closing the loop back to them is part of the action they requested — not an unprompted third-party ping.
+
 ### Authority note
 
-In Phase B, ALL task actions are SELF-SCOPED — the DM sender is always the owner. Cross-person assignment (TASK_ASSIGN intent) is rejected with a one-line reply (no internal phase labels in the reply):
-
-> `I can't assign tasks across people yet. Share it with them directly and I'll pick it up from your next meeting.`
-
-(Internally: Phase D will replace this with the full TASK_ASSIGN workflow.)
+Self-scoped task actions (TASK_CREATE / TASK_UPDATE / TASK_BLOCKER) always treat the DM sender as the owner. Cross-person assignment is handled by the **TASK_ASSIGN handler** above (assignee accepts via `accept T-N` / `decline T-N` — see the reply grammar just above).
 
 ### Anti-patterns
 
 1. **Never write to `tasks` or `blockers` directly from this skill.** Always route through `task-handler` so dedup logic is consistent across surfaces.
 2. **Never reply with multi-line internal narration.** One line per acknowledgment, per shared-toolkit Slack discipline rules. Examples of BAD: "Let me check… I'll query the database… Done." GOOD: "Got it — T-42 marked done."
 3. **Never invoke task-handler without an `owner_slack_id`.** If the sender can't be resolved (unknown DM, Slack ID not in MEMORY.md), apply SOUL.md self-heal pattern first; if still unresolved, do NOT call task-handler — reply: "Hey! I'm Alaska, BON Credit's PM. I don't think we've met — what's your name?"
-4. **Never claim cross-person task assignment works yet (deferred handler).** Use the deferred-handler reply above for TASK_ASSIGN. (REMINDER_REQUEST is now live as of Phase C — it's no longer deferred.)
+4. **Cross-person assignment routes through the TASK_ASSIGN handler — never write `pending_acceptance` yourself.** Resolve the assignee via the roster (never guess; ask if unresolved/ambiguous/external), invoke task-handler with `assigner_slack_id`, then DM the assignee to `accept T-N` / `decline T-N`. The acceptance reply also routes through task-handler (it owns the owner-only guard) — slack-commands never flips a task's status directly. (REMINDER_REQUEST and TASK_ASSIGN are both live now — neither is deferred.)
 
 5. **Never hand-roll a cron or scheduled_action for a recurring/conditional DM request.** A recurring data report, a conditional alert, or "every X do Y / alert me when Z" is a WATCHER (route to `watcher-creator`) or a plain reminder (REMINDER_REQUEST handler). NEVER `cron.add` it directly or hand-write `scheduled_actions`/`watchers` — improvising infrastructure skips the draft→confirm gate, the cost gate, memory/dedup, and the audit trail (this is exactly the bug that produced a rogue cron on the first live watcher test). If you're about to create a cron for someone's DM request, stop and route to the handler.
 

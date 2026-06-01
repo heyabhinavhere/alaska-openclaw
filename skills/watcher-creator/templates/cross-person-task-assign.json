@@ -9,6 +9,5 @@
   ],
   "memory_strategy": "strict_entity_set",
   "cost_class": "free",
-  "parameters_to_ask": [],
-  "gated": {"on": "phase_b_task_data", "reason": "waiting on Phase B task data — I'll run but find nothing until cross-person task assignments start flowing"}
+  "parameters_to_ask": []
 }

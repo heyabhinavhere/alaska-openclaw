@@ -179,7 +179,7 @@ print('first', fires[0].strftime('%A %b %-d'), '| last', fires[-1].strftime('%A 
 "
 ```
 
-**Template activation** lands here too: read the template JSON from `/data/skills/watcher-creator/templates/<id>.json`, pre-fill its fields, ask only its `parameters_to_ask`, map its `trigger` → `trigger_type`+`trigger_config` and its `action_chain`/`memory_strategy`/`cost_class` onto the watcher, then present. If the template carries a **`gated`** field, the activation/confirmation reply MUST honestly flag it: `Activated, but <gated.reason>.` (The `gated` field is the single source of truth for readiness — don't hardcode a template list here. Current gates: `stale-task` + `cross-person-task-assign` → Phase B task data; `deploy-impact` → a deploy event.)
+**Template activation** lands here too: read the template JSON from `/data/skills/watcher-creator/templates/<id>.json`, pre-fill its fields, ask only its `parameters_to_ask`, map its `trigger` → `trigger_type`+`trigger_config` and its `action_chain`/`memory_strategy`/`cost_class` onto the watcher, then present. If the template carries a **`gated`** field, the activation/confirmation reply MUST honestly flag it: `Activated, but <gated.reason>.` (The `gated` field is the single source of truth for readiness — don't hardcode a template list here. Current gates: `deploy-impact` → a deploy event. `stale-task` + `cross-person-task-assign` were un-gated in V4 P3 once their handlers shipped — task-handler `query_stale`, follow-through `escalate_unacked_assignments`, and the cross-person assign path — and the task graph went live.)
 
 ### Step 7: CHECK APPROVAL GATE ($3/day) + cost projection
 

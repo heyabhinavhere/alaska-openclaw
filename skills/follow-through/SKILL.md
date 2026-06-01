@@ -1,7 +1,7 @@
 ---
 name: follow-through
-description: Agent 5 — Nudge task owners, escalate overdue items, detect stale tasks and invisible blockers, driven by the SQLite task graph (DAILY_STATE.md fallback)
-version: 2.0.0
+description: Agent 5 — Nudge task owners, escalate overdue items, detect stale tasks and invisible blockers, driven by the SQLite task graph (DAILY_STATE.md fallback). Also a read-only `escalate_unacked_assignments` action for the cross-person-assignment watcher.
+version: 2.1.0
 metadata:
   openclaw:
     requires:
@@ -20,6 +20,15 @@ Resolve every `owner_slack_id` → first name via the Team Roster in `MEMORY.md`
 You are the Follow-Through Engine. You monitor open tasks, nudge owners when things slip, and escalate when needed. **Max 2 nudges per person on the same item. After that → escalate to Abhinav DM privately.** Don't spam.
 
 **You are not a nag. You are a safety net.** Your nudges should feel helpful, not annoying. Always offer help, not just pressure.
+
+## Step 0: Action dispatch (read vs. write)
+
+Before anything else, branch on the `action` field in the invocation (mirrors the dispatch pattern in `task-handler` Step 0):
+
+- **If invoked with `action: escalate_unacked_assignments`** → run the "Escalation Mode: escalate_unacked_assignments" section below and **return its digest**. Do **NOT** run the normal daily-nudge flow (Steps 1–7). This mode is strictly **read-only** — follow-through writes nothing in it; the watcher that invoked it owns the `send_dm` and its own re-escalation dedup.
+- **If there is no `action`** → ignore Step 0 and run the normal daily-nudge flow starting at Step 1, exactly as today. The default behavior is 100% unchanged.
+
+Only `escalate_unacked_assignments` is implemented as an `action` here. Any other `action` value is not handled by this skill (e.g., `query_stale` lives in `task-handler`) — if an unrecognized `action` is passed, do not guess: return an error note and take no action.
 
 ## Trigger
 
@@ -288,3 +297,69 @@ If everything is on time with no stale tasks:
 ### Bulk Overdue (3+ tasks from same person)
 - Don't send 3 separate DMs
 - Combine into one: "Hey [Name], you have [X] tasks that need attention: [list]. Want to go through them together?"
+
+## Escalation Mode: escalate_unacked_assignments
+
+Reached only when Step 0 dispatched here (`action: escalate_unacked_assignments`). This mode escalates **cross-person task assignments the assignee hasn't acted on yet** — tasks sitting at `status='pending_acceptance'` where the `assigner_slack_id` is someone other than the `owner_slack_id` (assignee). It is **strictly read-only**: no INSERT/UPDATE/DELETE to `tasks`, `blockers`, `task_events`, or the `nudges`/`snoozes` tables runs here. follow-through only **senses and returns a digest** — the invoking watcher (`skills/watcher-creator/templates/cross-person-task-assign.json`) sends the `send_dm {{result.digest}}` (with `skip_if_empty`) and its own `strict_entity_set` memory handles re-escalation dedup. **Do NOT try to dedup or cool down here** — that's the watcher's job; a duplicate digest on the same set is suppressed upstream.
+
+Background: `slack-commands` TASK_ASSIGN creates the task via `task-handler`, which opens it at `pending_acceptance` when `assigner_slack_id != owner_slack_id` (task-handler Step 4). The assignee replies `accept T-N` (→ `active`) or `decline T-N` (→ `dropped`) through the acceptance handshake (task-handler Step 3.5). An assignment that stays `pending_acceptance` is **UNACKED** — the rows this mode escalates.
+
+### Input
+
+| Field | Required | Description |
+|---|---|---|
+| `tiers_hours` | no (default `[2, 24, 48]`) | Ascending list of age thresholds (hours). Each row is bucketed by the **highest** tier whose threshold its `hours_unacked` has crossed. |
+
+**Validate `tiers_hours` before use:** if absent or not a list of positive integers, fall back to `[2, 24, 48]`. Sort ascending and de-duplicate so bucketing is well-defined; never interpolate it into SQL (it's only used for in-memory bucketing after the query).
+
+### Query (read-only)
+
+Pull every unacked cross-person assignment, oldest first, with its age in whole hours computed in SQL:
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, owner_slack_id, assigner_slack_id, created_at, \
+    CAST((julianday('now') - julianday(created_at)) * 24 AS INTEGER) AS hours_unacked \
+  FROM tasks \
+  WHERE status='pending_acceptance' AND assigner_slack_id IS NOT NULL \
+    AND assigner_slack_id <> owner_slack_id \
+  ORDER BY created_at ASC;"
+```
+
+Read-only query — `PRAGMA foreign_keys=ON` is harmless on a SELECT (FKs aren't enforced on reads, per shared-toolkit §1.5) and kept only for consistency. The `assigner_slack_id <> owner_slack_id` guard excludes self-assignments (a self-create never enters `pending_acceptance` per task-handler Step 4, but the guard is belt-and-suspenders).
+
+### Bucketing
+
+For each returned row, assign a **`tier`** = the highest threshold in `tiers_hours` that `hours_unacked` has reached (`hours_unacked >= threshold`):
+
+- With the default `[2, 24, 48]`: `hours_unacked >= 48` → tier `48` (escalate to Abhinav); `>= 24` and `< 48` → tier `24` (loop in the assigner); `>= 2` and `< 24` → tier `2` (nudge the assignee); `< 2` (below the lowest threshold) → **not yet escalated, drop the row** (it's too fresh to chase).
+- A row that has crossed multiple tiers belongs to **exactly one bucket — the highest** it has crossed (a 50h-unacked task is a tier-48 item only, never also counted at 24 or 2). This prevents double-counting the same assignment across tiers.
+
+Resolve both `owner_slack_id` (→ `assignee` first name) and `assigner_slack_id` (→ `assigner` first name) via the Team Roster in `MEMORY.md` (`/root/.openclaw/workspace/MEMORY.md`) — first names only, never raw Slack IDs (Communication Standards, shared-toolkit). If a Slack ID isn't in the roster (e.g., a former member), fall back to the raw ID rather than dropping the row, and note it — never invent a name.
+
+### Return value
+
+Return a single JSON object. When nothing is unacked (or every row is below the lowest tier), return an **empty `unacked` array, `count: 0`, and an empty-string `digest`** — that is the correct, expected result (the watcher's `send_dm` has `skip_if_empty: true`, so an empty `digest` simply sends nothing). **Never fabricate assignments to fill the list.**
+
+```json
+{
+  "action": "escalate_unacked_assignments",
+  "unacked": [
+    {
+      "task_id": "T-67",
+      "title": "Wire up Plaid card-matching endpoint",
+      "assignee": "Pankaj",
+      "assigner": "Sandeep",
+      "hours_unacked": 50,
+      "tier": 48
+    }
+  ],
+  "count": 1,
+  "digest": "*Unacked task assignments*\n\n*48h+ — needs Abhinav:*\n• T-67 _Wire up Plaid card-matching endpoint_ — assigned to Pankaj by Sandeep, unacked 50h\n\n*24h+ — loop in assigner:*\n• T-71 _Draft May metrics deck_ — assigned to Sai by Darwin, unacked 30h\n\n*2h+ — nudge assignee:*\n• T-80 _Review onboarding copy_ — assigned to Darwin by Samder, unacked 5h"
+}
+```
+
+- `unacked` lists only rows that crossed at least the lowest tier, oldest-created first (matches `ORDER BY created_at ASC`). `count` equals `unacked.length`.
+- `tier` is the integer threshold from `tiers_hours` (e.g. `2`/`24`/`48`), not the hours value.
+- `digest` is a human-readable multi-line Slack-mrkdwn summary **grouped by tier, highest first**, with a short header per tier describing the escalation intent (48h → Abhinav, 24h → assigner, 2h → assignee — matching the watcher's description). Use first names and `T-N` ids; never raw Slack IDs. If `unacked` is empty, `digest` is `""`.
+- **Read-only contract:** this mode performs no writes. The watcher sends the digest and dedups re-escalation via its `strict_entity_set` memory — follow-through neither nudges nor records anything in this mode.
