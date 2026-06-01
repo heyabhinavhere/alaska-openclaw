@@ -35,12 +35,16 @@ These are the human-gate steps that switch ON Alaska's ability to open pull requ
 **Why:** Branch protection with required Code Owner review gives `.github/CODEOWNERS` its teeth. Without it, CODEOWNERS is advisory only. The no-self-approval requirement stops Alaska from merging its own PRs even if the token somehow had admin rights.
 
 - [ ] Go to **GitHub → `alaska-openclaw` → Settings → Branches**
-- [ ] Click **Add branch ruleset** (or **Add rule** if you see the classic interface) targeting the branch name `main`
-- [ ] Enable **Require a pull request before merging**
+- [ ] Create a rule targeting the branch name `main`. GitHub has two UIs — either works:
+  - **Branch protection rules** (classic): click **Add branch protection rule**, branch name pattern `main`.
+  - **Rulesets** (newer): click **Add branch ruleset**, target `main`, and set **Enforcement status** to **Active**.
+- [ ] Enable **Require a pull request before merging** (this alone blocks direct pushes to `main` — every change must go through a PR)
 - [ ] Set **Required approving reviews** to **≥ 1**
-- [ ] Enable **Require review from Code Owners** (this is what ties CODEOWNERS to enforcement)
-- [ ] Confirm **Do not allow bypassing the above settings** is checked — this prevents the bot identity (the PAT owner) from self-approving or force-merging
-- [ ] Do **not** add the PAT's identity to any bypass list
+- [ ] Enable **Require review from Code Owners** (this is what ties `.github/CODEOWNERS` to enforcement — without it, CODEOWNERS is advisory only)
+- [ ] Enable **Block force pushes** (defense in depth — the PR requirement above already blocks direct pushes, but this removes any ambiguity that history could be rewritten on `main` to sidestep review)
+- [ ] Ensure **no bypass is granted to the token's identity** — this is what stops the bot from self-approving or force-merging:
+  - Classic UI: tick **Do not allow bypassing the above settings**.
+  - Ruleset UI: leave the **Bypass list** empty — do **not** add any actor (including `heyabhinavhere`, any app, or any PAT identity) to it.
 
 ---
 
@@ -48,10 +52,10 @@ These are the human-gate steps that switch ON Alaska's ability to open pull requ
 
 **Why:** Branch protection + CODEOWNERS working together is the actual control. Worth confirming before the self-improver goes live.
 
-- [ ] Open a **throwaway test PR** (branch off `main`, touch any file under `migrations/`, e.g. add a comment)
+- [ ] Open a **throwaway test PR** (branch off `main`, touch any file under `migrations/`, e.g. add a comment line)
 - [ ] Confirm GitHub **automatically requests review from `@heyabhinavhere`**
-- [ ] Confirm the PR shows a **"Review required"** merge block (not mergeable until you review)
-- [ ] **Close and delete** the test branch — do not merge it
+- [ ] Confirm the PR shows a **"Review required"** merge block (not mergeable until a Code Owner approves)
+- [ ] **Close the PR and delete the test branch — do not merge it.** (If you do accidentally merge, it's harmless — just revert; but closing is cleaner.)
 
 ---
 
