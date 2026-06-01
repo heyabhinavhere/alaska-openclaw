@@ -40,6 +40,8 @@ def _req(method: str, path: str, body=None):
             return json.loads(r.read() or "null")
     except urllib.error.HTTPError as e:
         raise SelfPRError(f"{method} {path} -> {e.code}: {e.read().decode()[:300]}")
+    except urllib.error.URLError as e:
+        raise SelfPRError(f"{method} {path} -> network error: {e.reason}")
 
 
 def open_pr(changes: dict, title: str, body: str, branch: str | None = None) -> str:

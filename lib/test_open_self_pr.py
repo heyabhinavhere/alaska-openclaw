@@ -38,3 +38,25 @@ def test_open_pr_sequence(monkeypatch):
     assert url == "https://github.com/o/r/pull/1"
     methods = [c[0] for c in calls]
     assert methods == ["GET", "POST", "GET", "PUT", "POST"]  # base→branch→getsha→put→pr
+
+
+def test_open_pr_new_file_omits_sha(monkeypatch):
+    monkeypatch.setenv("GITHUB_SELF_IMPROVE_TOKEN", "x")
+    calls = []
+
+    def fake_req(method, path, body=None):
+        calls.append((method, path, body))
+        if path.endswith("/git/ref/heads/main"):
+            return {"object": {"sha": "BASESHA"}}
+        if "/contents/" in path and method == "GET":
+            raise m.SelfPRError("simulated 404 — file does not exist yet")
+        if path.endswith("/pulls"):
+            return {"html_url": "https://github.com/o/r/pull/2"}
+        return {}
+
+    monkeypatch.setattr(m, "_req", fake_req)
+    url = m.open_pr({"docs/new.md": "hello"}, "title", "body", branch="b2")
+    assert url == "https://github.com/o/r/pull/2"
+    put_calls = [c for c in calls if c[0] == "PUT"]
+    assert len(put_calls) == 1
+    assert "sha" not in put_calls[0][2]  # new file → PUT payload must omit sha
