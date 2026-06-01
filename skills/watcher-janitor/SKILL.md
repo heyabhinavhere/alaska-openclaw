@@ -1,7 +1,7 @@
 ---
 name: watcher-janitor
 description: Nightly reconciliation between OpenClaw's cron store and the watchers table. Removes orphan WATCHER crons (no live watcher row), self-heals watchers stuck mid-activation (write-ahead crashes), expires stale unapproved drafts, flags rogue off-pipeline crons (improvised instead of created via watcher-creator), and reports anything it can't auto-fix to Abhinav. Never auto-deletes anything outside the watcher pipeline.
-version: 1.0.0
+version: 1.1.0
 metadata:
   openclaw:
     requires:
@@ -46,13 +46,14 @@ This is the steady-state cleanup for a deleted/expired watcher whose cron linger
 
 The rule that's supposed to stop a hand-built recurring cron (a "report/alert" that should have gone through watcher-creator) is a prompt instruction, so it can be skipped. This step catches that leak within 24h.
 
-A recurring cron is **legitimate** if it is EITHER:
+A recurring cron is **legitimate** (do NOT flag) if it is ANY of:
 - a **watcher cron** (Step 2 — `Watcher W-N`, backed by a `watchers` row), OR
-- a **skill-runner** infra cron — its `payload.message` references a skill path (`/data/skills/.../SKILL.md`). Every real infra cron (Meeting Intelligence, Daily Pulse, Risk Radar, the event-pollers, this janitor, reminder-dispatcher, …) runs a skill, so it carries that reference.
+- a **skill-runner** infra cron — its `payload.message` references a skill path (`/data/skills/.../SKILL.md`). Most infra crons (Meeting Intelligence, Daily Pulse, Risk Radar, the event-pollers, this janitor, reminder-dispatcher, …) run a skill, so they carry that reference, OR
+- a **known inline-prompt infra cron** — legit infra crons that use an inline prompt (no skill reference): **`Daily Cost Report — DM to Abhinav`** and **`Routine Proposal Watch`**. These are real, NOT rogues. (Maintain this short list: if a new infra cron is added with an inline prompt, add its exact name here — or better, give it a `/data/skills/` reference so it passes the rule above.)
 
-**Flag any cron that is NEITHER** — an ad-hoc inline-prompt cron with no `/data/skills/` reference and no matching watcher row. That's the signature of an improvised cron that should have been a watcher (e.g. a hand-built "Daily Metrics DM" that queries Amplitude and DMs a person). **Do NOT remove it.** DM Abhinav: `Found cron(s) created outside the watcher pipeline (no skill, no watcher row): <name> (<id>), schedule <expr>. Looks like a watch/report that bypassed watcher-creator — want me to delete it and set it up properly as a watcher?` Abhinav decides.
+**Flag any cron that is none of the above** — an ad-hoc inline-prompt cron, not in the allowlist, with no matching watcher row. That's the signature of an improvised cron that should have been a watcher (e.g. a hand-built "Daily Metrics DM" that queries Amplitude and DMs a person). **Do NOT remove it.** DM Abhinav: `Found a cron that isn't a watcher, a skill-runner, or a known infra cron: <name> (<id>), schedule <expr>. Is it legit infra (I'll add it to my allowlist) or an improvised one that should be a watcher? Your call — I won't touch it either way.`
 
-This is a flag-only heuristic on purpose: a rare false positive is just a harmless question, and we never auto-delete a cron we don't fully understand. If a legitimate infra cron ever lacks a skill reference, add the reference (or confirm it once) so it stops being flagged — no allowlist to maintain.
+Flag-only, always — never auto-delete a cron you don't fully understand; the worst case is a harmless question, and a wrongly-removed infra cron is catastrophic. (The allowlist exists because the skill-runner heuristic alone false-flagged `Daily Cost Report` + `Routine Proposal Watch` — both real infra crons with inline prompts.)
 
 ### Step 4: Self-heal watchers stuck mid-activation (`pending_cron_create`)
 

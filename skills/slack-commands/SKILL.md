@@ -446,7 +446,7 @@ Explicit watcher commands (matched by their grammar — not the intent classifie
 
 **Cost privacy:** cost (`cost_class`, any projection) is shown ONLY when the requester is Abhinav. Never expose it to a non-Abhinav creator in `show` or anywhere else (matches watcher-creator / dispatcher cost-privacy rules).
 
-**Report only what the row says — never assume.** A watcher's recipient, schedule, and status are whatever its `watchers` row stores — NOT inferred from where you're chatting. ("We're talking in #x, so all my watchers must post to #x" is exactly the wrong move that misled a real `@alaska watchers` reply.) Read every field you report from the table *this turn*; if you didn't read it, don't state it. Applies to `watchers`, `show`, and any "what watchers do I have" question.
+**Report only what the row says — never assume.** A watcher's recipient, schedule, and status are whatever its `watchers` row stores — NOT inferred from where you're chatting. ("We're talking in #x, so all my watchers must post to #x" is exactly the wrong move that misled a real `@alaska watchers` reply.) Read every field you report from the table *this turn*; if you didn't read it, don't state it. Applies to `watchers`, `show`, and any "what watchers do I have" question. **And compute any "next run / first fire" you state with `python3` + `zoneinfo` from the watcher's cron schedule + now — NEVER by hand.** (A "Mondays" watcher's first run is *today* when today is Monday; saying "tomorrow" because you mis-derived the weekday is a real bug we hit.)
 
 ### `@alaska watchers` — list the requester's active watchers
 ```bash
