@@ -41,7 +41,9 @@ These are the human-gate steps that switch ON Alaska's ability to open pull requ
 - [ ] Enable **Require a pull request before merging** (this alone blocks direct pushes to `main` — every change must go through a PR)
 - [ ] Set **Required approving reviews** to **≥ 1**
 - [ ] Enable **Require review from Code Owners** (this is what ties `.github/CODEOWNERS` to enforcement — without it, CODEOWNERS is advisory only)
-- [ ] Enable **Block force pushes** (defense in depth — the PR requirement above already blocks direct pushes, but this removes any ambiguity that history could be rewritten on `main` to sidestep review)
+- [ ] Block force pushes on `main` (defense in depth — the PR requirement above already blocks direct pushes, but this removes any ambiguity that history could be rewritten on `main` to sidestep review):
+  - Classic UI: leave **Allow force pushes** **unchecked** (it's off by default).
+  - Ruleset UI: enable the **Block force pushes** rule.
 - [ ] Ensure **no bypass is granted to the token's identity** — this is what stops the bot from self-approving or force-merging:
   - Classic UI: tick **Do not allow bypassing the above settings**.
   - Ruleset UI: leave the **Bypass list** empty — do **not** add any actor (including `heyabhinavhere`, any app, or any PAT identity) to it.
