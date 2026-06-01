@@ -1,7 +1,7 @@
 ---
 name: meeting-intelligence
 description: Agent 1 — Deep meeting comprehension, DAILY_STATE updates, contextual task extraction, Decision Log + Blockers + Daily Scrum updates (Sprint Board retired 2026-05-23)
-version: 2.3.0
+version: 2.3.1
 metadata:
   openclaw:
     requires:
@@ -48,7 +48,7 @@ curl -s -X POST https://api.fireflies.ai/graphql \
 
 Full sentences are the source of truth (meetings may be in Hinglish). Process ONE transcript per run to avoid timeouts.
 
-## Step 2: Deduplication (TWO levels)
+## Step 2: Deduplication (THREE levels)
 
 ### Level 1: Transcript ID dedup
 ```bash
@@ -185,6 +185,11 @@ Resolving the speaker *name* to a roster Slack ID (Step 5b) is NOT enough: Firef
 2. **Sanity-check the owner against the work content.** Engineers own recognizable areas: AI / agent / model / prompt / hallucination → **Sandeep**, **Shailesh** · Flutter / frontend / UI / chart / app screen → **Pankaj** · backend / API / schema / DB / WhatsApp / Twilio → **Nilesh** (Sai) · QA / testing / question-validation / audit-cleanup → **Tarun**, **Shailesh** · Figma / design / PMF / metrics → **Abhinav** · finance / strategy / partnerships / GTM / TechCrunch / campaign → **Darwin**, **Samder**. (Heuristics only — MEMORY.md roster is canonical for IDs.)
 3. **Flag ONLY a clear contradiction** — the content is unmistakably another person's area than the labeled speaker, OR the labeled speaker wasn't a speaker on this call, OR the Fireflies speaker data is garbled. Then attribute to the **content-indicated owner** and prefix the `extraction` (so it lands in the task description) with `[NEEDS OWNER CONFIRM: transcript labeled <labeled name>; assigned to <likely name> by content]`, plus a line in the Notion "Open Questions". The standup brief surfaces the flag so the owner can confirm or reassign — never assign a contradicted owner as if it were certain.
 4. **Borderline / ambiguous → keep the Fireflies label** (do NOT over-correct — a guessed reassignment is as harmful as a mislabel). Confident + content-consistent → attribute normally, no flag.
+5. **Shared-device case (India engineers on one Fireflies entry).** India-based engineers (Sandeep, Shailesh, Pankaj, Tarun, Nilesh) sometimes join the call from THE SAME DEVICE, so multiple people speak under ONE participant entry / speaker label. Symptoms: fewer speakers than expected, or one labeled speaker discussing several distinct work areas (e.g., AI architecture *and* Flutter charts *and* V2 testing in one voice). When you see this:
+   - **Do NOT mark anyone "absent / did not speak"** just because they aren't a separate participant. If a person's work is discussed in detail with first-person language ("I completed", "my plan is"), treat them as present on the shared device — never record them absent.
+   - **Attribute by content/role, conservatively.** Split the merged speaker's statements to the content-indicated owner using the same area heuristics as point 2 (AI/agent/model → Sandeep, Shailesh · Flutter/UI/chart → Pankaj · backend/API/DB → Nilesh · QA/testing → Tarun · etc.). This is the one case where reassigning *away from* the Fireflies label is expected rather than over-correction — but it is still governed by points 3–4: only reassign when the content clearly indicates a different owner, and when genuinely ambiguous keep the labeled speaker.
+   - **Flag a reassigned commitment with the same mechanism as point 3** — prefix the `extraction` with `[NEEDS OWNER CONFIRM: shared device; transcript labeled <labeled name>; assigned to <likely name> by content]` and add a line in the Notion "Open Questions". Do NOT invent a separate free-text flag; route through `[NEEDS OWNER CONFIRM: ...]` so the standup brief surfaces it.
+   - **Cross-reference the #daily-standup thread (C0ASLANJ0RL)** — teammates or Samder often post corrections/updates there that resolve who was actually on the shared device and who owns what.
 
 ### Anti-Hallucination Rules
 - ONLY extract items explicitly stated in the transcript.
