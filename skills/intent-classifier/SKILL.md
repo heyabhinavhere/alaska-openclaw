@@ -1,7 +1,7 @@
 ---
 name: intent-classifier
 description: Classify every non-trivial Slack message Alaska sees into one of 10 intent types. Writes classification + secondary intents + entities + reasoning to intent_inbox / classifier_audit. The 5-min CHANNEL cron is observe-by-default with one gated action path — high-confidence (≥0.85) task-worthy channel messages with a resolved owner route to task-handler; everything else just logs. The synchronous DM path is LIVE — the caller routes action intents to their handlers.
-version: 1.3.1
+version: 1.3.2
 metadata:
   openclaw:
     always: true
@@ -192,7 +192,7 @@ When invoked from a DM context with a single message:
 1. Skip the intent_inbox insert (this isn't a channel message).
 2. Run classifier directly.
 3. Write to `classifier_audit` with `inbox_id = NULL` and `would_have_done` describing the action being taken (kept as the audit/quality signal).
-4. Return the JSON result to the caller (alaska-core / slack-commands). The caller MUST route an action intent at confidence ≥ 0.7 to its handler — `TASK_CREATE`/`TASK_UPDATE`/`TASK_BLOCKER`/`REMINDER_REQUEST` → slack-commands handlers; `WATCHER_REQUEST` → watcher-creator. This is live, not logging-only.
+4. Return the JSON result to the caller (alaska-core / slack-commands). The caller MUST route an action intent at confidence ≥ 0.7 to its handler — `TASK_CREATE`/`TASK_UPDATE`/`TASK_BLOCKER`/`TASK_ASSIGN`/`REMINDER_REQUEST` → slack-commands handlers; `WATCHER_REQUEST` → watcher-creator. (`TASK_ASSIGN` runs the cross-person assign handshake — **DM path only**; the channel/batch path still leaves `TASK_ASSIGN` observe-only, since auto-assigning from ambient channel chatter is too aggressive.) This is live, not logging-only.
 
 ## Anti-patterns
 

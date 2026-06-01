@@ -182,7 +182,7 @@ If `expires_at` was set and this run pushed past it (or it lapsed during the run
 | `attach_chart` | Fetch + attach a chart image (e.g. Amplitude saved-chart export) to the pending send. |
 | `create_task` | Invoke **task-handler** (never write `tasks`/`task_events` directly). When the task surfaces to Notion, set **Owner (people)** from the roster **Notion User ID** (`{"people":[{"id":"<uuid>"}]}`) — Owner writes are ENABLED (MEMORY.md); fall back to first-name-in-Notes only if the person has no Notion ID. **NEVER target the retired Sprint Board** (`4494fedd-…`). |
 
-**Note — invoke_skill steps that act internally.** A few chains (e.g. `cross-person-task-assign` → `follow-through.escalate_unacked_assignments`) invoke a skill that both senses AND sends, owning its own fine-grained dedup (per task + tier). Treat that invoke as the action; the watcher's `strict_entity_set` then dedups on the returned digest signature.
+**Note — invoke_skill steps that sense and return a digest.** A few chains (e.g. `cross-person-task-assign` → `follow-through.escalate_unacked_assignments`) invoke a skill that SENSES read-only and returns a digest — it writes nothing and does NOT send. The watcher's own `send_dm` step sends that digest, and the watcher's `strict_entity_set` dedups on the digest signature, so an unchanged set of unacked assignments doesn't re-nudge. (Dedup + delivery are the watcher's job, not the invoked skill's.)
 
 ## Variable substitution
 
