@@ -1,7 +1,7 @@
 ---
 name: watcher-creator
 description: Parses user "watch X / track X / alert me when X / every Monday show me Y / activate <template>" requests, loads relevant BON Knowledge Base files for domain context, drafts a watcher (trigger + action_chain + recipient + memory + approval), asks only true-ambiguity follow-ups, confirms with the creator, routes cost/risk-gated watchers to Abhinav, and on confirmation inserts the watchers row + creates the OpenClaw cron via cron.add.
-version: 1.0.0
+version: 1.1.0
 metadata:
   openclaw:
     requires:
@@ -59,7 +59,7 @@ Record every file you load into `knowledge_sources` (JSON array of paths) for th
 Using the KB, fill in the watcher's five properties:
 
 1. **Trigger** — `trigger_type` + `trigger_config` JSON.
-   - cron: `{"expr": "0 9 * * 1", "tz": "Asia/Kolkata"}` (parse "every Monday 9 AM IST" → cron expr + IANA tz).
+   - cron: `{"expr": "0 9 * * 1", "tz": "Asia/Kolkata"}` (parse "every Monday 9 AM IST" → cron expr + IANA tz). **The expr is the user's stated LOCAL clock time — NEVER convert it to UTC.** "9 AM IST" → minute `0`, hour `9`, `tz:"Asia/Kolkata"`; OpenClaw applies the offset. (A UTC clock value tagged with a local tz fires hours early — that was the W-1/W-2 bug.) This `trigger_config` is the SINGLE source of the schedule — Step 8b's cron MUST mirror it exactly (same expr + stagger, same tz).
    - event: `{"event_name": "new_signup", "filter": {"credit_score": {"op": "<", "value": 580}}}`.
 2. **action_chain** — ordered JSON array of steps (Step 3a below).
 3. **recipient** — `{"type": "slack_dm"|"slack_channel"|"email", "id": "<U…|C…|email>"}`. Default `slack_dm` to the creator; a channel request ("post here / to #x") sets `slack_channel`.
@@ -224,7 +224,7 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 
 **Event watchers** (`trigger_type='event'`) have no per-watcher cron — skip 8a–8b entirely and in 8c flip `pending_approval → active` directly (`openclaw_cron_id` stays NULL by design; the shared event-poller cron for that event type dispatches them).
 
-**8b. Call `cron.add`** (in-session OpenClaw tool call — only Alaska can; external HTTP callers are denied). Shift the cron fire time by the row's `stagger_seconds` when building the expr (e.g. "every Monday 9:00 AM IST" with stagger 127 → fires 9:02:07; the user won't notice). Use the **canonical live shape** (matches all 14 production crons):
+**8b. Call `cron.add`** (in-session OpenClaw tool call — only Alaska can; external HTTP callers are denied). The cron `schedule` MUST be **the row's `trigger_config` expr/tz with the stagger added to the minute field — same clock time, same tz, NEVER re-converted to UTC.** ✅ RIGHT: `trigger_config {"expr":"30 9 * * 1-5","tz":"Asia/Kolkata"}` (9:30 AM IST) + stagger 4m → cron `{"expr":"34 9 * * 1-5","tz":"Asia/Kolkata"}` (9:34 IST). ❌ WRONG: `{"expr":"4 4 * * 1-5","tz":"Asia/Kolkata"}` — that's the UTC clock value (4:00) tagged IST, which fires at 4 AM (the W-1 bug). The cron and `trigger_config` must encode the SAME fire time; if they disagree, you converted somewhere — stop and rebuild from the stated local time. Use the **canonical live shape**:
 
 ```json
 {
@@ -234,20 +234,20 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
   "sessionKey": "agent:main:main",
   "sessionTarget": "isolated",
   "wakeMode": "now",
-  "schedule": {"kind": "cron", "expr": "<stagger-shifted expr>", "tz": "<IANA tz>"},
+  "schedule": {"kind": "cron", "expr": "<trigger_config expr + stagger — LOCAL clock time, NOT UTC>", "tz": "<same IANA tz as trigger_config>"},
   "payload": {
     "kind": "agentTurn",
     "message": "Run /data/skills/watcher-dispatcher/SKILL.md procedure for watcher_id=W-N.",
     "timeoutSeconds": 300
   },
-  "delivery": {"mode": "none", "channel": "slack"}
+  "delivery": {"mode": "none"}
 }
 ```
 
 Non-negotiable fields:
 - `payload.kind` is **`agentTurn`** (not `user-message`).
 - ALWAYS include `agentId` / `sessionKey` / `sessionTarget` / `wakeMode`.
-- ALWAYS include `"delivery": {"mode": "none", "channel": "slack"}` — `mode:"none"` SUPPRESSES OpenClaw's default delivery so the dispatcher posts its OWN Slack messages. Omitting the block is NOT equivalent (it lets OpenClaw auto-post the raw turn).
+- ALWAYS include `"delivery": {"mode": "none"}` (bare — do NOT add `"channel"`). `mode:"none"` SUPPRESSES OpenClaw's default delivery so the dispatcher posts its OWN Slack messages. Omitting the block lets OpenClaw auto-post the raw turn; adding `"channel":"slack"` has triggered a failing default-delivery attempt ("Message failed", climbing `consecutiveErrors`) even though the dispatcher's own DM succeeds — so use the bare `{"mode":"none"}` that the live infra crons use.
 - ALWAYS pass `"enabled": true` — without it OpenClaw stores `enabled=undefined` (falsy) and the job is created but NEVER fires (issue #8557).
 
 For a **time-bounded** watcher (`expires_at` set), OpenClaw `kind:"cron"` has no native expiry — also `cron.add` a `kind:"at"` one-shot at `expires_at` (`{"kind":"at","atMs":<epoch_ms>}`, `deleteAfterRun:true`) whose message tells the dispatcher to `expire watcher W-N` (it removes the main cron + sets `status='expired'`).
@@ -284,13 +284,14 @@ No cron was created (decline happens before activation), so there's nothing to r
 4. **Never bypass the $3/day gate.** Anything projected >$3/day, OR any external write, OR recipient ≠ creator routes to Abhinav. No self-approve shortcut.
 5. **Never skip `cron.add`'s `enabled: true`.** Omitting it creates a job that never fires (issue #8557). Always pass it explicitly.
 6. **Never set `autonomy_rung=2`.** Gen 1 ships rung 0 (draft-only) and rung 1 (act-and-report). Rung 2 (earned autonomy) is Gen 2 — reject it at creation.
-7. **Never omit the `delivery: {"mode":"none","channel":"slack"}` block.** The dispatcher posts its own Slack; without the block OpenClaw mis-posts the raw turn output.
+7. **Never omit the `delivery: {"mode":"none"}` block, and never add `"channel"`.** `mode:"none"` lets the dispatcher post its own Slack; omitting it makes OpenClaw mis-post the raw turn, and the extra `"channel":"slack"` has triggered failing default-delivery ("Message failed", climbing consecutiveErrors).
 8. **Never load or cite the deleted Postgres-schema models directory.** It no longer exists. User/profile/credit context comes from `integrations/user-profile-api.md`; identity/email resolution from the `user-profile-360` skill.
 9. **Never invent KB definitions or watcher fields when uncertain.** If the KB doesn't resolve a technical question and it's not a human-intent ambiguity you can ask about, flag `[NEEDS CLARIFICATION]` rather than guessing. No fabricated metrics, filters, or dates (shared-toolkit anti-hallucination).
 10. **Never leak internals into ANY user-facing watcher message** (draft, edit, confirmation, `@alaska show`). Forbidden: KB/file names (`amplitude.md`), raw event/property names (`add_card_successful`, `exit_step`), skill names, "load KB", cron expressions, the stagger, the expiry one-shot, and process/pipeline narration ("Let me query…", "Now I need to create the cron job…", "the stagger was 260s…"). Plain English about what the watcher does for the user; all the wiring lives silently in the DB (shared-toolkit Communication Standards + SOUL.md security).
 11. **Never state a date or weekday you computed by hand.** Resolve every human-facing date/weekday (first fire, "expires", "runs through …") AND every stored `starts_at`/`expires_at` with `python3` + `zoneinfo` in the watcher's timezone (Step 6c). LLM calendar arithmetic is unreliable — it has labeled a Tuesday "Monday." Compute, don't guess.
 12. **Never carry a clarifying question across watchers, and never assume an existing watcher's state.** Each request you handle is ONE watcher. Before referencing or re-asking about another watcher (e.g. "still need your call on W-2"), check its real state — `SELECT status FROM watchers WHERE watcher_id='W-N'`. If it's already `active`, it's done — don't resurface its setup questions. A pending clarification belongs only to the watcher you're drafting right now.
 13. **Never present fabricated numbers as real.** If asked for a sample/preview of a watcher's output before it fires, EITHER actually run the query and label it "current data", OR show an illustrative mock LABELED "illustrative — real figures when it fires". Never call invented numbers "live data" (SOUL.md anti-fabrication).
+14. **Never convert the schedule to UTC, and never let `trigger_config` and the registered cron diverge.** The expr is the user's stated LOCAL clock time + stagger, with the local IANA tz; OpenClaw applies the offset. The stored `trigger_config` and the `cron.add` schedule MUST encode the same fire time — one schedule, not two. (W-1 fired 5.5h early from a UTC value tagged IST; W-2's stored config and live cron disagreed by 6 hours.)
 
 ## Frequency and cost
 
