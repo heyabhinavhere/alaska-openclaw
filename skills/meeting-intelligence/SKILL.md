@@ -1,7 +1,7 @@
 ---
 name: meeting-intelligence
 description: Agent 1 — Deep meeting comprehension, DAILY_STATE updates, contextual task extraction, Decision Log + Blockers + Daily Scrum updates (Sprint Board retired 2026-05-23)
-version: 2.2.0
+version: 2.3.0
 metadata:
   openclaw:
     requires:
@@ -93,7 +93,7 @@ Read the full transcript and build an internal understanding. Answer these quest
 
 **Daily Scrum data (if this is the daily team call):**
 - For each person who spoke: what did they say they did yesterday? What are they doing today? Are they blocked?
-- Cross-reference with the pre-call sheets in #daily-standup (read Abhinav's replies to each person's sheet)
+- **The structured pre-call standup cards in #daily-standup are your HIGHEST-confidence commitment signal** — they're already framed as "yesterday committed / today suggested" and confirmed per person. Treat them as PRIMARY for who-committed-to-what; use the transcript to CONFIRM and ENRICH (detail, decisions, context), not as the primary source for commitments. A transcript commitment that matches a same-day card is the SAME item — rely on task-handler dedup to merge, and prefer the card's cleaner title/owner. (Read Abhinav's replies to each person's sheet too.)
 - Extract Done/Doing/Blockers per person for the Daily Scrum Notion database
 
 **Metric verification (if Amplitude/Customer.io configured):**
@@ -145,6 +145,9 @@ NOW extract tasks/decisions/blockers — but contextually:
 - "Daily deploy check", "review PRs every morning" = NOT trackable commitments.
 - Note them in the meeting summary. Flag: "Recurring item noted, not tracked individually."
 
+### Blockers — catch implicit impediments, not just "blocked by"
+A blocker is anything *preventing committed progress* — do NOT wait for the literal phrase "blocked by X". Treat as a blocker (log it: name what's being waited on, write via task-handler `status='blocked'` or directly to Step 6d): "still waiting on <X>", "stuck on / can't proceed until", "<dependency> isn't ready / not done yet", "X is failing/broken and it's holding up Y", "need <person or thing> before I can continue". Be conservative — a complaint about difficulty or a normal bug is NOT a blocker; a blocker has a concrete thing-being-waited-on or an unmet dependency that halts progress. (The May replay caught 0 blockers despite real ones — implicit impediments were missed because only explicit "blocked by" was matched.)
+
 ### Step 5b: Write each commitment to SQLite via task-handler (Phase B+)
 
 For each commitment extracted above:
@@ -159,6 +162,8 @@ For each commitment extracted above:
    - `source_ref`: `<fireflies_transcript_id>+<sentence_index>` — use the Fireflies sentence index so the audit log can deep-link
    - `is_status_update`: `true` if the verb signals completion/progress on existing work, else `false`
    - `explicit_task_id`: any `T-\d+` reference found in the quote (e.g., "T-42 done" → pass `T-42`), else omit
+   - `priority`: ONLY set when the meeting EXPLICITLY signals it — `P0` for launch-blocking / critical bug / "urgent" / a hard near-term deadline; `P1` for work explicitly called a this-week priority; otherwise OMIT (leave NULL). NEVER infer a priority from tone or your own sense of importance.
+   - **Inferred vs committed:** if the item is INFERRED from context (work was *mentioned* but with no commitment verb — "I'll / I'm going to / I'll take that / by <date>"), do NOT present it as a confident task. Prefer to skip it; if it's clearly ongoing work worth tracking, prefix the `extraction` with `[INFERRED — confirm]` so it surfaces for confirmation rather than landing as a certain commitment. (In the May replay, T-7 "Complete V2 frontend" was inferred with no commitment verb yet shown as a confident P1.)
 
 3. task-handler returns a JSON with `task_id`, `action` (`created` | `updated` | `mentioned`), and `dedup_decision`. Capture all three per commitment — you'll cite the T-IDs in Step 7's Slack summary.
 
