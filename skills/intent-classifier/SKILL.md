@@ -1,7 +1,7 @@
 ---
 name: intent-classifier
 description: Classify every non-trivial Slack message Alaska sees into one of 10 intent types. Writes classification + secondary intents + entities + reasoning to intent_inbox / classifier_audit. The 5-min CHANNEL cron is observe-by-default with one gated action path — high-confidence (≥0.85) task-worthy channel messages with a resolved owner route to task-handler; everything else just logs. The synchronous DM path is LIVE — the caller routes action intents to their handlers.
-version: 1.3.2
+version: 1.3.3
 metadata:
   openclaw:
     always: true
@@ -135,7 +135,7 @@ The `secondary_intents` column stores the JSON array from the classifier output.
 This is the one place the channel cron acts. It mirrors the spirit of the live DM path (route task intents to a handler) but with a deliberately higher confidence bar, because undirected channel chatter is noisier than a directed DM.
 
 For each row just classified, take a task action ONLY when ALL of these hold:
-1. `intent ∈ {TASK_CREATE, TASK_UPDATE, TASK_BLOCKER}`, AND
+1. `intent ∈ {TASK_CREATE, TASK_UPDATE, TASK_BLOCKER}` (these use the generic invocation below; `TASK_ASSIGN` is ALSO acted on, via its own assigner/assignee handshake in the dedicated block further down), AND
 2. `confidence ≥ 0.85` (deliberately higher than the 0.7 DM bar — channel chatter is noisier), AND
 3. the author is NOT a bot self-message (already filtered in the Pre-filter step — Alaska's own IDs `U0ANY9YTNUR` / `U0ANFSYAH29` are marked `NON_WORK_CHAT` and can never reach this gate, so there's no feedback loop), AND
 4. an **owner can be confidently resolved** (see owner resolution below).
@@ -154,7 +154,7 @@ If all four hold, invoke the **task-handler** skill with:
 - If the message is a **self-report** ("I'm working on X", "I shipped Y", "I'm blocked on Z") with no other-person owner, use the **author** (`author_slack_id`) as `owner_slack_id`.
 - If the owner **cannot be confidently resolved** — ambiguous subject, multiple `owners_mentioned` with no clear single owner, or a self-report that's really about someone else — **do NOT act on that row. Stay observe-only** (you've already logged it to `classifier_audit`). Never guess an owner.
 
-**TASK_ASSIGN is NOT acted on here.** Cross-person assignment (one person directing another) is deferred to **Phase D / P3** (not built yet). Leave `TASK_ASSIGN` observe-only on this path — classify + log, no task-handler call. (This matches task-handler anti-pattern #4: don't modify other owners' tasks outside the authorized Phase D flow.)
+**TASK_ASSIGN — cross-person assignment (ACTIVE on this path).** When `intent == TASK_ASSIGN` at `confidence ≥ 0.85` AND the assignee is confidently resolved from `entities.owners_mentioned` (the @-mentioned teammate the work is directed at — the classifier only emits TASK_ASSIGN on an explicit directive **and** an @-mention, so ambient musings never reach this gate): invoke **task-handler** with `owner_slack_id` = the assignee, `creator_slack_id` = `author_slack_id`, `assigner_slack_id` = `author_slack_id`, `source='slack_channel'`, `source_ref='slack:channel:<channel_id>:<message_ts>'`, `is_status_update=false`. Since `assigner_slack_id != owner_slack_id`, task-handler opens the task at `status='pending_acceptance'` and returns `action='created_pending'`. THEN **DM the assignee** the acceptance prompt — *"`<Assigner first name>` assigned you `<T-N>`: `<title>`. Reply `accept <T-N>` or `decline <T-N>`."* — exactly as the slack-commands TASK_ASSIGN handler does (DM the assignee only; do NOT post back into the channel). If the assignee can't be confidently resolved (no single clear @-mention, or an external / non-roster person who can't be DM'd) → do NOT act; stay observe-only. (This is what captures a channel request directed at a teammate — e.g. "@Pankaj please fix X" — instead of letting it fall through.)
 
 **Dedup is task-handler's job, not the classifier's.** Do NOT attempt to dedup or look up existing tasks here — just pass the extraction and let task-handler run its match-or-create logic and return `{task_id, action, dedup_decision}`. Note: Meeting Intelligence Step 5b may independently create the same task from a standup utterance; that's expected and fine — task-handler's match-or-create dedup (keyed off owner + topic + `source_ref`) is the single guard against duplicates, so two feeders hitting the same work converge instead of double-writing.
 
@@ -192,11 +192,11 @@ When invoked from a DM context with a single message:
 1. Skip the intent_inbox insert (this isn't a channel message).
 2. Run classifier directly.
 3. Write to `classifier_audit` with `inbox_id = NULL` and `would_have_done` describing the action being taken (kept as the audit/quality signal).
-4. Return the JSON result to the caller (alaska-core / slack-commands). The caller MUST route an action intent at confidence ≥ 0.7 to its handler — `TASK_CREATE`/`TASK_UPDATE`/`TASK_BLOCKER`/`TASK_ASSIGN`/`REMINDER_REQUEST` → slack-commands handlers; `WATCHER_REQUEST` → watcher-creator. (`TASK_ASSIGN` runs the cross-person assign handshake — **DM path only**; the channel/batch path still leaves `TASK_ASSIGN` observe-only, since auto-assigning from ambient channel chatter is too aggressive.) This is live, not logging-only.
+4. Return the JSON result to the caller (alaska-core / slack-commands). The caller MUST route an action intent at confidence ≥ 0.7 to its handler — `TASK_CREATE`/`TASK_UPDATE`/`TASK_BLOCKER`/`TASK_ASSIGN`/`REMINDER_REQUEST` → slack-commands handlers; `WATCHER_REQUEST` → watcher-creator. (`TASK_ASSIGN` runs the cross-person assign handshake on BOTH the DM path and the gated channel path — channel-side gated at `confidence ≥ 0.85` plus the explicit directive + @-mention the classifier already requires.) This is live, not logging-only.
 
 ## Anti-patterns
 
-1. **On the CHANNEL/batch path, act ONLY on the one gated task path — observe everything else.** The 5-min channel cron is observe-by-default: classify + log to classifier_audit. The single exception is the gated action step — a freshly-classified `TASK_CREATE` / `TASK_UPDATE` / `TASK_BLOCKER` at `confidence ≥ 0.85` with a confidently-resolved owner (and not a bot self-message) is routed to task-handler. `TASK_ASSIGN` is explicitly NOT acted on here (deferred to Phase D / P3). Everything else — AMBIGUOUS, STATUS_QUERY, DECISION_RECORDED, REMINDER_REQUEST, WATCHER_REQUEST, NON_WORK_CHAT — and any task row that fails the gate (low confidence or unresolved owner) stays observation-only: log it, take no action. Don't overreach beyond the gated task path. (The DM path IS fully live — the caller routes ≥0.7 intents — but that's a separate path.)
+1. **On the CHANNEL/batch path, act ONLY on the one gated task path — observe everything else.** The 5-min channel cron is observe-by-default: classify + log to classifier_audit. The exception is the gated action step — a freshly-classified `TASK_CREATE` / `TASK_UPDATE` / `TASK_BLOCKER` / `TASK_ASSIGN` at `confidence ≥ 0.85` (and not a bot self-message) with a confidently-resolved owner/assignee is routed to task-handler; `TASK_ASSIGN` opens a `pending_acceptance` assignment and DMs the assignee to accept/decline (see the gated action step). Everything else — AMBIGUOUS, STATUS_QUERY, DECISION_RECORDED, REMINDER_REQUEST, WATCHER_REQUEST, NON_WORK_CHAT — and any task row that fails the gate (low confidence or unresolved owner) stays observation-only: log it, take no action. Don't overreach beyond the gated task path. (The DM path IS fully live — the caller routes ≥0.7 intents — but that's a separate path.)
 2. **Never modify the message text** before classifying — pass it verbatim so the audit log is accurate.
 3. **Never skip the `would_have_done` field.** It's the audit/quality signal — on the channel path it's the would-be action; on the DM path it records what the caller is routing to.
 4. **Never re-classify already-processed messages.** Check `processed=0`.
