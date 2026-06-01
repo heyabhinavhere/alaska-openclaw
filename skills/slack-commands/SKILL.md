@@ -1,7 +1,7 @@
 ---
 name: slack-commands
 description: Handle team queries in Slack — status checks, blocker reports, shipped items, sprint info, and ad-hoc questions
-version: 1.0.0
+version: 1.1.0
 metadata:
   openclaw:
     always: true
@@ -16,34 +16,124 @@ When team members message Alaska in Slack (DM or channel mention), respond intel
 
 ## Command: Status Check
 
-**Triggers:** "status of [feature]", "where are we on [task]", "update on [thing]"
+**Triggers:** "status of [feature]", "where are we on [task]", "update on [thing]", "what's [person] working on", "what's [person] on", "what's blocked", "who's blocked", "what's overdue"
 
-**Response:**
-1. Search `DAILY_STATE.md` per-person sections + recent Meeting Notes for matching items (by name similarity). The Notion Sprint Board is retired as of 2026-05-23.
-2. Return:
+**Source of truth: the SQLite task graph (`tasks` / `blockers`), with DAILY_STATE.md prose as fallback.** Query the graph FIRST; fall back to the markdown read only when the graph returns 0 rows. Don't narrate which source you used.
+
+Resolve people via the MEMORY.md Team Roster — never guess an owner. If you build any SQL fragment from free message text (e.g., a feature-title search), escape apostrophes per shared-toolkit §1.5 (`q="'"; qq="''"; text_esc="${text//$q/$qq}"`).
+
+### A. "what's [person] working on" / "what's [person] on"
+
+1. Resolve the person's NAME → `owner_slack_id` via the MEMORY.md Team Roster (first-name match, case-insensitive). If the name isn't in the roster, say so and stop — don't guess.
+2. Pull their active work — shared-toolkit §1.7 "active tasks for a person" (reuse the exact shape):
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, status, priority, due_at, updated_at, source \
+  FROM tasks \
+  WHERE owner_slack_id = '$person_slack_id' \
+    AND status IN ('active', 'blocked', 'pending_acceptance') \
+  ORDER BY \
+    CASE priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END, \
+    due_at ASC NULLS LAST, \
+    updated_at DESC;"
 ```
-*[Task Name]*
-Status: [status] | Owner: @[name] | Priority: [priority]
-Effort: [effort] | Due: [date] | Sprint: [N]
-[If blocker exists]: Blocked by: [blocker]
-[If overdue]: ⚠ Overdue by [X] days
+   Optionally add what they recently finished (§1.7 "tasks done in last N hours", widened to 48h):
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, done_at \
+  FROM tasks \
+  WHERE owner_slack_id = '$person_slack_id' \
+    AND status = 'done' AND done_at > datetime('now', '-48 hours') \
+  ORDER BY done_at DESC;"
 ```
-3. If multiple matches, list all with brief status
-4. If no match: "I don't see a task matching '[query]' in the current sprint or backlog. Want me to search meeting notes?"
+3. **If ≥1 active row**, format a short list (first name resolved from the roster):
+```
+*[First name] is on:*
+• T-N: [title] — [status][ · due [date] if due_at not null]
+• T-N: [title] — [status]
+[If any recent done]: Shipped recently: T-N [title]✓
+```
+4. **FALLBACK — 0 active rows:** read that person's `Per Person` section in `DAILY_STATE.md` (`NOW`, `LAST COMMITTED`, `BLOCKED`) and answer from the prose.
+
+### B. "what's blocked" / "who's blocked"
+
+(This is the canonical blocker answer — the "Blocker Report" section below now defers here.)
+
+1. Active blocker rows:
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT blocker_id, title, blocking_task_ids, owner_slack_id, raised_at \
+  FROM blockers \
+  WHERE status = 'active' \
+  ORDER BY raised_at ASC;"
+```
+2. For each blocker, `blocking_task_ids` is a JSON array of `T-N` (e.g., `["T-42","T-43"]`, or `[]`/NULL for a standalone blocker). Resolve those IDs to titles so the answer names the blocked work:
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, owner_slack_id FROM tasks WHERE task_id IN ('T-42','T-43');"
+```
+   Parse the JSON defensively — `[]`, NULL, or malformed → just render the blocker with no linked task (don't error).
+3. Also surface tasks sitting in `status='blocked'` that no active blocker row references yet (belt-and-suspenders, since the graph is still filling):
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, owner_slack_id, updated_at \
+  FROM tasks \
+  WHERE status = 'blocked' \
+  ORDER BY updated_at DESC;"
+```
+4. **If ≥1 active blocker or blocked task**, render (resolve owner Slack IDs → first names via roster; raised "X days ago" from `raised_at`):
+```
+*Active blockers* ([count])
+• B-N: [title] — blocking [first name]'s T-N [task title] — raised [X]d ago
+• [blocked task with no blocker row]: T-N [title] — [first name] — blocked
+```
+5. **FALLBACK — 0 active blockers AND 0 blocked tasks:** scan `DAILY_STATE.md` per-person `BLOCKED:` lines; list those. If those are all "None", reply: `No active blockers right now.`
+
+### C. "what's overdue"
+
+1. Tasks past their due date (a NULL `due_at` means NO due date → NOT overdue; never call a null-due task overdue):
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, owner_slack_id, due_at, status \
+  FROM tasks \
+  WHERE status NOT IN ('done', 'dropped') \
+    AND due_at IS NOT NULL \
+    AND due_at < datetime('now') \
+  ORDER BY due_at ASC;"
+```
+2. **If ≥1 row**, render (owner → first name via roster; overdue-by from `due_at` vs now):
+```
+*Overdue* ([count])
+• T-N: [title] — [first name] — due [date], overdue by [X]d — [status]
+```
+3. **FALLBACK — 0 rows:** there's nothing past-due in the graph. Reply: `Nothing's overdue right now.` (Do NOT fall back to DAILY_STATE prose for overdue — the markdown has no reliable structured due dates, so a graph 0-count is authoritative here. Snoozed/blocked tasks still count as overdue if their `due_at` has passed — they're filtered only by the done/dropped exclusion above.)
+
+### D. "status of [feature]" / "where are we on [thing]" / "update on [thing]"
+
+A free-text feature/topic lookup (not a person or a blocked/overdue query).
+1. Try the graph first — title match on the escaped query text (§1.5 escaping):
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, status, owner_slack_id, priority, due_at \
+  FROM tasks \
+  WHERE title LIKE '%$query_esc%' AND status NOT IN ('dropped') \
+  ORDER BY updated_at DESC LIMIT 10;"
+```
+2. **If ≥1 match**, render each (owner → first name; flag overdue only if `due_at` not null AND past):
+```
+*[title]*
+Status: [status] | Owner: [first name][ | Priority: [priority] if set]
+[ | Due: [date] if due_at not null][; ⚠ overdue by [X]d if due_at < now]
+[If blocked]: Blocked — see "what's blocked"
+```
+   Multiple matches → list each with brief status.
+3. **FALLBACK — 0 matches:** search `DAILY_STATE.md` per-person sections + recent Meeting Notes by name similarity (the Notion Sprint Board is retired as of 2026-05-23). If still nothing: "I don't see a task matching '[query]' in the task graph or current focus. Want me to search meeting notes?"
 
 ## Command: Blocker Report
 
 **Triggers:** "who's blocked?", "what's blocked?", "active blockers", "blockers"
 
-**Response:**
-1. Read Blockers database (Status: "Active")
-2. Return:
-```
-*Active Blockers* ([count])
-• [Blocker] — blocking @[owner]'s [task] — raised [date] ([X] days ago)
-  Resolution owner: @[name]
-```
-3. If no active blockers: "No active blockers right now."
+Use the canonical blocker procedure in **Status Check §B** above — it queries the `blockers` table (`status='active'`) plus `tasks` with `status='blocked'`, resolves `blocking_task_ids` JSON to task titles, and falls back to DAILY_STATE.md `BLOCKED:` lines only when the graph is empty. Do not maintain a second divergent procedure here. If no active blockers and no blocked tasks: "No active blockers right now."
 
 ## Command: Shipped Report
 
@@ -84,17 +174,50 @@ Completion: [%] of tasks, [%] of effort points
 
 **Triggers:** "my tasks", "what's on my plate", "what should I work on"
 
-**Response:**
-1. Identify who's asking (from Slack user → MEMORY.md Team Roster).
-2. Read their section in `DAILY_STATE.md` (`Per Person` → that person's `NOW`, `LAST COMMITTED`, `BLOCKED`).
-3. Return prioritized by recency and priority:
-```
-*Your Tasks — Sprint [N]*
-1. [Task] — [priority] — due [date] — [status]
-2. [Task] — [priority] — due [date] — [status]
+**Source of truth: the SQLite task graph (`tasks` / `blockers`), with DAILY_STATE.md prose as fallback.** Query the graph FIRST; only fall back to the markdown read if the graph returns 0 rows (so answers never go blank while the graph is still filling). Don't narrate which source you used.
 
-Suggested focus: [highest priority or nearest deadline task]
+**Response:**
+1. Identify who's asking (the asker's own Slack ID — already known from the inbound DM/mention event; no name parsing needed).
+2. Pull their active tasks from the graph — the shared-toolkit §1.7 "active tasks for a person" query (reuse the exact shape), keyed on the asker's Slack ID:
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, status, priority, due_at, updated_at, source \
+  FROM tasks \
+  WHERE owner_slack_id = '$asker_slack_id' \
+    AND status IN ('active', 'blocked', 'pending_acceptance') \
+  ORDER BY \
+    CASE priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 ELSE 3 END, \
+    due_at ASC NULLS LAST, \
+    updated_at DESC;"
 ```
+   Optionally also pull what they just finished (§1.7 "tasks done in last N hours", widened to 48h) to show momentum:
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, done_at \
+  FROM tasks \
+  WHERE owner_slack_id = '$asker_slack_id' \
+    AND status = 'done' AND done_at > datetime('now', '-48 hours') \
+  ORDER BY done_at DESC;"
+```
+3. **If the active query returned ≥1 row**, format a short list (one line per task), prioritized as the query already ordered them:
+```
+*Your tasks*
+• T-N: [title] — [status][ · due [date] if due_at not null][ · [priority] if set]
+• T-N: [title] — [status]
+
+[If any recent done]: Recently shipped: T-N [title]✓
+Suggested focus: [first task in the list — highest priority / nearest deadline]
+```
+   - `due_at IS NULL` → show no due date for that line (never invent one).
+4. **FALLBACK — if the active query returned 0 rows:** read the asker's section in `DAILY_STATE.md` (`Per Person` → their `NOW`, `LAST COMMITTED`, `BLOCKED`) and answer from that prose, prioritized by recency:
+```
+*Your tasks*
+1. [item from NOW / LAST COMMITTED] — [status]
+2. ...
+
+Suggested focus: [highest priority or nearest deadline item]
+```
+   - If the asker can't be resolved to a roster Slack ID at all, apply the SOUL.md self-heal / unknown-DM reply (see Anti-patterns #3 above) instead of guessing.
 
 ## Command: Decisions
 
@@ -348,9 +471,20 @@ Triggered by: "watch X", "track X and do Y", "alert me when Z", "every Monday sh
 2. watcher-creator owns the entire conversational flow — parse intent, load the BON KB, draft the watcher, run its single clarifier round, route the $3/day approval gate, and (on confirmation) reserve the `watchers` row and `cron.add`. slack-commands does NOTHING here beyond routing.
 3. Return watcher-creator's reply text verbatim as the DM response — no narration or summaries of your own.
 
-### STATUS_QUERY / DECISION_RECORDED / NON_WORK_CHAT / AMBIGUOUS
+### STATUS_QUERY
 
-These intents are NOT handled here in Phase B. Fall through to the existing slack-commands sections (Status Check, My Tasks, Help, General Questions). The classifier output is still logged to `classifier_audit` per Phase A observation mode — we just don't take action.
+A read-only "what's the state of X" question — route to the graph-backed handlers above, no writes:
+- "what's [person] working on / on" → **Status Check §A** (resolve name → `owner_slack_id` via roster, §1.7 active-tasks query, DAILY_STATE fallback).
+- "what's blocked" / "who's blocked" → **Status Check §B** (`blockers` where `status='active'` + tasks `status='blocked'`, DAILY_STATE `BLOCKED:` fallback).
+- "what's overdue" → **Status Check §C** (`status NOT IN ('done','dropped') AND due_at IS NOT NULL AND due_at < datetime('now')`; null `due_at` is never overdue).
+- "my tasks" / "what's on my plate" → **My Tasks** handler (asker's own Slack ID, §1.7 active-tasks query, DAILY_STATE fallback).
+- "status of [feature]" / "where are we on X" → **Status Check §D** (title LIKE on escaped query, DAILY_STATE + Meeting Notes fallback).
+
+These are pure reads (no `task-handler`, no `tasks`/`blockers` writes). The classifier output is still logged to `classifier_audit`.
+
+### DECISION_RECORDED / NON_WORK_CHAT / AMBIGUOUS
+
+These intents are NOT handled here in Phase B. Fall through to the existing slack-commands sections (Help, General Questions). The classifier output is still logged to `classifier_audit` per Phase A observation mode — we just don't take action.
 
 ### Authority note
 
