@@ -6,7 +6,7 @@
 >
 > **The capability-vs-workflow line (why this file exists):** the KB answers *"what is this, and what can Alaska DO with it"* (BON's systems + integrations + APIs as a toolbox). This doc and the skills answer *"how Alaska actually does it"* (workflow). Keeping the operating model in exactly one place means a pipeline change — Phase E **will** change it — updates one file, not five. (That five-places-go-stale drift was the v2.2/v2.3 disease.)
 >
-> **Last updated:** 2026-05-30 · **Owner:** Abhinav
+> **Last updated:** 2026-06-01 · **Owner:** Abhinav
 
 ---
 
@@ -33,7 +33,7 @@ The detailed extraction logic, dedup rules, and anti-hallucination guards are **
 ⚠️ **This is the one place where "current reality" and "V4 target" genuinely differ.** Anyone reading this — human or agent — must not state the V4 end-state as if it were live today.
 
 - **V4 target (after Phase E):** the SQLite task graph is the source of truth. `DAILY_STATE.md` becomes a generated, read-only *view* of it. task-handler is the only writer; everything reconciles to the graph.
-- **Current (pre-cutover, as of 2026-05-30):** `DAILY_STATE.md` is still the operative source of truth. **Meeting Intelligence writes it directly** after each nightly standup; every other agent reads it before acting. The SQLite task graph is wired and runs in parallel but is **not yet authoritative — its tables are empty (0 rows; Phase B is dormant).**
+- **Current (pre-cutover, last confirmed 2026-05-30):** `DAILY_STATE.md` is still the operative source of truth. **Meeting Intelligence writes it directly** after each nightly standup; every other agent reads it before acting. The SQLite task graph is wired and runs in parallel but is **not yet authoritative — its tables were empty (0 rows; Phase B dormant) as of 05-30.** ⚠️ **Ops-4 is re-verifying this on 2026-06-01** — treat the 0-row state as last-confirmed-05-30, not a standing fact; update this bullet with Ops-4's result.
 - **Phase E flips this:** a dual-write window (MI writes both `DAILY_STATE.md` and the graph) to prove parity, then a hard cut where `DAILY_STATE.md` is generated from the graph.
 
 Until Phase E lands, treat `DAILY_STATE.md` as truth and the task graph as a parallel substrate being proven out. Tracked as **Ops-4** (verify Phase B actually fires in prod) before V4 leans harder on the graph — see `docs/ROADMAP.md`.
