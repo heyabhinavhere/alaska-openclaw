@@ -1,7 +1,7 @@
 ---
 name: meeting-intelligence
 description: Agent 1 — Deep meeting comprehension, DAILY_STATE updates, contextual task extraction, Decision Log + Blockers + Daily Scrum updates (Sprint Board retired 2026-05-23)
-version: 2.1.0
+version: 2.2.0
 metadata:
   openclaw:
     requires:
@@ -153,7 +153,7 @@ For each commitment extracted above:
 
 2. Invoke the `task-handler` skill (at `/data/skills/task-handler/SKILL.md`) with these inputs per commitment:
    - `extraction`: verbatim quote from the transcript (the commitment statement itself, not the surrounding context)
-   - `owner_slack_id`: speaker's Slack ID, resolved from MEMORY.md Team Roster. **If the speaker name cannot be confidently matched (e.g., name not in roster, transcription drift like "Pancaj" vs "Pankaj", external participant)**: apply the SOUL.md self-heal pattern (look up via Slack `users.info` by display name). If self-heal fails, do NOT call task-handler for this commitment — instead append `[NEEDS CLARIFICATION: who is <name>?]` to the Notion Meeting Notes "Open Questions" field and skip this commitment. Never pass an empty or guessed `owner_slack_id`.
+   - `owner_slack_id`: speaker's Slack ID, resolved from MEMORY.md Team Roster. **If the speaker name cannot be confidently matched (e.g., name not in roster, transcription drift like "Pancaj" vs "Pankaj", external participant)**: apply the SOUL.md self-heal pattern (look up via Slack `users.info` by display name). If self-heal fails, do NOT call task-handler for this commitment — instead append `[NEEDS CLARIFICATION: who is <name>?]` to the Notion Meeting Notes "Open Questions" field and skip this commitment. Never pass an empty or guessed `owner_slack_id`. **Then run Step 5c attribution validation before you trust it — a cleanly-resolved name can still be the WRONG person (Fireflies mislabels speakers).**
    - `creator_slack_id`: `agent:meeting-intelligence`
    - `source`: `meeting`
    - `source_ref`: `<fireflies_transcript_id>+<sentence_index>` — use the Fireflies sentence index so the audit log can deep-link
@@ -171,6 +171,15 @@ For each commitment extracted above:
 - **Blockers without a task owner:** a blocker raised in a meeting but not yet linked to a specific person's work goes to the blockers table directly (Step 6d), not via task-handler.
 
 These SKIP conditions are **inclusive, not mutually exclusive**. If a commitment hits more than one (e.g., a recurring activity also assigned to a MobileFirst person), the result is still SKIP — you only need ONE condition to apply. Do not try to pick "which one wins."
+
+### Step 5c: Validate speaker attribution (Fireflies labels are unreliable)
+
+Resolving the speaker *name* to a roster Slack ID (Step 5b) is NOT enough: Fireflies frequently mis-attributes who said what, and a wrong label resolves *cleanly* to the wrong person — silently assigning their commitment to someone else. Real failure modes seen in the May replay: one person's update labeled under another's name; duplicate speaker entries for one person; a `participants` metadata list missing most attendees. So before trusting any attribution:
+
+1. **Trust `speakers[].name` + the per-sentence `speaker_name`, NOT the `participants` metadata**, for who was actually on the call. Dedupe duplicate speaker entries by normalized name (e.g. "Pankaj" and "Pankaj Pal" are one person).
+2. **Sanity-check the owner against the work content.** Engineers own recognizable areas: AI / agent / model / prompt / hallucination → **Sandeep**, **Shailesh** · Flutter / frontend / UI / chart / app screen → **Pankaj** · backend / API / schema / DB / WhatsApp / Twilio → **Nilesh** (Sai) · QA / testing / question-validation / audit-cleanup → **Tarun**, **Shailesh** · Figma / design / PMF / metrics → **Abhinav** · finance / strategy / partnerships / GTM / TechCrunch / campaign → **Darwin**, **Samder**. (Heuristics only — MEMORY.md roster is canonical for IDs.)
+3. **Flag ONLY a clear contradiction** — the content is unmistakably another person's area than the labeled speaker, OR the labeled speaker wasn't a speaker on this call, OR the Fireflies speaker data is garbled. Then attribute to the **content-indicated owner** and prefix the `extraction` (so it lands in the task description) with `[NEEDS OWNER CONFIRM: transcript labeled <labeled name>; assigned to <likely name> by content]`, plus a line in the Notion "Open Questions". The standup brief surfaces the flag so the owner can confirm or reassign — never assign a contradicted owner as if it were certain.
+4. **Borderline / ambiguous → keep the Fireflies label** (do NOT over-correct — a guessed reassignment is as harmful as a mislabel). Confident + content-consistent → attribute normally, no flag.
 
 ### Anti-Hallucination Rules
 - ONLY extract items explicitly stated in the transcript.
