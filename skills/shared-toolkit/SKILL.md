@@ -364,6 +364,35 @@ When a task's status changes to `blocked`, the task-handler also writes a `block
 
 Schema reference (migration 0001, table 5): columns are `blocker_id, title, description, blocking_task_ids, owner_slack_id, raised_by_slack_id, status, raised_at, resolved_at, resolution, source, source_ref`. There is no `blocked_task_id` column — the link is the JSON array.
 
+**Dedup guard — reaffirm, don't duplicate (run BEFORE the INSERT).** A blocked task gets re-reported constantly — the same impediment resurfaces across standups and meetings on different days. Inserting unconditionally spawns duplicate active rows (inflated Active-Blockers counts, double-counting in Daily Pulse/Risk Radar, and resolution that closes only one). First check whether this task already carries an active blocker:
+
+```bash
+# blocking_task_ids is a JSON array; the quotes delimit each id, so '%"T-42"%'
+# matches ["T-42"] and ["T-1","T-42"] but NOT ["T-420"].
+EXISTING=$(sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT blocker_id, title FROM blockers \
+  WHERE status='active' AND blocking_task_ids LIKE '%\"$primary_blocked_task_id\"%';")
+```
+
+Decide from `$EXISTING`:
+- **Empty** → no active blocker on this task. INSERT a fresh row (canonical pattern below).
+- **Same thing already tracked** (an existing active blocker's title is the same impediment — the common re-report case) → do NOT insert a duplicate. Refresh that row and log the reaffirmation, keeping its original `blocker_id` and `raised_at`:
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  UPDATE blockers SET description='$desc_esc', source_ref='$source_ref' \
+    WHERE blocker_id='$matched_blocker_id' AND status='active'; \
+  INSERT INTO task_events (task_id, event_type, actor_slack_id, context) \
+  VALUES ('$primary_blocked_task_id', 'comment', '$raised_by_slack_id', \
+          'blocker $matched_blocker_id reaffirmed from $source');"
+```
+
+- **Genuinely different impediment** (a different dependency / thing-being-waited-on than the existing active blocker[s]) → INSERT a new row — a task can hold several distinct active blockers at once.
+
+For an **unowned/standalone blocker** (`blocking_task_ids='[]'`, no task link), key the dedup on subject instead of task: skip the INSERT if an `active` blocker with the same subject already exists; otherwise insert fresh.
+
+The canonical fresh-INSERT pattern:
+
 ```bash
 # Generate next blocker_id using the canonical MAX/CAST/SUBSTR pattern from above.
 B_NEXT_ID=$(sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; SELECT 'B-' || COALESCE(MAX(CAST(SUBSTR(blocker_id, 3) AS INTEGER)) + 1, 1) FROM blockers;")
