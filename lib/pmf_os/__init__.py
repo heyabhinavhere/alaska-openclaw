@@ -6,6 +6,7 @@ Amplitude, User 360, Customer.io, and Slack skills; this package owns durable
 state, deterministic PMF rules, artifacts, and safety gates.
 """
 
+from .docflow import DOCFLOW_SCHEMA_VERSION
 from .model import (
     ACTIVATED_SAVER_CANDIDATE,
     ACTIVATED_SAVER_COMPUTED,
@@ -18,6 +19,7 @@ from .store import PmfStore
 __all__ = [
     "ACTIVATED_SAVER_CANDIDATE",
     "ACTIVATED_SAVER_COMPUTED",
+    "DOCFLOW_SCHEMA_VERSION",
     "FUNNEL_STAGES",
     "Evidence",
     "FunnelResult",

@@ -13,6 +13,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
@@ -20,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from pmf_os.artifacts import artifact_ready_for_delivery, qa_artifact, redact_for_privacy  # noqa: E402
 from pmf_os.credgpt_quality import review_turn  # noqa: E402
 from pmf_os.customerio_guard import validate_customerio_action  # noqa: E402
+from pmf_os.docflow import DOCFLOW_SCHEMA_VERSION, build_docflow_spec, validate_docflow_spec  # noqa: E402
 from pmf_os.funnel import evaluate_funnel, is_meaningful_credgpt_message  # noqa: E402
 from pmf_os.store import PmfStore, signup_wave, parse_dt  # noqa: E402
 
@@ -450,6 +452,7 @@ def test_reports_redact_team_pii_and_render_self_contained_artifacts():
     assert Path(rendered["html_path"]).exists()
     assert Path(rendered["docx_path"]).exists()
     assert Path(rendered["pdf_path"]).exists()
+    assert Path(rendered["docflow_spec_path"]).exists()
     assert all(item["structural_pass"] for item in rendered["qa"])
 
     html_text = Path(rendered["html_path"]).read_text(encoding="utf-8")
@@ -460,10 +463,44 @@ def test_reports_redact_team_pii_and_render_self_contained_artifacts():
 
     snapshot = json.loads(Path(rendered["snapshot_json_path"]).read_text(encoding="utf-8"))
     assert snapshot["users"][0]["email"] == "[redacted]"
+    spec = json.loads(Path(rendered["docflow_spec_path"]).read_text(encoding="utf-8"))
+    assert spec["schema_version"] == DOCFLOW_SCHEMA_VERSION
+    assert validate_docflow_spec(spec) == []
+    assert spec["meta"]["title"] == "Alaska V5 Daily Cockpit"
+    assert any(block.get("type") == "table" and block.get("title") == "Stage Distribution" for block in spec["blocks"])
+    assert "asha@example.com" not in json.dumps(spec)
     assert qa_artifact(rendered["html_path"], "html")["passed"] is True
-    for key in ("snapshot_json_path", "html_path", "docx_path", "pdf_path"):
+    with zipfile.ZipFile(rendered["docx_path"]) as zf:
+        document_xml = zf.read("word/document.xml").decode("utf-8")
+    assert "<w:tbl>" in document_xml
+    assert "Stage Distribution" in document_xml
+    assert 'w:jc w:val="right"' in document_xml
+
+    conn = sqlite3.connect(store.db_path)
+    refs_json = conn.execute("SELECT file_refs_json FROM pmf_report_runs WHERE report_id='daily-team'").fetchone()[0]
+    conn.close()
+    file_refs = json.loads(refs_json)
+    assert any(ref["type"] == "docflow_spec" and ref["path"] == rendered["docflow_spec_path"] for ref in file_refs)
+
+    for key in ("snapshot_json_path", "docflow_spec_path", "html_path", "docx_path", "pdf_path"):
         mode = stat.S_IMODE(os.stat(rendered[key]).st_mode)
         assert mode == 0o600
+
+
+def test_docflow_spec_validation_rejects_bad_table_shape():
+    snapshot = {
+        "report_type": "daily_cockpit",
+        "privacy_tier": "team",
+        "generated_at": "2026-06-12T10:00:00Z",
+        "cohort": {"name": "PMF Test"},
+        "summary": {"total_signup_users": 1, "real_users": 1, "stage_counts": {"signed_up": 1}, "queue_counts": {}},
+        "queues": [],
+        "credgpt_quality": {"reviews": [], "clusters": []},
+    }
+    spec = build_docflow_spec(snapshot)
+    assert validate_docflow_spec(spec) == []
+    spec["blocks"][2]["rows"][0].append("extra")
+    assert "block_2_row_0_width_mismatch" in validate_docflow_spec(spec)
 
 
 def test_docx_pdf_delivery_gate_requires_visual_qa():
@@ -569,6 +606,7 @@ def run():
         test_resolved_credgpt_clusters_do_not_reopen_on_refresh,
         test_customerio_guard_blocks_sms_and_unapproved_actions,
         test_reports_redact_team_pii_and_render_self_contained_artifacts,
+        test_docflow_spec_validation_rejects_bad_table_shape,
         test_docx_pdf_delivery_gate_requires_visual_qa,
         test_founder_privacy_preserves_user_level_details,
         test_signup_wave_uses_cohort_timezone_not_utc_date,
