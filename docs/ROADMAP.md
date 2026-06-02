@@ -1,7 +1,7 @@
 # Alaska Roadmap — naming + phases (living doc)
 
 > **What this is:** the single, canonical map of Alaska's build. One naming scheme so Abhinav + Claude never get lost. Living doc — update status here as phases land. Detail lives in `docs/superpowers/specs|plans|research/`; history in `workspace/memory/system-evolution.md`.
-> **Last updated:** 2026-06-01
+> **Last updated:** 2026-06-02
 
 ---
 
@@ -11,7 +11,7 @@
 |---|---|---|
 | **v1–v3** | The reactive PM era + the stabilization patches (v2.0 → v2.3). Alaska as a meeting/standup/follow-up bot. | History — see `memory/system-evolution.md` |
 | **V4** | **The proactive-coworker foundation.** Turns Alaska from reactive → ambient teammate. Built as Phases A→E. | 🟡 A–D built **+ activated (06-01)**; **E: generator done (#53), cutover ~Jun 4–5** |
-| **V5** | The "complete new Alaska" — Abhinav's larger vision (not fully shared yet). First concrete piece: a KB self-maintenance agent (which is itself a Watcher). | ⚪ Future |
+| **V5** | **PMF Cohort Operating System.** Takes Alaska from useful Slack coworker to active PMF cohort operator for BON's V2 launch cohort. | 🟡 foundation merged (#59); implementation phases in progress |
 
 **Naming rules (so we stay consistent):**
 - **Phase A–E** = the V4 build stages. Use these going forward (not "vX.Y").
@@ -98,10 +98,28 @@ The "self-improving" half of the coworker thesis: Alaska learns from feedback an
 
 ---
 
-## V5 — preview (after V4)
+## V5 — PMF Cohort Operating System 🟡 STARTED
 
-The "complete new Alaska." Not fully scoped — Abhinav to brain-dump. First concrete piece shared 2026-05-30:
-- **V5.x — KB self-maintenance agent.** Weekly trigger → scans the week's Slack/MI/DMs → diffs against the KB → proposes updates → Abhinav approves. **This is a Watcher** — it rides on the D.2 substrate. Proof the V4 foundation is right: the V5 flagship is just a watcher template.
+The "complete new Alaska" is now scoped around BON's first focused PMF cohort: Alaska as a **PMF Cohort Operating System**, not just a Slackbot or analytics dashboard.
+
+Canonical plan: `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-cohort-os.md`. Runtime contract: `workspace/knowledge/definitions/pmf-cohort-os.md`. Skill: `skills/pmf-cohort-os/SKILL.md`.
+
+**PR #59 completed the foundation layer, not the full rollout.** It added PMF SQLite tables, the PMF OS Python core/CLI, PMF Funnel engine, user case-file primitives, operating queues, CredGPT Quality Observatory deterministic review, Customer.io safety gates, artifact scaffolding, KB contract, skill wrapper, and tests.
+
+**Remaining implementation phases:**
+
+| Phase | Name | Status |
+|---|---|---|
+| 0 | Contracts and guardrails | Mostly done (#59 + docs follow-up) |
+| 1 | Cohort Registry | Partially done — live Amplitude extraction pending |
+| 2 | Signal Spine and Case Files | Partially done — full User 360 normalization pending |
+| 3 | PMF Funnel Engine | Mostly done — real-data calibration pending |
+| 4 | Artifact Generation | Partially done — DocFlow + Slack delivery pending |
+| 5 | Customer.io Execution | Guardrails done — live email/push execution pending |
+| 6 | CredGPT Quality Observatory | Partially done — live chat ingestion + LLM judging pending |
+| 7 | End-Cohort Intelligence | Not started beyond storage/report foundation |
+
+Recommended next PR sequence: docs handoff → DocFlow artifact integration → live cohort intake → User 360 enrichment/case files → daily cockpit delivery → CredGPT live observability → Customer.io execution → end-cohort intelligence.
 
 ---
 

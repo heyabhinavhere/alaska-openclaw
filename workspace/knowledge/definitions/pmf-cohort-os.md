@@ -5,6 +5,8 @@
 
 This file is the canonical operating definition for Alaska V5's first PMF cohort system. It complements the runtime skill `pmf-cohort-os`.
 
+Implementation phase tracker: `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-cohort-os.md`.
+
 ## Cohort Scope
 
 - One active PMF cohort at a time in V5 Phase 1.
