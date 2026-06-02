@@ -193,7 +193,14 @@ python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db render-report \
   --include-pdf
 ```
 
-The report run stores file paths and QA status in `pmf_report_runs`.
+The report run writes:
+
+- `*.json`: structured PMF report snapshot.
+- `*.docflow.json`: renderer-neutral DocFlow document spec.
+- `*.html`: self-contained cockpit/report.
+- `*.docx` / `*.pdf`: optional document artifacts rendered from the DocFlow spec.
+
+`pmf_report_runs.file_refs_json` stores all artifact paths. `pmf_report_runs.qa_json` stores structural and visual QA results. DOCX/PDF are deliverable only after visual render QA passes; HTML may be delivered after structural QA because it has no external CDN dependency.
 
 ## Customer.io Approval Pack
 

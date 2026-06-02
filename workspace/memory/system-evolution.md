@@ -84,6 +84,18 @@
 
 ## Alaska System Evolution
 
+### V5 DocFlow Artifact Contract (2026-06-02)
+
+V5 PMF reports now use a renderer-neutral DocFlow-style document spec as the stable artifact contract:
+
+1. Alaska builds a structured PMF `report_snapshot.json`.
+2. Alaska derives a private `*.docflow.json` spec from that snapshot.
+3. HTML, DOCX, and PDF render from structured inputs instead of ad hoc prose.
+4. `pmf_report_runs.file_refs_json` records snapshot, DocFlow spec, HTML, DOCX, and PDF paths.
+5. DOCX/PDF remain delivery-gated by visual render QA; HTML remains self-contained and CDN-free.
+
+The user-supplied `Artifacts and docx/docflow-agent` package established the right shape, but the implementation adopted the contract repo-natively instead of copying generated examples, zips, temp files, or `node_modules`, and without adding runtime npm/pip dependencies to the production image.
+
 ### V5 Scope Decision + KB Self-Maintenance Reclassification (2026-06-02)
 
 Abhinav clarified the V5 product framing:

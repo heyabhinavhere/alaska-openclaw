@@ -1,7 +1,7 @@
 # Alaska V5 — PMF Cohort Operating System Plan
 
 **Date:** 2026-06-02  
-**Status:** In progress. Foundation merged in PR #59.  
+**Status:** In progress. Foundation merged in PR #59; DocFlow artifact contract added in the follow-up artifact slice.
 **Canonical runtime contract:** `workspace/knowledge/definitions/pmf-cohort-os.md`  
 **Runtime skill:** `skills/pmf-cohort-os/SKILL.md`  
 
@@ -27,7 +27,7 @@ PR #59 completed the **foundation layer**:
 - `pmf-cohort-os` skill and KB contract.
 - focused tests.
 
-PR #59 does **not** mean the PMF OS track is production-complete. Live Amplitude extraction, User 360 enrichment, Slack delivery, DocFlow artifact integration, live CredGPT ingestion, LLM judging, Customer.io execution, and end-cohort intelligence still need follow-up PRs.
+PR #59 does **not** mean the PMF OS track is production-complete. Live Amplitude extraction, User 360 enrichment, Slack delivery, polished report templates, live CredGPT ingestion, LLM judging, Customer.io execution, and end-cohort intelligence still need follow-up PRs.
 
 ---
 
@@ -178,7 +178,15 @@ Privacy tiers:
 - team report: aggregate/redacted;
 - founder/Abhinav report: user-level detail and case files.
 
-PR #59 includes a lightweight stdlib artifact renderer. The user added a stronger `Artifacts and docx/docflow-agent` package after PR #59. That package should be integrated in a follow-up PR rather than copied wholesale because it includes generated examples, temp files, a zip, and `node_modules`.
+The artifact contract is now:
+
+1. build a structured `report_snapshot.json`;
+2. derive a renderer-neutral `*.docflow.json` spec;
+3. render HTML/DOCX/PDF from those structured inputs;
+4. store all paths in `pmf_report_runs.file_refs_json`;
+5. gate delivery with structural QA plus visual render QA for DOCX/PDF.
+
+The user added a stronger `Artifacts and docx/docflow-agent` package after PR #59. The implementation adopted the DocFlow spec pattern without copying the package wholesale because it includes generated examples, temp files, a zip, and `node_modules`, and because the production image does not yet install the package's optional `docx`/`reportlab` runtime dependencies.
 
 ---
 
@@ -186,11 +194,11 @@ PR #59 includes a lightweight stdlib artifact renderer. The user added a stronge
 
 | Phase | Name | Status | What PR #59 did | Remaining work |
 |---|---|---|---|---|
-| 0 | Contracts and guardrails | Mostly done | schema, PMF rules, privacy tiers, Customer.io boundary, CredGPT rubric, skill/KB contract | DocFlow docs renderer contract |
+| 0 | Contracts and guardrails | Mostly done | schema, PMF rules, privacy tiers, Customer.io boundary, CredGPT rubric, skill/KB contract | production calibration against live data |
 | 1 | Cohort Registry | Partially done | tables, CLI, batch signup ingestion, date-window exclusion | live Amplitude extraction, activation workflow, cron/manual operator path |
 | 2 | Signal Spine and Case Files | Partially done | normalized fact/evidence tables, case-file builder | full Amplitude/User 360/Customer.io normalizers |
 | 3 | PMF Funnel Engine | Mostly done | deterministic engine and tests | calibrate against real data and finalize metric mapping |
-| 4 | Artifact Generation | Partially done | structured snapshot, HTML, lightweight DOCX/PDF, QA gates | integrate DocFlow, Slack file/link delivery, polished templates |
+| 4 | Artifact Generation | Partially done | structured snapshot, DocFlow spec, HTML, DOCX/PDF, QA gates | Slack file/link delivery, polished templates, richer document renderers if runtime deps are approved |
 | 5 | Customer.io Execution | Guardrails done | validation/approval gate | live segment/attribute sync, email/push execution, outcome tracking |
 | 6 | CredGPT Quality Observatory | Partially done | deterministic review, queue creation, clustering | live chat ingestion, selected LLM judging, optional Langfuse phase |
 | 7 | End-Cohort Intelligence | Not started | storage/report foundation only | final memo, lover list, dropoff analysis, roadmap implications |
@@ -232,17 +240,18 @@ Scope:
 - PMF OS sits inside the larger AI-coworker arc;
 - KB self-maintenance moves to deferred V4 capstone after V4 validation plus Phase E cutover.
 
-### Planned Next — DocFlow Artifact Integration
+### Current Artifact Slice — DocFlow Spec Integration
 
-Goal: replace/augment the lightweight DOCX/PDF renderer with the stronger DocFlow spec-based renderer.
+Goal: make DocFlow the stable intermediate contract for V5 PMF artifacts without importing generated sample files or runtime-heavy dependencies.
 
 Scope:
 
-- cleanly import only required DocFlow files;
+- generate a private `*.docflow.json` file for each report run;
+- render DOCX/PDF from that shared report spec;
+- preserve HTML as self-contained and CDN-free;
+- record snapshot/spec/HTML/DOCX/PDF paths in `pmf_report_runs.file_refs_json`;
 - exclude `.DS_Store`, generated examples, temp files, zips, and `node_modules`;
-- decide dependency installation strategy for `docx` and `reportlab`;
-- render DOCX/PDF from a shared report spec;
-- preserve visual QA gating.
+- keep visual QA gating for DOCX/PDF.
 
 ### Planned — Live Cohort Intake
 
@@ -354,7 +363,7 @@ Tests:
 6. Choose the next PR from the sequence above.
 7. Avoid touching V4 Phase E / live-testing changes unless the current task explicitly requires it.
 
-Current recommended next PR after this reconciliation merges: **DocFlow Artifact Integration**.
+Current recommended next PR after the DocFlow artifact slice merges: **Live Cohort Intake**.
 
 ---
 

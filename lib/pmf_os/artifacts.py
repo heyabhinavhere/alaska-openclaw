@@ -19,6 +19,12 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from .docflow import (
+    build_docflow_spec,
+    docflow_docx_body_xml,
+    docflow_pdf_lines,
+    validate_docflow_spec,
+)
 from .model import FUNNEL_STAGES, PII_KEYS, now_utc
 
 
@@ -87,6 +93,15 @@ def redact_for_privacy(value: Any, privacy_tier: str) -> Any:
 def write_snapshot_json(snapshot: dict[str, Any], path: str | Path) -> str:
     path = Path(path)
     _write_private_text(path, json.dumps(snapshot, indent=2, sort_keys=True))
+    return str(path)
+
+
+def write_docflow_spec(spec: dict[str, Any], path: str | Path) -> str:
+    errors = validate_docflow_spec(spec)
+    if errors:
+        raise ValueError(f"invalid DocFlow spec: {', '.join(errors)}")
+    path = Path(path)
+    _write_private_text(path, json.dumps(spec, indent=2, sort_keys=True))
     return str(path)
 
 
@@ -198,12 +213,15 @@ def render_html(snapshot: dict[str, Any], path: str | Path) -> str:
     return str(path)
 
 
-def render_docx(snapshot: dict[str, Any], path: str | Path) -> str:
-    """Render a simple editable DOCX report using OOXML and stdlib zipfile."""
+def render_docx(snapshot: dict[str, Any], path: str | Path, *, docflow_spec: dict[str, Any] | None = None) -> str:
+    """Render an editable DOCX report from the DocFlow spec using OOXML."""
     path = Path(path)
     _prepare_private_path(path)
-    paragraphs = _snapshot_paragraphs(snapshot)
-    body = "\n".join(_docx_paragraph(text, style) for text, style in paragraphs)
+    spec = docflow_spec or build_docflow_spec(snapshot)
+    errors = validate_docflow_spec(spec)
+    if errors:
+        raise ValueError(f"invalid DocFlow spec: {', '.join(errors)}")
+    body = docflow_docx_body_xml(spec)
     document_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -229,16 +247,20 @@ def render_docx(snapshot: dict[str, Any], path: str | Path) -> str:
     return str(path)
 
 
-def render_pdf(snapshot: dict[str, Any], path: str | Path) -> str:
-    """Render a lightweight text PDF without external dependencies."""
+def render_pdf(snapshot: dict[str, Any], path: str | Path, *, docflow_spec: dict[str, Any] | None = None) -> str:
+    """Render a lightweight PDF from the DocFlow spec without external deps."""
     path = Path(path)
     _prepare_private_path(path)
+    spec = docflow_spec or build_docflow_spec(snapshot)
+    errors = validate_docflow_spec(spec)
+    if errors:
+        raise ValueError(f"invalid DocFlow spec: {', '.join(errors)}")
     lines: list[str] = []
-    for text, style in _snapshot_paragraphs(snapshot):
-        prefix = "" if style == "body" else ""
-        lines.extend(_wrap_pdf_line(prefix + text, width=92))
-        if style != "body":
-            lines.append("")
+    for line in docflow_pdf_lines(spec):
+        if line == "\f":
+            lines.extend([""] * 4)
+            continue
+        lines.extend(_wrap_pdf_line(line, width=92))
     _write_basic_pdf(lines, path)
     _chmod_private_file(path)
     return str(path)
@@ -348,39 +370,6 @@ def _clusters_table(clusters: list[dict[str, Any]]) -> str:
         for c in clusters
     )
     return f"<table><thead><tr><th>Type</th><th>Severity</th><th>Title</th><th>Description</th></tr></thead><tbody>{rows}</tbody></table>"
-
-
-def _snapshot_paragraphs(snapshot: dict[str, Any]) -> list[tuple[str, str]]:
-    summary = snapshot.get("summary", {})
-    paragraphs: list[tuple[str, str]] = [
-        (_title(snapshot), "title"),
-        (f"Cohort: {snapshot.get('cohort', {}).get('name', 'PMF cohort')}", "heading"),
-        (f"Generated: {snapshot.get('generated_at')} | Privacy: {snapshot.get('privacy_tier')}", "body"),
-        (
-            f"Signups: {summary.get('total_signup_users', 0)} | Real users: {summary.get('real_users', 0)} | Open queues: {sum((summary.get('queue_counts') or {}).values())}",
-            "body",
-        ),
-        ("PMF Funnel", "heading"),
-    ]
-    for stage in FUNNEL_STAGES:
-        paragraphs.append((f"{_label(stage)}: {(summary.get('stage_counts') or {}).get(stage, 0)}", "body"))
-    paragraphs.append(("Operating Queues", "heading"))
-    for queue, count in (summary.get("queue_counts") or {}).items():
-        paragraphs.append((f"{_label(queue)}: {count}", "body"))
-    paragraphs.append(("CredGPT Quality", "heading"))
-    paragraphs.append(
-        (
-            f"Reviews: {summary.get('credgpt_reviews', 0)} | Weak reviews: {summary.get('weak_credgpt_reviews', 0)} | Clusters: {summary.get('quality_clusters', 0)}",
-            "body",
-        )
-    )
-    return paragraphs
-
-
-def _docx_paragraph(text: str, style: str) -> str:
-    size = "36" if style == "title" else "28" if style == "heading" else "22"
-    bold_start = "<w:b/>" if style in {"title", "heading"} else ""
-    return f"<w:p><w:r><w:rPr>{bold_start}<w:sz w:val=\"{size}\"/></w:rPr><w:t>{_xml(text)}</w:t></w:r></w:p>"
 
 
 def _write_basic_pdf(lines: list[str], path: Path) -> None:

@@ -18,9 +18,11 @@ from .artifacts import (
     render_docx,
     render_html,
     render_pdf,
+    write_docflow_spec,
     write_snapshot_json,
 )
 from .credgpt_quality import cluster_reviews, review_turn
+from .docflow import build_docflow_spec
 from .funnel import evaluate_funnel
 from .model import Evidence, higher_stage, now_utc
 
@@ -662,26 +664,37 @@ class PmfStore:
         )
         base = Path(artifact_root) / cohort_id / report_id
         snapshot_path = write_snapshot_json(snapshot, base.with_suffix(".json"))
+        docflow_spec = build_docflow_spec(snapshot)
+        docflow_spec_path = write_docflow_spec(docflow_spec, base.with_suffix(".docflow.json"))
         html_path = render_html(snapshot, base.with_suffix(".html"))
         qa_results = [qa_artifact(html_path, "html")]
         docx_path = None
         pdf_path = None
         if include_docx:
-            docx_path = render_docx(snapshot, base.with_suffix(".docx"))
+            docx_path = render_docx(snapshot, base.with_suffix(".docx"), docflow_spec=docflow_spec)
             qa_results.append(qa_artifact(docx_path, "docx", require_visual=require_visual_qa))
         if include_pdf:
-            pdf_path = render_pdf(snapshot, base.with_suffix(".pdf"))
+            pdf_path = render_pdf(snapshot, base.with_suffix(".pdf"), docflow_spec=docflow_spec)
             qa_results.append(qa_artifact(pdf_path, "pdf", require_visual=require_visual_qa))
         status = "qa_passed" if all(item.get("passed") for item in qa_results) else "rendered"
+        file_refs = [
+            {"type": "snapshot_json", "path": snapshot_path},
+            {"type": "docflow_spec", "path": docflow_spec_path},
+            {"type": "html", "path": html_path},
+        ]
+        if docx_path:
+            file_refs.append({"type": "docx", "path": docx_path})
+        if pdf_path:
+            file_refs.append({"type": "pdf", "path": pdf_path})
         with self.connect() as conn:
             conn.execute(
                 """
                 INSERT INTO pmf_report_runs (
                   report_id, cohort_id, report_type, privacy_tier, snapshot_date,
                   snapshot_json_path, html_path, docx_path, pdf_path, qa_json,
-                  status, summary_json
+                  status, file_refs_json, summary_json
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(report_id) DO UPDATE SET
                   snapshot_json_path=excluded.snapshot_json_path,
                   html_path=excluded.html_path,
@@ -689,6 +702,7 @@ class PmfStore:
                   pdf_path=excluded.pdf_path,
                   qa_json=excluded.qa_json,
                   status=excluded.status,
+                  file_refs_json=excluded.file_refs_json,
                   summary_json=excluded.summary_json,
                   generated_at=CURRENT_TIMESTAMP
                 """,
@@ -704,6 +718,7 @@ class PmfStore:
                     pdf_path,
                     dumps(qa_results),
                     status,
+                    dumps(file_refs),
                     dumps(snapshot.get("summary") or {}),
                 ),
             )
@@ -716,6 +731,7 @@ class PmfStore:
             "pdf_path": pdf_path,
             "qa": qa_results,
             "summary": snapshot.get("summary") or {},
+            "docflow_spec_path": docflow_spec_path,
         }
 
     # ------------------------------------------------------------------
