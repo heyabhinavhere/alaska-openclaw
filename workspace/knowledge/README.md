@@ -51,7 +51,8 @@ workspace/knowledge/
 ├── definitions/                       shared vocabulary
 │   ├── metrics.md                     6 success metrics, Activated Saver, diagnostic metrics
 │   ├── lifecycle-events.md            onboarding funnel + activation + churn
-│   └── personas.md                    ICP segments + credit-score buckets
+│   ├── personas.md                    ICP segments + credit-score buckets
+│   └── pmf-cohort-os.md               Alaska V5 PMF cohort operating contract
 │
 └── playbooks/                         operational recipes
     ├── common-queries.md              reusable Amplitude + Customer.io queries
