@@ -46,12 +46,18 @@ Do **not** use this skill for ordinary Alaska task tracking. `task-handler` rema
 10. Team reports must be aggregate/redacted. Founder reports may include user-level case files.
 11. DOCX/PDF artifacts must pass visual render QA before delivery. If render tooling is unavailable, do not mark those files delivered; send the HTML cockpit and note that DOCX/PDF are rendered but awaiting visual QA.
 
+## Database Boundary
+
+PMF OS defaults to `/data/queue/alaska_pmf.db`, not the V4 task/watchers database. This isolates high-volume cohort snapshots, signal facts, and chat reviews from the live V4 graph in `/data/queue/alaska.db`.
+
+The boot entrypoint migrates the PMF DB on deploy. Operators can override the path with `$PMF_DB_PATH`, but do not point PMF live intake at `alaska.db` unless Abhinav explicitly approves the contention risk.
+
 ## CLI Pattern
 
-All commands return JSON. Use `/data/queue/alaska.db` in production.
+All commands return JSON. Use `/data/queue/alaska_pmf.db` in production, or omit `--db` and let the CLI use `$PMF_DB_PATH` / the PMF default.
 
 ```bash
-python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska.db <command> ...
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db <command> ...
 ```
 
 In local repo tests or manual development, use:
@@ -65,7 +71,7 @@ python3 lib/pmf_cohort_os.py --db /tmp/alaska-pmf.db <command> ...
 No hardcoded dates. Abhinav chooses the window.
 
 ```bash
-python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska.db create-cohort \
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db create-cohort \
   --cohort-id pmf-2026-06-wave-1 \
   --name "PMF Cohort Wave 1" \
   --signup-window-start "2026-06-11T00:00:00-07:00" \
@@ -95,7 +101,7 @@ The CLI rejects windows longer than 3 days.
 Batch path for cohort intake:
 
 ```bash
-python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska.db ingest-signups-file \
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db ingest-signups-file \
   --cohort-id pmf-2026-06-wave-1 \
   --events-file /tmp/pmf-signup-events.jsonl
 ```
@@ -103,7 +109,7 @@ python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska.db ingest-signups-file
 Single-event debugging path:
 
 ```bash
-python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska.db ingest-signup \
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db ingest-signup \
   --cohort-id pmf-2026-06-wave-1 \
   --event-json '{"event_type":"onboarding_step_completed","step_name":"phone_number_submitted","event_time":"2026-06-11T10:15:00-07:00","user_id":"2714","user_properties":{"gp:first_name":"Asha","gp:email":"asha@example.com","gp:phone_number":"+15551234567"}}'
 ```
@@ -153,7 +159,7 @@ PMF Funnel rules:
 For every cohort chat turn from User 360 `chat.recent_turns` or Amplitude `chat_thread_processed`:
 
 ```bash
-python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska.db review-credgpt-turn \
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db review-credgpt-turn \
   --cohort-id pmf-2026-06-wave-1 \
   --user-key user:2714 \
   --turn-json '{"thread_id":"t1","turn_id":"t1-1","event_time":"2026-06-12T18:00:00Z","question":"How should I pay down my cards?","answer":"...","feedback":null,"chat_stopped_by_user":false,"dropoff_adjacent":false,"user_context_present":true}'
@@ -166,7 +172,7 @@ The deterministic layer flags weak, unsafe, ungrounded, interrupted, bad-feedbac
 Daily team cockpit:
 
 ```bash
-python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska.db render-report \
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db render-report \
   --cohort-id pmf-2026-06-wave-1 \
   --report-id daily-2026-06-12-team \
   --report-type daily_cockpit \
@@ -177,7 +183,7 @@ python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska.db render-report \
 Founder detailed report with DOCX/PDF:
 
 ```bash
-python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska.db render-report \
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db render-report \
   --cohort-id pmf-2026-06-wave-1 \
   --report-id daily-2026-06-12-founder \
   --report-type founder_daily \
@@ -194,7 +200,7 @@ The report run stores file paths and QA status in `pmf_report_runs`.
 Before any Customer.io write:
 
 ```bash
-python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska.db validate-customerio-action \
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db validate-customerio-action \
   --action-json '{"cohort_id":"pmf-2026-06-wave-1","channel":"push","name":"D2 stuck onboarding nudge","approved_by":"U07GKLVA9FE","dry_run":{"ok":true},"audience_preview":{"count":82},"suppression_check":{"suppressed":3},"frequency_cap_checked":true}'
 ```
 

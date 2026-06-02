@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .artifacts import (
     build_report_snapshot,
@@ -23,7 +25,7 @@ from .funnel import evaluate_funnel
 from .model import Evidence, higher_stage, now_utc
 
 
-DEFAULT_DB_PATH = "/data/queue/alaska.db"
+DEFAULT_DB_PATH = os.environ.get("PMF_DB_PATH", "/data/queue/alaska_pmf.db")
 DEFAULT_ARTIFACT_ROOT = "/data/workspace/pmf_artifacts"
 
 
@@ -182,7 +184,7 @@ class PmfStore:
                     phone,
                     email,
                     dt_to_db(observed_at),
-                    signup_wave(observed_at, start_dt),
+                    signup_wave(observed_at, start_dt, str(cohort.get("timezone") or "America/Los_Angeles")),
                     dumps({"cohort_entry": evidence.as_dict()}),
                 ),
             )
@@ -310,6 +312,9 @@ class PmfStore:
         facts: dict[str, Any],
     ) -> dict[str, Any]:
         user = self.get_user(cohort_id, user_key)
+        facts = dict(facts)
+        previous_facts = self.latest_snapshot_facts(cohort_id, user_key)
+        facts = merge_cumulative_facts(previous_facts, facts)
         if "onboarding_complete" not in facts:
             facts["onboarding_complete"] = user.get("onboarding_status") == "complete" or bool(user.get("is_real_user"))
         if "credit_score" not in facts:
@@ -402,6 +407,8 @@ class PmfStore:
                 self._record_claim_evidence(conn, cohort_id, user_key, "pmf_funnel_stage", user_key, evidence)
             for queue in result.queues:
                 self._upsert_queue(conn, cohort_id, user_key, queue)
+            if result.health != "at_risk":
+                self._resolve_queue_if_open(conn, cohort_id, user_key, "at_risk")
             case_file = build_case_file(user, facts, result.as_dict())
             conn.execute(
                 """
@@ -431,6 +438,22 @@ class PmfStore:
                 ),
             )
         return result.as_dict()
+
+    def latest_snapshot_facts(self, cohort_id: str, user_key: str) -> dict[str, Any]:
+        with self.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT normalized_facts_json
+                FROM pmf_user_daily_snapshots
+                WHERE cohort_id=? AND user_key=?
+                ORDER BY snapshot_date DESC, generated_at DESC
+                LIMIT 1
+                """,
+                (cohort_id, user_key),
+            ).fetchone()
+        if row is None:
+            return {}
+        return loads(row["normalized_facts_json"], {})
 
     def open_queue_items(self, cohort_id: str) -> list[dict[str, Any]]:
         with self.connect() as conn:
@@ -525,6 +548,10 @@ class PmfStore:
             clusters = cluster_reviews(reviews)
             for cluster in clusters:
                 cluster["cluster_id"] = stable_id("cqcl", cohort_id, cluster["cluster_type"])
+                existing = conn.execute(
+                    "SELECT status FROM credgpt_quality_clusters WHERE cluster_id=?",
+                    (cluster["cluster_id"],),
+                ).fetchone()
                 conn.execute(
                     """
                     INSERT INTO credgpt_quality_clusters (
@@ -537,8 +564,7 @@ class PmfStore:
                       severity=excluded.severity,
                       review_ids_json=excluded.review_ids_json,
                       evidence_json=excluded.evidence_json,
-                      last_seen_at=CURRENT_TIMESTAMP,
-                      status='open'
+                      last_seen_at=CURRENT_TIMESTAMP
                     """,
                     (
                         cluster["cluster_id"],
@@ -551,19 +577,29 @@ class PmfStore:
                         dumps(cluster["evidence"]),
                     ),
                 )
-                self._upsert_queue(
-                    conn,
-                    cohort_id,
-                    f"cluster:{cluster['cluster_type']}",
-                    {
-                        "queue_type": "repeated_product_model_issue_cluster",
-                        "title": cluster["title"],
-                        "reason": cluster["description"],
-                        "severity": cluster["severity"],
-                        "intake_only": False,
-                        "evidence": cluster,
-                    },
-                )
+                cluster_status = existing["status"] if existing else "open"
+                if cluster_status == "open":
+                    self._upsert_queue(
+                        conn,
+                        cohort_id,
+                        f"cluster:{cluster['cluster_type']}",
+                        {
+                            "queue_type": "repeated_product_model_issue_cluster",
+                            "title": cluster["title"],
+                            "reason": cluster["description"],
+                            "severity": cluster["severity"],
+                            "intake_only": False,
+                            "evidence": cluster,
+                        },
+                    )
+                else:
+                    self._resolve_queue_if_open(
+                        conn,
+                        cohort_id,
+                        f"cluster:{cluster['cluster_type']}",
+                        "repeated_product_model_issue_cluster",
+                        status="dismissed" if cluster_status == "ignored" else "resolved",
+                    )
         return clusters
 
     # ------------------------------------------------------------------
@@ -798,6 +834,26 @@ class PmfStore:
             ),
         )
 
+    def _resolve_queue_if_open(
+        self,
+        conn: sqlite3.Connection,
+        cohort_id: str,
+        user_key: str | None,
+        queue_type: str,
+        status: str = "resolved",
+    ) -> None:
+        conn.execute(
+            """
+            UPDATE pmf_operating_queues
+            SET status=?, resolved_at=CURRENT_TIMESTAMP
+            WHERE cohort_id=?
+              AND (user_key=? OR (user_key IS NULL AND ? IS NULL))
+              AND queue_type=?
+              AND status IN ('open','acknowledged','snoozed')
+            """,
+            (status, cohort_id, user_key, user_key, queue_type),
+        )
+
 
 def build_case_file(user: dict[str, Any], facts: dict[str, Any], funnel: dict[str, Any]) -> dict[str, Any]:
     credit_score = _as_int(facts.get("credit_score") or user.get("credit_score"))
@@ -848,9 +904,50 @@ def user_key_from_event(event: dict[str, Any]) -> str:
     return f"anon:{stable_id('anon', dumps(event))}"
 
 
-def signup_wave(observed_at: datetime, start_dt: datetime) -> str:
-    day = max(1, min(3, int((observed_at.date() - start_dt.date()).days) + 1))
+def signup_wave(observed_at: datetime, start_dt: datetime, timezone_name: str = "America/Los_Angeles") -> str:
+    try:
+        cohort_tz = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        cohort_tz = timezone.utc
+    observed_local = observed_at.astimezone(cohort_tz)
+    start_local = start_dt.astimezone(cohort_tz)
+    day = max(1, min(3, int((observed_local.date() - start_local.date()).days) + 1))
     return f"day_{day}"
+
+
+def merge_cumulative_facts(previous: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    """Merge cumulative PMF facts so partial daily payloads don't demote users.
+
+    The live pipeline should still send cumulative values. This merge is a
+    defensive guard for missing fields during partial refreshes.
+    """
+    if not previous:
+        return dict(incoming)
+    merged = dict(incoming)
+
+    for key in ("meaningful_credgpt_messages", "high_intent_usable_qas", "weak_credgpt_response_count"):
+        if key in previous or key in incoming:
+            merged[key] = max(_as_int(previous.get(key)) or 0, _as_int(incoming.get(key)) or 0)
+
+    for key in ("value_actions", "failed_link_attempts", "negative_signals", "product_learning_tags"):
+        if key in previous or key in incoming:
+            merged[key] = _merge_lists(previous.get(key), incoming.get(key))
+
+    if "active_days" in previous or "active_days" in incoming:
+        merged["active_days"] = _merge_lists(previous.get("active_days"), incoming.get("active_days"))
+
+    if isinstance(previous.get("pmf_success_metrics"), dict) or isinstance(incoming.get("pmf_success_metrics"), dict):
+        metrics = dict(previous.get("pmf_success_metrics") or {})
+        metrics.update(incoming.get("pmf_success_metrics") or {})
+        merged["pmf_success_metrics"] = metrics
+
+    if previous.get("explicit_love_proof") and "explicit_love_proof" not in incoming:
+        merged["explicit_love_proof"] = previous.get("explicit_love_proof")
+        for key in ("love_proof", "love_proof_source_ref", "love_proof_source_system"):
+            if key in previous and key not in incoming:
+                merged[key] = previous[key]
+
+    return merged
 
 
 def parse_dt(value: str) -> datetime:
@@ -936,6 +1033,21 @@ def _link_status(explicit: Any, flag: Any) -> str:
     if flag in {False, "false", "False", "0", 0}:
         return "not_started"
     return "unknown"
+
+
+def _merge_lists(left: Any, right: Any) -> list[Any]:
+    out: list[Any] = []
+    seen = set()
+    for collection in (left, right):
+        if collection is None:
+            continue
+        values = collection if isinstance(collection, list) else [collection]
+        for value in values:
+            marker = json.dumps(value, sort_keys=True, default=str)
+            if marker not in seen:
+                seen.add(marker)
+                out.append(value)
+    return out
 
 
 def _transition_type(old_stage: str | None, new_stage: str) -> str:
