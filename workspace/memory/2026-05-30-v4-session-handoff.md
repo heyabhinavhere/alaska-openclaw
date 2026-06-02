@@ -1,7 +1,7 @@
 # V4 Session Handoff — 2026-05-27 → 05-30
 
 > **Purpose:** Durable continuation record for the V4 build effort. If you're a fresh session picking up Alaska V4, read this top-to-bottom, then the two specs + the KB principle below. Everything here is current as of 2026-05-30.
-> **What "V4" means:** the next-gen Alaska — proactive, ambient "rest of your startup team." Foundation = the v2 task model (Phases A–E) + Watchers + the BON Knowledge Base + the 360 profile. There is a *bigger* "complete new Alaska" vision Abhinav has planned but **has not fully shared yet** — that's the single biggest unknown (see §9).
+> **What "V4" means:** the next-gen Alaska — proactive, ambient "rest of your startup team." Foundation = the v2 task model (Phases A–E) + Watchers + the BON Knowledge Base + the 360 profile. Update from 2026-06-02: V5 is now PMF Cohort OS; the KB self-maintenance watcher described below is reclassified as a deferred V4 capstone.
 
 ---
 
@@ -78,7 +78,7 @@ Abhinav's `knowledge-v2/` drafts (canonical copy: `BON Credit Project/knowledge-
 | BON Knowledge Base | 🟡 Co-build in progress (§1) |
 | Phase D (cross-person TASK_ASSIGN) | ⚪ Pending — becomes a watcher template |
 | Phase E (DAILY_STATE → SQLite cutover) | ⚪ Pending |
-| Bigger "complete new Alaska" vision | ⚪ In Abhinav's head, not shared (§9) |
+| Larger Alaska arc | Historical open question on May 30; clarified 2026-06-02 as V5 = PMF Cohort OS inside the larger AI-coworker arc (§9) |
 
 ## 4. Open PRs + branch state (as of 2026-05-30)
 
@@ -115,15 +115,18 @@ The v2 task tables (`tasks`, `task_events`, `task_mentions`, `blockers`, `schedu
 
 v2026.3.13 → v2026.5.26 crashed on `channels.slack`: `streaming` changed boolean→object, `nativeStreaming` removed. Retry requires: pre-fix `config/openclaw.json` channels.slack schema OR add `openclaw doctor --fix` as an entrypoint pre-flight (preferred — handles future schema changes). Then bump the Dockerfile pin. Full analysis: `docs/superpowers/research/2026-05-27-openclaw-upgrade-v2026.3-to-v2026.5.md`. Not urgent — v3.13 is stable. Do it on a low-traffic window.
 
-## 9. The biggest gap — the "complete new Alaska" vision
+## 9. Historical note — bigger Alaska vision and KB self-maintenance
 
-Abhinav has a larger vision planned ("a complete new Alaska... Watchers and Phases A–E is just part of it"). He's confirmed Alaska becomes load-bearing AFTER the **June 10 product launch** (the team is heads-down on data-accuracy for launch right now — a separate track from V4). The full V4 destination is NOT yet captured anywhere. **Ask Abhinav to brain-dump it** so Watchers + D + E get built as deliberate stepping stones toward it. Related: the locked "alaska-v2-thesis" ("the rest of your startup team") in `~/.claude/projects/.../memory/`.
+This section captured the May 30 state before the V5 PMF decision. The larger horizontal arc remains: Alaska should become an AI coworker / "the rest of your startup team." The current V5 headline, clarified on 2026-06-02, is **PMF Cohort OS**.
 
-### V5 vision shared 2026-05-30 — the KB self-maintenance agent (it's a Watcher!)
+### Superseded 2026-06-02 — KB self-maintenance is a deferred V4 capstone
 
-Abhinav's first concrete piece of the bigger vision: **a V5 agent that maintains the KB itself.** Triggers on a schedule (e.g., every Sunday), scans the week's Slack + Meeting Intelligence + DMs for what changed, decides what KB files need updating, and proposes the changes.
+The May 30 note put KB self-maintenance in the wrong bucket. That is superseded. The watcher that maintains the BON Knowledge Base belongs to the **V4 track** as a deferred capstone after both gates are true:
 
-**Architecturally this is a Watcher** — trigger = cron weekly; action chain = scan week's activity → diff against current KB → draft proposed KB edits → DM Abhinav for approval; memory = what it already proposed. **It rides directly on the V4 Watchers substrate.** This validates the whole foundation: the user's own V5 vision is a watcher template, so building Watchers V1 well *is* building toward V5. KB ownership trajectory: Abhinav (now) → Alaska-assisted → V5 self-maintaining watcher.
+1. V4 validates in live end-to-end testing, including Ops-4 tasks-landing proof.
+2. Phase E cutover is activated.
+
+**Architecturally this is still a Watcher** — trigger = cron weekly; action chain = scan recent Slack + Meeting Intelligence + DMs + product/system changes → diff against current KB → draft proposed KB edits → DM Abhinav for approval; memory = what it already proposed. It rides directly on the V4 Watchers + KB substrate, so the owner is the V4 track.
 
 ## 10. Forward sequence
 
@@ -140,7 +143,11 @@ Phase D (cross-person, as a watcher template) → Phase E (DAILY_STATE cutover)
    ↓
 [parallel/deferred] OpenClaw upgrade retry (#48); verify Phase B fires in prod
    ↓
-The bigger "complete new Alaska" vision (once Abhinav shares it)
+Phase E cutover + V4 validation gates
+   ↓
+Deferred V4 capstone: KB self-maintenance watcher
+   ↓
+V5: PMF Cohort OS, inside the larger AI-coworker arc
 ```
 
 ## 11. Research/spec doc index (all from this arc)

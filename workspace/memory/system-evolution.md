@@ -84,6 +84,23 @@
 
 ## Alaska System Evolution
 
+### V5 Scope Decision + KB Self-Maintenance Reclassification (2026-06-02)
+
+Abhinav clarified the V5 product framing:
+
+- **Alaska V5 = PMF Cohort Operating System.** PMF OS is the headline/current focus of the V5 era and the most important thing to build now for BON's V2 PMF cohort.
+- **PMF OS sits inside the bigger horizontal coworker arc.** The long-term Alaska direction is still an AI coworker / "the rest of your startup team." V5 does not mean Alaska is only ever a cohort tool; it means the current V5 teammate job is operating the PMF cohort end to end.
+- **KB self-maintenance is not V5 anymore.** The watcher that keeps the BON Knowledge Base updated moves to the V4 track as a deferred V4 capstone.
+
+The KB self-maintenance watcher is gated on both:
+
+1. V4 validates in live end-to-end testing, including Ops-4 tasks-landing proof.
+2. Phase E cutover is activated, with SQLite as source of truth and `DAILY_STATE.md` generated/read-only.
+
+Owner note: this is a **V4 track** item because it rides directly on the V4 Watchers + KB substrate. Shape: scheduled watcher scans recent Slack, Meeting Intelligence, DMs, and product/system changes; diffs against `workspace/knowledge/`; drafts proposed KB edits; and asks Abhinav for approval before any write.
+
+This supersedes the older May 30 note that put KB self-maintenance in the V5 bucket.
+
 ### V4 Completion + Activation (2026-06-01 → 06-02)
 
 V4 went from "build-incomplete + dormant" to fully built (Phases A–E coded), activated in prod, and hardened against the first wave of live feedback. Map: `docs/ROADMAP.md`. Plan: `docs/superpowers/plans/2026-06-01-alaska-v4-completion.md`.

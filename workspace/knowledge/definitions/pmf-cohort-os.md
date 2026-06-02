@@ -3,7 +3,9 @@
 **Status:** V5 implementation contract  
 **Owner:** Alaska / Abhinav  
 
-This file is the canonical operating definition for Alaska V5's first PMF cohort system. It complements the runtime skill `pmf-cohort-os`.
+This file is the canonical operating definition for Alaska V5: the PMF Cohort Operating System. It complements the runtime skill `pmf-cohort-os`.
+
+PMF OS is the current top-priority focus inside Alaska's larger horizontal AI-coworker arc. It does not mean Alaska is only ever a cohort tool. KB self-maintenance is not part of V5/PMF OS; it is a deferred V4 capstone after V4 validation and Phase E cutover.
 
 Implementation phase tracker: `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-cohort-os.md`.
 
