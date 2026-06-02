@@ -3,6 +3,10 @@
 Phase 1 does not auto-message users from quality findings. It produces
 case-file annotations, internal recommendations, and selected LLM review
 requests for high-risk or high-value turns.
+
+The deterministic checks are triage, not a safety model. They select turns for
+review and catch obvious patterns; real correctness/safety judgment belongs to
+the selected LLM/human review path.
 """
 
 from __future__ import annotations
@@ -36,6 +40,10 @@ UNSAFE_PATTERNS = [
     r"\bhide\b.*\bdebt\b",
     r"\bfake\b.*\b(income|statement|document)\b",
     r"\bnot\s+legal\s+advice\b",
+    r"\bclose\b.*\boldest\b.*\b(card|account)\b",
+    r"\b(open|apply for)\b.*\b(many|several|a bunch of)\b.*\b(card|account|loan)s?\b",
+    r"\bpay only\b.*\bminimum\b",
+    r"\bdispute\b.*\b(everything|all)\b",
 ]
 
 GROUNDING_TERMS = {
@@ -90,6 +98,7 @@ def review_turn(turn: dict[str, Any]) -> QualityReview:
     stopped = bool(turn.get("chat_stopped_by_user"))
     dropoff = bool(turn.get("dropoff_adjacent"))
     user_context_present = bool(turn.get("user_context_present", True))
+    grounding_source_refs = turn.get("grounding_source_refs") or turn.get("grounded_context_fields") or []
     high_intent = _matches_any(question, HIGH_INTENT_PATTERNS) or is_meaningful_credgpt_message(question)
 
     flags: list[str] = []
@@ -106,7 +115,9 @@ def review_turn(turn: dict[str, Any]) -> QualityReview:
     if _matches_any(answer, UNSAFE_PATTERNS):
         flags.append("unsafe_or_overconfident_language")
     if high_intent and user_context_present and not _has_grounding(answer):
-        flags.append("low_data_grounding_for_personal_finance")
+        flags.append("personalization_or_grounding_review_needed")
+    if high_intent and user_context_present and _has_financial_number(answer) and not grounding_source_refs:
+        flags.append("numeric_financial_claim_needs_source_review")
     if high_intent and not _has_next_step(answer):
         flags.append("missing_clear_next_step")
 
@@ -124,7 +135,7 @@ def review_turn(turn: dict[str, Any]) -> QualityReview:
     quality_state = "ok"
     if "unsafe_or_overconfident_language" in flags:
         quality_state = "unsafe"
-    elif "low_data_grounding_for_personal_finance" in flags:
+    elif "numeric_financial_claim_needs_source_review" in flags:
         quality_state = "hallucination_risk"
     elif flags:
         quality_state = "weak"
@@ -205,9 +216,11 @@ def _rubric_scores(
     if "thin_answer_for_high_intent_question" in flags:
         base["usefulness_actionability"] = 0.45
         base["pmf_usefulness"] = 0.45
-    if "low_data_grounding_for_personal_finance" in flags:
+    if "personalization_or_grounding_review_needed" in flags:
         base["data_grounding"] = 0.35
         base["personalization"] = 0.35
+    if "numeric_financial_claim_needs_source_review" in flags:
+        base["data_grounding"] = 0.35
         base["hallucination_unsafe_advice_risk"] = 0.45
     if "missing_clear_next_step" in flags:
         base["next_step_quality"] = 0.35
@@ -227,12 +240,20 @@ def _recommendations(flags: list[str], quality_state: str) -> list[dict[str, Any
     recommendations: list[dict[str, Any]] = []
     if not flags and quality_state == "ok":
         return recommendations
-    if "low_data_grounding_for_personal_finance" in flags:
+    if "personalization_or_grounding_review_needed" in flags:
         recommendations.append(
             {
                 "type": "model_prompt",
-                "title": "Improve response grounding",
-                "description": "Require CredGPT to cite the user's relevant score, balance, utilization, APR, or account context when answering high-intent financial questions.",
+                "title": "Review personalization and grounding",
+                "description": "Check whether CredGPT used relevant user context when answering this high-intent financial question.",
+            }
+        )
+    if "numeric_financial_claim_needs_source_review" in flags:
+        recommendations.append(
+            {
+                "type": "model_prompt",
+                "title": "Verify numeric financial claim",
+                "description": "Numeric financial claims should be traceable to user profile, credit, Plaid, or chat evidence before being trusted.",
             }
         )
     if "missing_clear_next_step" in flags:
@@ -276,9 +297,13 @@ def _matches_any(text: str, patterns: list[str]) -> bool:
 
 def _has_grounding(answer: str) -> bool:
     lowered = answer.lower()
-    has_number = bool(re.search(r"[$]?\d+([,.]\d+)?%?", lowered))
+    has_number = _has_financial_number(answer)
     has_term = any(term in lowered for term in GROUNDING_TERMS)
     return has_number and has_term
+
+
+def _has_financial_number(answer: str) -> bool:
+    return bool(re.search(r"[$]?\d+([,.]\d+)?%?", answer.lower()))
 
 
 def _has_next_step(answer: str) -> bool:
@@ -302,7 +327,8 @@ def _has_next_step(answer: str) -> bool:
 def _cluster_type(flag: str) -> str:
     mapping = {
         "unsafe_or_overconfident_language": "unsafe_advice",
-        "low_data_grounding_for_personal_finance": "data_grounding",
+        "personalization_or_grounding_review_needed": "data_grounding",
+        "numeric_financial_claim_needs_source_review": "hallucination_risk",
         "thin_answer_for_high_intent_question": "usefulness",
         "missing_clear_next_step": "next_step_quality",
         "bad_feedback": "pmf_usefulness",

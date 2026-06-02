@@ -11,7 +11,7 @@
 |---|---|---|
 | **v1–v3** | The reactive PM era + the stabilization patches (v2.0 → v2.3). Alaska as a meeting/standup/follow-up bot. | History — see `memory/system-evolution.md` |
 | **V4** | **The proactive-coworker foundation.** Turns Alaska from reactive → ambient teammate. Built as Phases A→E. | 🟡 A–D built **+ activated (06-01)**; **E: generator done (#53), cutover ~Jun 4–5** |
-| **V5** | **PMF Cohort Operating System.** Takes Alaska from useful Slack coworker to active PMF cohort operator for BON's V2 launch cohort. | 🟡 foundation merged (#59); implementation phases in progress |
+| **V5** | The broader "true teammate" vision for Alaska. First major application track: **PMF Cohort Operating System** for BON's V2 launch cohort. | 🟡 PMF OS foundation merged (#59); implementation phases in progress |
 
 **Naming rules (so we stay consistent):**
 - **Phase A–E** = the V4 build stages. Use these going forward (not "vX.Y").
@@ -98,9 +98,9 @@ The "self-improving" half of the coworker thesis: Alaska learns from feedback an
 
 ---
 
-## V5 — PMF Cohort Operating System 🟡 STARTED
+## V5 — first major application: PMF Cohort Operating System 🟡 STARTED
 
-The "complete new Alaska" is now scoped around BON's first focused PMF cohort: Alaska as a **PMF Cohort Operating System**, not just a Slackbot or analytics dashboard.
+The broader V5 vision is still Alaska as a genuinely helpful teammate/partner inside the company. The first concrete V5 application track is BON's focused PMF cohort: Alaska as a **PMF Cohort Operating System**, not just a Slackbot or analytics dashboard.
 
 Canonical plan: `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-cohort-os.md`. Runtime contract: `workspace/knowledge/definitions/pmf-cohort-os.md`. Skill: `skills/pmf-cohort-os/SKILL.md`.
 
@@ -137,6 +137,6 @@ Next: P4.2 parity (Jun 2–4) → P4.3 hard-cut (~Jun 4–5). Hold #48 until pos
 ## Dependency chain (the critical path)
 
 ```
-D.1 ✅ ──→ D.2 ✅ ──→ [ Ops-4: does the prod task graph populate? ] ──→ E (cutover) + #49 (watcher task-actions) ──→ V5 (KB-agent + bigger vision)
+D.1 ✅ ──→ D.2 ✅ ──→ [ Ops-4: does the prod task graph populate? ] ──→ E (cutover) + #49 (watcher task-actions) ──→ V5 tracks (PMF OS first; KB self-maintenance and broader teammate work later)
 ```
 **Ops-4 is now the gate.** Phase E (SQLite→source-of-truth) and the task-dependent watcher templates both need a populated graph. Everything non-task — the live reactive cadence, DM actions, channel/customer-signal watchers, reminders — is already running and does NOT wait on Ops-4.

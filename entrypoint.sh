@@ -122,6 +122,23 @@ if [ -d /opt/migrations ]; then
   echo "[alaska] Migrations complete."
 fi
 
+# PMF Cohort OS uses a separate SQLite file by default so V5's heavier cohort
+# writes cannot contend with the V4 task/watchers graph. Operators may override
+# the path with PMF_DB_PATH. If they intentionally point it at alaska.db, skip
+# the second migration pass.
+PMF_DB_PATH="${PMF_DB_PATH:-/data/queue/alaska_pmf.db}"
+if [ -d /opt/migrations ] && [ "$PMF_DB_PATH" != "/data/queue/alaska.db" ]; then
+  if [ ! -f "$PMF_DB_PATH" ]; then
+    echo "[alaska] Initializing PMF SQLite database with WAL mode + FK enforcement at $PMF_DB_PATH..."
+    sqlite3 "$PMF_DB_PATH" "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;"
+  else
+    echo "[alaska] PMF SQLite database already exists at $PMF_DB_PATH."
+  fi
+  echo "[alaska] Checking PMF database for pending migrations..."
+  bash /opt/migrations/run_migrations.sh "$PMF_DB_PATH" /opt/migrations
+  echo "[alaska] PMF database migrations complete."
+fi
+
 # Substitute env vars into config (OpenClaw doesn't do this natively)
 if [ -n "$HOOKS_TOKEN" ]; then
   sed -i "s/__HOOKS_TOKEN__/$HOOKS_TOKEN/g" /data/.openclaw/openclaw.json

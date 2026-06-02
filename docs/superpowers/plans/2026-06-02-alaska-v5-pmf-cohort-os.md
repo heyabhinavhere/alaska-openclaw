@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Alaska V5 is being built as the **PMF Cohort Operating System** for BON's first focused V2 launch cohort. The goal is not another dashboard. The goal is an operating layer that lets Alaska track, understand, and act on one selected 3-day signup cohort at user-level depth.
+The first major V5 application track is the **PMF Cohort Operating System** for BON's focused V2 launch cohort. The broader V5 vision remains Alaska as a genuinely helpful teammate/partner inside the company; PMF OS is the urgent operating application for the June PMF push, not necessarily the whole V5 end-state.
 
 PR #59 completed the **foundation layer**:
 
@@ -25,7 +25,7 @@ PR #59 completed the **foundation layer**:
 - `pmf-cohort-os` skill and KB contract.
 - focused tests.
 
-PR #59 does **not** mean V5 is production-complete. Live Amplitude extraction, User 360 enrichment, Slack delivery, DocFlow artifact integration, live CredGPT ingestion, LLM judging, Customer.io execution, and end-cohort intelligence still need follow-up PRs.
+PR #59 does **not** mean the PMF OS track is production-complete. Live Amplitude extraction, User 360 enrichment, Slack delivery, DocFlow artifact integration, live CredGPT ingestion, LLM judging, Customer.io execution, and end-cohort intelligence still need follow-up PRs.
 
 ---
 
@@ -45,6 +45,18 @@ The core operating problem: humans cannot track 1,000 users at sufficient depth 
 
 ---
 
+## Product Scope Boundary
+
+Until Abhinav explicitly says otherwise, use this scope:
+
+- **V5** = broader teammate/partner direction.
+- **PMF Cohort OS** = first major V5 application track, optimized for the immediate BON V2/PMF cohort.
+- **KB self-maintenance** = another V5 track that can ride on Watchers later.
+
+Do not rewrite the whole V5 roadmap as only PMF OS, and do not treat the older KB-agent idea as cancelled. PMF OS is simply the current highest-leverage track.
+
+---
+
 ## System Boundary
 
 Alaska owns PMF operating truth.
@@ -59,6 +71,8 @@ Alaska owns PMF operating truth.
 | Artifacts | HTML/DOCX/PDF reporting surface |
 
 Customer.io is not the PMF brain. Slack is not the reporting surface for large tables. Alaska should send concise Slack summaries plus artifact links/files.
+
+PMF OS uses a separate SQLite database by default: `/data/queue/alaska_pmf.db`. V4 remains on `/data/queue/alaska.db`. Do not run live PMF intake against the V4 database unless Abhinav explicitly accepts the contention/blast-radius risk.
 
 ---
 
@@ -170,7 +184,7 @@ PR #59 includes a lightweight stdlib artifact renderer. The user added a stronge
 
 | Phase | Name | Status | What PR #59 did | Remaining work |
 |---|---|---|---|---|
-| 0 | Contracts and guardrails | Mostly done | schema, PMF rules, privacy tiers, Customer.io boundary, CredGPT rubric, skill/KB contract | add DocFlow docs renderer contract; update roadmap/memory docs |
+| 0 | Contracts and guardrails | Mostly done | schema, PMF rules, privacy tiers, Customer.io boundary, CredGPT rubric, skill/KB contract | review follow-ups; DocFlow docs renderer contract |
 | 1 | Cohort Registry | Partially done | tables, CLI, batch signup ingestion, date-window exclusion | live Amplitude extraction, activation workflow, cron/manual operator path |
 | 2 | Signal Spine and Case Files | Partially done | normalized fact/evidence tables, case-file builder | full Amplitude/User 360/Customer.io normalizers |
 | 3 | PMF Funnel Engine | Mostly done | deterministic engine and tests | calibrate against real data and finalize metric mapping |
@@ -315,7 +329,7 @@ Tests:
 6. Choose the next PR from the sequence above.
 7. Avoid touching V4 Phase E / live-testing changes unless the current task explicitly requires it.
 
-Current recommended next PR: **DocFlow Artifact Integration**.
+Current recommended next PR: **Review follow-ups, then DocFlow Artifact Integration**.
 
 ---
 

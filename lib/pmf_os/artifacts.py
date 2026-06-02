@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -84,16 +85,15 @@ def redact_for_privacy(value: Any, privacy_tier: str) -> Any:
 
 
 def write_snapshot_json(snapshot: dict[str, Any], path: str | Path) -> str:
-    path = str(path)
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    Path(path).write_text(json.dumps(snapshot, indent=2, sort_keys=True), encoding="utf-8")
-    return path
+    path = Path(path)
+    _write_private_text(path, json.dumps(snapshot, indent=2, sort_keys=True))
+    return str(path)
 
 
 def render_html(snapshot: dict[str, Any], path: str | Path) -> str:
     """Render a self-contained PMF cockpit HTML file with no CDN dependency."""
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    _prepare_private_path(path)
     summary = snapshot.get("summary", {})
     stage_counts = summary.get("stage_counts", {})
     queue_counts = summary.get("queue_counts", {})
@@ -194,14 +194,14 @@ def render_html(snapshot: dict[str, Any], path: str | Path) -> str:
 </body>
 </html>
 """
-    path.write_text(html_doc, encoding="utf-8")
+    _write_private_text(path, html_doc)
     return str(path)
 
 
 def render_docx(snapshot: dict[str, Any], path: str | Path) -> str:
     """Render a simple editable DOCX report using OOXML and stdlib zipfile."""
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    _prepare_private_path(path)
     paragraphs = _snapshot_paragraphs(snapshot)
     body = "\n".join(_docx_paragraph(text, style) for text, style in paragraphs)
     document_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -225,13 +225,14 @@ def render_docx(snapshot: dict[str, Any], path: str | Path) -> str:
         zf.writestr("[Content_Types].xml", content_types)
         zf.writestr("_rels/.rels", rels)
         zf.writestr("word/document.xml", document_xml)
+    _chmod_private_file(path)
     return str(path)
 
 
 def render_pdf(snapshot: dict[str, Any], path: str | Path) -> str:
     """Render a lightweight text PDF without external dependencies."""
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    _prepare_private_path(path)
     lines: list[str] = []
     for text, style in _snapshot_paragraphs(snapshot):
         prefix = "" if style == "body" else ""
@@ -239,6 +240,7 @@ def render_pdf(snapshot: dict[str, Any], path: str | Path) -> str:
         if style != "body":
             lines.append("")
     _write_basic_pdf(lines, path)
+    _chmod_private_file(path)
     return str(path)
 
 
@@ -462,16 +464,16 @@ def _visual_qa_docx(path: Path, result: dict[str, Any]) -> bool:
     if not soffice or not pdftoppm:
         return False
     result["visual_render_attempted"] = True
-    out_dir = path.parent / f".qa_{path.stem}"
-    out_dir.mkdir(exist_ok=True)
     try:
-        subprocess.run([soffice, "--headless", "--convert-to", "pdf", "--outdir", str(out_dir), str(path)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
-        pdf_path = out_dir / f"{path.stem}.pdf"
-        if not pdf_path.exists():
-            result["errors"].append("docx_pdf_conversion_missing")
-            return False
-        subprocess.run([pdftoppm, "-png", "-singlefile", str(pdf_path), str(out_dir / "page")], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
-        return (out_dir / "page.png").exists()
+        with tempfile.TemporaryDirectory(prefix=f"pmf_docx_qa_{path.stem}_") as tmp:
+            out_dir = Path(tmp)
+            subprocess.run([soffice, "--headless", "--convert-to", "pdf", "--outdir", str(out_dir), str(path)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+            pdf_path = out_dir / f"{path.stem}.pdf"
+            if not pdf_path.exists():
+                result["errors"].append("docx_pdf_conversion_missing")
+                return False
+            subprocess.run([pdftoppm, "-png", "-singlefile", str(pdf_path), str(out_dir / "page")], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+            return (out_dir / "page.png").exists()
     except (subprocess.SubprocessError, OSError) as exc:
         result["errors"].append(f"docx_visual_render_failed:{exc}")
         return False
@@ -482,11 +484,11 @@ def _visual_qa_pdf(path: Path, result: dict[str, Any]) -> bool:
     if not pdftoppm:
         return False
     result["visual_render_attempted"] = True
-    out_dir = path.parent / f".qa_{path.stem}"
-    out_dir.mkdir(exist_ok=True)
     try:
-        subprocess.run([pdftoppm, "-png", "-singlefile", str(path), str(out_dir / "page")], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
-        return (out_dir / "page.png").exists()
+        with tempfile.TemporaryDirectory(prefix=f"pmf_pdf_qa_{path.stem}_") as tmp:
+            out_dir = Path(tmp)
+            subprocess.run([pdftoppm, "-png", "-singlefile", str(path), str(out_dir / "page")], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+            return (out_dir / "page.png").exists()
     except (subprocess.SubprocessError, OSError) as exc:
         result["errors"].append(f"pdf_visual_render_failed:{exc}")
         return False
@@ -528,3 +530,24 @@ def _xml(value: Any) -> str:
 def _pdf_escape(value: str) -> str:
     safe = value.encode("latin-1", errors="replace").decode("latin-1")
     return safe.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _prepare_private_path(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(path.parent, 0o700)
+    except OSError:
+        pass
+
+
+def _write_private_text(path: Path, text: str) -> None:
+    _prepare_private_path(path)
+    path.write_text(text, encoding="utf-8")
+    _chmod_private_file(path)
+
+
+def _chmod_private_file(path: Path) -> None:
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass

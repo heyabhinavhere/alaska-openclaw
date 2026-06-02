@@ -14,6 +14,7 @@ Implementation phase tracker: `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-c
 - Cohort entry is Amplitude `onboarding_step_completed` with `step_name=phone_number_submitted`.
 - Users before or after the selected window are excluded from the cohort registry.
 - Real user means onboarding complete plus credit score greater than zero.
+- Runtime storage defaults to `/data/queue/alaska_pmf.db`, separate from V4's `/data/queue/alaska.db`, to reduce SQLite contention and blast radius.
 
 ## Funnel Stages
 
@@ -63,6 +64,8 @@ Rubric:
 - PMF usefulness
 
 Phase 1 output is internal only: product/model recommendations, case-file annotations, and issue clusters. Do not send user-facing interventions from CredGPT quality findings.
+
+Deterministic CredGPT checks are triage only. They select turns for LLM/human review and catch obvious patterns. Do not treat them as a complete financial-advice safety net.
 
 ## Customer.io Boundary
 
