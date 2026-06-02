@@ -10,7 +10,7 @@
 | Era | What it is | Status |
 |---|---|---|
 | **v1–v3** | The reactive PM era + the stabilization patches (v2.0 → v2.3). Alaska as a meeting/standup/follow-up bot. | History — see `memory/system-evolution.md` |
-| **V4** | **The proactive-coworker foundation.** Turns Alaska from reactive → ambient teammate. Built as Phases A→E. | 🟡 In progress (A,B,C,D built; **E pending, gated on Ops-4**) |
+| **V4** | **The proactive-coworker foundation.** Turns Alaska from reactive → ambient teammate. Built as Phases A→E. | 🟡 A–D built **+ activated (06-01)**; **E: generator done (#53), cutover ~Jun 4–5** |
 | **V5** | The "complete new Alaska" — Abhinav's larger vision (not fully shared yet). First concrete piece: a KB self-maintenance agent (which is itself a Watcher). | ⚪ Future |
 
 **Naming rules (so we stay consistent):**
@@ -29,10 +29,10 @@ The substrate: the SQLite task graph + the message classifier.
 - **A.2** — intent-classifier in observation mode (9 intents) ✅
 - **A.3** — classifier v1.1 tuning + `secondary_intents` (`0002`) ✅
 
-### Phase B — Task Lifecycle ✅ DONE (but DORMANT in prod)
+### Phase B — Task Lifecycle ✅ DONE + ACTIVATED (2026-06-01)
 The write path. **`task-handler` is the single writer; everything else feeds it.**
 - **B1** shared-toolkit Task Write Contract · **B2** task-handler (match-or-create dedup) · **B3** Meeting Intelligence → task-handler · **B4** Slack DM intent handlers → task-handler · **B5** pre-call-brief reads SQLite + parses standup/thread replies → task-handler.
-- ⚠️ **DORMANT (0-row as of 05-30):** the pipeline is wired but may never have been exercised on real data. **Ops-4 = verify it actually fires in prod** — the gate for Phase E and the task-dependent watcher templates (#49). The DM action path was activated 05-31 (#36/#37: classify→route, no improvised crons); whether real task rows have landed is exactly what Ops-4 checks (re-running 2026-06-01).
+- ✅ **ACTIVATED 2026-06-01 (P1, #50):** the MI cron was thinned to run the SKILL verbatim (incl. Step 5b → task-handler) — it had been a *fat cron prompt* that overrode the SKILL and never called task-handler, which is why the graph sat 0-row. Gated channel→task + the DM/standup feeders also write now. The graph is **populating**; the real "B is alive" proof is the tasks-landing verification (in progress, ~Jun 2 AM). DM action path live since 05-31 (#36/#37).
 
 ### Phase C — Scheduling Engine ✅ DONE
 - reminder-dispatcher skill + RRULE (`lib/rrule_helper.py`) + REMINDER_REQUEST handler + routine-proposal approval. Phase C's `scheduled_actions`/`routine_proposals` get migrated into Watchers (Phase D.2), then deprecated.
@@ -52,10 +52,10 @@ This is where "proactive ambient coworker" actually gets built. **Two sub-phases
   - The proactive-agency primitive: trigger + action-chain + recipient + memory + approval. User-requested only in V1 (autonomy stays with Thinker).
   - **Absorbs the old "cross-person TASK_ASSIGN" (the original Phase D) as a watcher template** — no longer a separate phase.
   - Spec: `docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md` (16 locked decisions). Plan: `docs/superpowers/plans/2026-05-27-alaska-watchers-v1.md` (reconciled in PR #26). Build = sub-phases W.0→W.4 inside D.2.
-  - Status: ✅ shipped as **Watcher Gen 1** (PR #35); hardened — plain-English drafts + dates (#38), channel activation + PII guard (#39), read-state-not-assume (#40), timezone/delivery/janitor (#46). **W-1/W-2/W-3 running in prod** (tz-corrected 06-01). Skills: `watcher-creator`, `watcher-dispatcher`, `event-poller`, `watcher-janitor`. ⚠️ The **task-dependent templates** (`stale-task`, `cross-person-assign`, `task_status_changed` poller) stay inert until **Ops-4** confirms tasks flow (#49).
+  - Status: ✅ shipped as **Watcher Gen 1** (PR #35); hardened — plain-English drafts + dates (#38), channel activation + PII guard (#39), read-state-not-assume (#40), timezone/delivery/janitor (#46). **W-1/W-2/W-3 running in prod** (tz-corrected 06-01). Skills: `watcher-creator`, `watcher-dispatcher`, `event-poller`, `watcher-janitor`. The **task-dependent templates** (`stale-task`, `cross-person-assign`) were **un-gated in V4 P3 (#52)** — handlers built (task-handler `query_stale`, follow-through `escalate_unacked_assignments`, the cross-person assign handshake). They produce results as the graph fills.
 
-### Phase E — Cutover ⚪ PENDING (the operating-model flip)
-- Flip SQLite to the **source of truth**; `DAILY_STATE.md` becomes a generated read-only view; retire direct MI writes to it. This is the change that makes the KB's "SQLite is source of truth" framing TRUE (it's currently target-not-actual). Dual-write window first, then hard-cut.
+### Phase E — Cutover 🟡 IN PROGRESS (the operating-model flip)
+- Flip SQLite to the **source of truth**; `DAILY_STATE.md` becomes a generated read-only view; retire direct MI writes to it. **P4.1 done (#53):** the read-only generator (`lib/generate_daily_state.py`) renders the per-person + blockers sections from the graph (13 tests). **Remaining, data-paced ~Jun 4–5:** P4.2 prove dual-write parity → P4.3 hard-cut + flip operating-model §2. Until then `DAILY_STATE.md` stays authoritative.
 
 ---
 
@@ -82,7 +82,7 @@ Readers (write nothing to tasks): Daily Pulse, Follow-Through, Risk Radar, Think
 | Ops-1 | entrypoint config-corruption guard | ✅ merged (PR #24) |
 | Ops-2 | OpenClaw upgrade v2026.3.13 → v2026.5.26 (needs config pre-fix + `doctor --fix` pre-flight; crashed on Slack streaming schema) | ⚪ deferred (#48) |
 | Ops-3 | deploy hygiene: never `railway up` from local; branch off current main; GitHub→Railway is the deploy path | ✅ lesson locked |
-| Ops-4 | **verify Phase B fires in prod** (task tables 0-row as of 05-30 — is the write path actually alive?) | ⚪ pending → **running 2026-06-01** |
+| Ops-4 | **verify Phase B fires in prod** (was 0-row/dormant — write path activated 06-01 via #50) | 🟡 write path live; **tasks-landing verification in progress** |
 | Ops-5 | MI extraction-quality validation (May 25–29 transcript replay): speaker attribution, implicit blockers, inferred-task flag, signal-weighting | ✅ done (#42, #43 + re-replay) |
 
 > **⚠️ Naming note (resolves a real mix-up):** the PR #42/#43 commit messages call the MI extraction work **"Ops-4"** — that was a mislabel. **Ops-4 is the prod-verification above (still pending); the MI extraction work is Ops-5 (done).** They are unrelated. Don't conflate them.
@@ -105,15 +105,15 @@ The "complete new Alaska." Not fully scoped — Abhinav to brain-dump. First con
 
 ---
 
-## Current status snapshot (2026-06-01)
+## Current status snapshot (2026-06-02)
 
 ```
-V4:  A ✅   B ✅(dormant — Ops-4)   C ✅   D.1 ✅   D.2 ✅ built+live   E ⚪ pending
-Ops: Ops-1 ✅   Ops-2 ⚪ deferred(#48)   Ops-3 ✅   Ops-4 ⚪ running   Ops-5 ✅
-Also live: DM intent-action layer (#36/#37)  ·  Self-Improvement Loop: spec #41, Phase 0 #45 (separate executor track)
-Recent hardening (06-01): MI attribution+extraction (#42/#43=Ops-5), watcher tz/janitor (#46), blocker dedup (#47)
-Open PRs: none (all merged through #47)
-Immediate next: run Ops-4 (does the prod task graph populate?) → then Phase E planning or wire watcher task-actions (#49). Hold #48 until post-launch.
+V4:  A ✅   B ✅ ACTIVATED 06-01 (graph populating)   C ✅   D.1 ✅   D.2 ✅ live (task-templates un-gated)   E 🟡 generator done (#53), cutover ~Jun 4–5
+Ops: Ops-1 ✅   Ops-2 ⚪ deferred(#48)   Ops-3 ✅   Ops-4 ✅ write path activated (#50; tasks-landing verify in progress)   Ops-5 ✅
+Build: V4 COMPLETE (A–E coded). P1–P4.1 = PRs #50/#51/#52/#53. Live-test hardening = #54 (channel TASK_ASSIGN) / #55 (DM action-honesty) / #56 (cross-session memory).
+Source of truth: still DAILY_STATE.md — Phase E cutover NOT done; the graph dual-writes in parallel. Do not state the graph as authoritative yet.
+Now: 24h E2E test. Verify tomorrow AM — tasks landing by source (real "B alive" proof), W-1 clean 9:30 fire, 6 PM pulse double-fire.
+Next: P4.2 parity (Jun 2–4) → P4.3 hard-cut (~Jun 4–5). Hold #48 until post-launch.
 ```
 
 ## Dependency chain (the critical path)

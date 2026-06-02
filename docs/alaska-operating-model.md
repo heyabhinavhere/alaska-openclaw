@@ -6,7 +6,7 @@
 >
 > **The capability-vs-workflow line (why this file exists):** the KB answers *"what is this, and what can Alaska DO with it"* (BON's systems + integrations + APIs as a toolbox). This doc and the skills answer *"how Alaska actually does it"* (workflow). Keeping the operating model in exactly one place means a pipeline change — Phase E **will** change it — updates one file, not five. (That five-places-go-stale drift was the v2.2/v2.3 disease.)
 >
-> **Last updated:** 2026-06-01 · **Owner:** Abhinav
+> **Last updated:** 2026-06-02 · **Owner:** Abhinav
 
 ---
 
@@ -16,10 +16,10 @@ Alaska's task graph lives in SQLite at `/data/queue/alaska.db` (task-model table
 
 | Surface | Feeder | `source` | Phase | Acts today? |
 |---|---|---|---|---|
-| Call transcripts | meeting-intelligence (Step 5b) | `meeting` | B3 | ✅ wired (dormant) |
+| Call transcripts | meeting-intelligence (Step 5b) | `meeting` | B3 | ✅ active (06-01) |
 | Slack DM to Alaska | slack-commands → intent-classifier → task-handler | `slack_dm` | B4 | ✅ wired |
 | Standup-sheet / thread replies | pre-call-brief reply parser → task-handler | `standup_reply` | B5 | ✅ wired |
-| Channel messages | intent-classifier (observe) → [task-handler] | `slack_channel` | A→D | ⏳ observe-only until Phase D |
+| Channel messages | intent-classifier → task-handler (gated) | `slack_channel` | A→D | ✅ active — gated ≥0.85 (incl. TASK_ASSIGN) |
 | Direct / operator | slack-commands / manual | `manual` | B4 | ✅ |
 
 **Readers** (write nothing to the task graph): Daily Pulse, Follow-Through, Risk Radar, Thinker. Pre-call-brief is a *hybrid* — it reads to build standup sheets and writes (via task-handler) by parsing the replies.
@@ -33,7 +33,7 @@ The detailed extraction logic, dedup rules, and anti-hallucination guards are **
 ⚠️ **This is the one place where "current reality" and "V4 target" genuinely differ.** Anyone reading this — human or agent — must not state the V4 end-state as if it were live today.
 
 - **V4 target (after Phase E):** the SQLite task graph is the source of truth. `DAILY_STATE.md` becomes a generated, read-only *view* of it. task-handler is the only writer; everything reconciles to the graph.
-- **Current (pre-cutover, last confirmed 2026-05-30):** `DAILY_STATE.md` is still the operative source of truth. **Meeting Intelligence writes it directly** after each nightly standup; every other agent reads it before acting. The SQLite task graph is wired and runs in parallel but is **not yet authoritative — its tables were empty (0 rows; Phase B dormant) as of 05-30.** ⚠️ **Ops-4 is re-verifying this on 2026-06-01** — treat the 0-row state as last-confirmed-05-30, not a standing fact; update this bullet with Ops-4's result.
+- **Current (pre-cutover, as of 2026-06-02):** `DAILY_STATE.md` is **still the operative source of truth** — every reader still falls back to it, and Phase E's cutover (P4.3) has NOT happened. BUT the write path was **activated 2026-06-01 (P1, #50)**: the MI cron now calls task-handler, and the channel / DM / standup feeders create tasks — so the SQLite task graph is now **populating in parallel (dual-write)**. It is **NOT yet authoritative** — do not state the graph as source of truth until P4.3 cuts over. The tasks-landing verification (the real "is it populating" proof) is in progress.
 - **Phase E flips this:** a dual-write window (MI writes both `DAILY_STATE.md` and the graph) to prove parity, then a hard cut where `DAILY_STATE.md` is generated from the graph.
 
 Until Phase E lands, treat `DAILY_STATE.md` as truth and the task graph as a parallel substrate being proven out. Tracked as **Ops-4** (verify Phase B actually fires in prod) before V4 leans harder on the graph — see `docs/ROADMAP.md`.
