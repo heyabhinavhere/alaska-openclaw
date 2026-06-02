@@ -84,6 +84,27 @@
 
 ## Alaska System Evolution
 
+### V4 Completion + Activation (2026-06-01 → 06-02)
+
+V4 went from "build-incomplete + dormant" to fully built (Phases A–E coded), activated in prod, and hardened against the first wave of live feedback. Map: `docs/ROADMAP.md`. Plan: `docs/superpowers/plans/2026-06-01-alaska-v4-completion.md`.
+
+**The discovery that kicked it off:** the v2 task graph was **0-row in prod**. Phase B was "shipped" (#9) but the Meeting Intelligence *cron prompt* — the thing that runs nightly — overrode the SKILL and never called task-handler (the v2.3 "fat cron prompt wins" disease). Commitments were going to Notion/DAILY_STATE, never the graph. (Ops-4 = verify-B-fires; the "Ops-4" in #42/#43 commit messages is a mislabel — that work is Ops-5.)
+
+**V4 completion (one PR per phase):**
+- **P1 (#50) — activate the write path.** Thinned the MI cron to run the SKILL verbatim (incl. Step 5b task-handler + 5c attribution); first folded the cron's SHARED-DEVICE attribution rule into SKILL Step 5c so thinning lost nothing. Activated gated channel→task in the classifier (TASK_CREATE/UPDATE/BLOCKER ≥0.85, owner-resolve-or-skip). Diagnosed the Pre-Call Brief "8 errors" as a **phantom** — the job posts its sheets fine; OpenClaw mis-marks the `{mode:none}` delivery as failed.
+- **P2 (#51) — graph-aware reads.** Daily Pulse / Follow-Through / Risk Radar + slack-commands NL queries answer from the graph with a DAILY_STATE fallback; one canonical overdue rule (null `due_at` ≠ overdue); follow-through `nudges`/`snoozes` re-keyed to `task_id`.
+- **P3 (#52) — proactive watchers.** Built task-handler `query_stale`, the cross-person assign handshake (`pending_acceptance` + owner-only accept/decline) + follow-through `escalate_unacked_assignments`; un-gated the `stale-task` + `cross-person-assign` templates.
+- **P4.1 (#53) — Phase E groundwork.** `lib/generate_daily_state.py` — a read-only generator rendering DAILY_STATE per-person + blockers from the graph (13 tests). **P4.2 parity + P4.3 hard-cut remain (data-paced ~Jun 4–5).** Until cutover, `DAILY_STATE.md` is still source of truth; the graph dual-writes in parallel.
+
+**Live-test hardening (Abhinav's 24h E2E test):**
+- **#54** — activated channel `TASK_ASSIGN` (I'd wrongly carved it out vs the agreed "activate channel→task" scope and buried it — corrected; now captures channel requests directed at a teammate). Made the classifier cron *defer to the SKILL* so the intent list can't drift again.
+- **#55** — DM action-honesty: a *requested* relay to a named person is **authorized** and a do-it-this-turn commitment (Alaska had claimed "messaged Nilesh" without sending); + a 3-point pre-send self-check (also kills the "Note: I did not schedule a reminder…" internals leak — which L109 already forbade and Alaska violated anyway).
+- **#56** — cross-session memory: log decisions (Decision Log + a `task_event`) + check-the-graph-before-asking (Alaska had re-asked an already-answered question across isolated sessions, and asked "is the gift card new?" when it was already in Pankaj's tasks).
+
+**Earlier this window:** watcher timing/delivery/janitor fixes (#46 — first live fires exposed a UTC-conversion bug firing at 4 AM not 9:30, a delivery "Message failed", and a janitor false-flag); MI extraction hardening = **Ops-5** (#42/#43 — speaker attribution + implicit blockers + inferred-task + signal-weighting, validated on a May 25–29 replay); blocker-row dedup (#47).
+
+**Lessons reinforced:** (1) the *cron inline prompt* overrides the SKILL — a "shipped" SKILL means nothing until the live cron runs it (thin the cron / defer to the SKILL). (2) Don't unilaterally narrow an explicit user decision and bury it — flag deviations loudly. (3) Rules already in SOUL.md still get violated in long sessions — forcing-function self-checks beat more prose; if recurrence continues, the lever is structural (shorten/prioritize SOUL). (4) "Solid" is earned by live observation, not asserted at build time.
+
 ### v2.5 (2026-05-28 → 05-29) — Stabilization Sweep
 
 Triggered by the Nilesh ↔ Alaska debt-discrepancy conversation (BON user 2756, May 26-27), which exposed several trust/reliability problems. Full register + cross-agent coordination detail: `docs/superpowers/plans/2026-05-27-alaska-v1-v3-stabilization.md`.
