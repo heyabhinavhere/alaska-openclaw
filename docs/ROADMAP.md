@@ -1,7 +1,7 @@
 # Alaska Roadmap — naming + phases (living doc)
 
 > **What this is:** the single, canonical map of Alaska's build. One naming scheme so Abhinav + Claude never get lost. Living doc — update status here as phases land. Detail lives in `docs/superpowers/specs|plans|research/`; history in `workspace/memory/system-evolution.md`.
-> **Last updated:** 2026-06-01
+> **Last updated:** 2026-06-02
 
 ---
 
@@ -65,10 +65,10 @@ ONE writer (`task-handler`), MANY feeders. This is the spine of the operating-mo
 
 | Surface | Feeder | `source` | Phase | Acts today? |
 |---|---|---|---|---|
-| Call transcripts | meeting-intelligence (Step 5b) | `meeting` | B3 | ✅ wired (dormant) |
-| Slack DM to Alaska | slack-commands → classifier → task-handler | `slack_dm` | B4 | ✅ wired |
-| Standup-sheet / thread replies | pre-call-brief reply parser → task-handler | `standup_reply` | B5 | ✅ wired |
-| Channel messages | intent-classifier (observe) → [task-handler] | `slack_channel` | A→**D** | ⏳ observe-only until D |
+| Call transcripts | meeting-intelligence (Step 5b) | `meeting` | B3 | ✅ active (06-01) |
+| Slack DM to Alaska | slack-commands → classifier → task-handler | `slack_dm` | B4 | ✅ active |
+| Standup-sheet / thread replies | pre-call-brief reply parser → task-handler | `standup_reply` | B5 | ✅ active |
+| Channel messages | intent-classifier → task-handler (gated) | `slack_channel` | A→D | ✅ active — gated ≥0.85 (incl. TASK_ASSIGN) |
 | Direct / operator | slack-commands / manual | `manual` | B4 | ✅ |
 
 Readers (write nothing to tasks): Daily Pulse, Follow-Through, Risk Radar, Thinker. (Pre-call-brief is hybrid — reads to build sheets, writes via reply parsing.)

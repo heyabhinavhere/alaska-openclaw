@@ -129,9 +129,9 @@ AI + DevOps (Bonlife — all Sandeep):
 
 ---
 
-## Cron Jobs (as of v2.2 — 2026-05-23)
+## Cron Jobs (as of 2026-06; live state = OpenClaw dashboard via `cron.list`)
 
-### Active (11 jobs)
+### Active (~14 scheduled + per-watcher crons)
 | Job | Schedule (UTC) | IST | Model |
 |-----|---------------|-----|-------|
 | Meeting Intelligence | `*/30 15-20` | 8:30 PM–1:30 AM | Opus |
@@ -145,12 +145,16 @@ AI + DevOps (Bonlife — all Sandeep):
 | Doc Keeper Weekly | `30 12 Fri` | 6 PM Fri | Sonnet |
 | Sprint Operator (Mon) | `0 5 Mon` | 10:30 AM Mon — planning helper, no Notion writes | Sonnet |
 | Daily Cost Report | `0 18` | 11:30 PM | Sonnet |
+| Intent Classifier (batch) | `*/5 * * * *` | every 5 min | Sonnet |
+| Reminder Dispatcher | `*/15 * * * *` | every 15 min | Sonnet |
+| Routine Proposal Watch | `0 6` | 11:30 AM | Sonnet |
+| Watchers (W-N, user-created) | per-watcher cron | varies | — |
 
 (Live cron state lives in the OpenClaw dashboard; `config/cron-jobs-backup.json` is a snapshot. Removed/changed jobs history → `memory/system-evolution.md`.)
 
 ### Key Pipeline
-Fireflies transcript → Meeting Intelligence → DAILY_STATE.md → Pre-Call Brief → #daily-standup
-All agents read AGENT_RULES.md first. DAILY_STATE.md is the single source of truth for current operational state.
+Fireflies → Meeting Intelligence → **DAILY_STATE.md + the SQLite task graph** (via task-handler) → Pre-Call Brief sheets → #daily-standup. Channel/DM messages → intent-classifier → task-handler (gated, ≥0.85 on channels). Readers (Daily Pulse / Follow-Through / Risk Radar / slack-commands NL queries) read the graph with a DAILY_STATE fallback.
+All agents read AGENT_RULES.md first. **DAILY_STATE.md is still the single source of truth** for current operational state — the graph dual-writes in parallel; the Phase E cutover (graph → source of truth) is pending (~Jun 6).
 
 ---
 
