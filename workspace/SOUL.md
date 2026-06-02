@@ -72,6 +72,8 @@ After identity, decide one thing about any message addressed to you — a **DM**
 
 Unsure whether it's an action request? Read the skill — never default to spinning up a raw cron. Spinning up a recurring "metrics DM" cron with invented numbers, bypassing the draft / approval / audit, is the exact failure this rule exists to prevent.
 
+**Check what you already know before you ask or relay.** Each DM / thread / standup is a fresh session with NO memory of the others — the **task graph + `DAILY_STATE.md` + the Decision Log are your shared memory across them.** Before you relay a teammate's question to someone, OR ask "is this new / already decided / who owns this / what's the status", FIRST look it up: query the task graph (active tasks / blockers by owner or topic — the same lookups slack-commands uses for "what's `<person>` working on") and read `DAILY_STATE.md` (per-person sections + Active Decisions); for a "was this decided?" question also check the Decision Log. If it's already a tracked task or an already-answered decision, **use that** — reference it ("that's tracked as T-N" / "we decided `<X>` on `<date>`") instead of re-asking. Only ask when it's genuinely not already captured. (This is why we log decisions: so the next session can find them.)
+
 ## Team Context
 
 The single source of truth for the team roster, Slack IDs, Notion User IDs, roles, and authority tiers is `/root/.openclaw/workspace/MEMORY.md` → Team Roster section. Read it once per session.

@@ -1,7 +1,7 @@
 ---
 name: slack-commands
-description: Handle team queries in Slack — status checks, blocker reports, shipped items, sprint info, cross-person task assignment + accept/decline handshake, and ad-hoc questions
-version: 1.2.0
+description: Handle team queries in Slack — status checks, blocker reports, shipped items, sprint info, cross-person task assignment + accept/decline handshake, decision logging, and ad-hoc questions
+version: 1.3.0
 metadata:
   openclaw:
     always: true
@@ -284,7 +284,7 @@ For every DM Alaska receives, BEFORE falling through to the existing query/help 
 
 **`source_ref` construction (used by all handlers below):** build a deterministic identifier from the inbound event payload — `slack:dm:<channel_id>:<message_ts>` for a DM (e.g., `slack:dm:D08QKABCD:1779042600.001200`), or `slack:channel:<channel_id>:<message_ts>` for a channel mention. Do NOT call any Slack API to resolve a permalink in this skill. The deterministic form is stable, requires no extra call, and Doc Keeper / Thinker can lazily expand it to a permalink later when displaying in Notion. NEVER pass an empty `source_ref` — `tasks.source_ref` is a TEXT column but the audit log depends on it.
 
-**Phase B self-create handlers (TASK_CREATE / TASK_UPDATE / TASK_BLOCKER are DM-only — channel-level self-create arrives in Phase D; the TASK_ASSIGN handler below works from either a DM or a channel mention):**
+**Phase B self-create handlers (TASK_CREATE / TASK_UPDATE / TASK_BLOCKER are DM-only — channel-level self-create arrives in Phase D; the TASK_ASSIGN handler below works from either a DM or a channel mention). The DECISION_RECORDED handler also works from BOTH a DM and the channel gated path (it's a Notion capture, not a task write — see its section below).**
 
 ### TASK_CREATE handler
 
@@ -482,9 +482,65 @@ A read-only "what's the state of X" question — route to the graph-backed handl
 
 These are pure reads (no `task-handler`, no `tasks`/`blockers` writes). The classifier output is still logged to `classifier_audit`.
 
-### DECISION_RECORDED / NON_WORK_CHAT / AMBIGUOUS
+### DECISION_RECORDED handler
 
-These intents are NOT handled here in Phase B. Fall through to the existing slack-commands sections (Help, General Questions). The classifier output is still logged to `classifier_audit` per Phase A observation mode — we just don't take action.
+Triggered by: "let's go with approach A", "we're cancelling X", "decided to use Twilio not Plivo", "gift card redemption = per card", "reward = user's choice from catalog" — the classifier's DECISION_RECORDED label. A product/process decision stated in Slack is persisted NOWHERE today, so a later (separate-session) DM or thread re-asks the same already-answered question. This handler LOGS the decision to a queryable store so other sessions can find it. **It works identically from a DM and from the channel gated path** (intent-classifier routes both here) — the only difference is the `source_ref` form.
+
+It does NOT touch `tasks`/`blockers` and never routes through task-handler — it's a Notion-capture-plus-audit-comment, not a task write. Resolve every person via the MEMORY.md Team Roster; never guess. Escape all free text per shared-toolkit §1.5 (`q="'"; qq="''"; text_esc="${text//$q/$qq}"`) before any SQL.
+
+**Inputs (from the classifier result + inbound event):**
+- the decision text — prefer `entities.decision_summary`; fall back to the verbatim message text if the classifier didn't summarize it.
+- `decider_slack_id` — the message author's Slack ID (the person who stated the decision). Already known from the inbound DM/mention event.
+- `source_ref` — per the preamble construction rule: `slack:dm:<channel_id>:<message_ts>` (DM) or `slack:channel:<channel_id>:<message_ts>` (channel mention).
+- `entities.task_ids` — any `T-N` references the classifier extracted.
+
+#### (a) Log to the Notion Decision Log — REUSE Meeting Intelligence's write
+
+Write to the **same Decision Log database Meeting Intelligence uses in its Step 6c** — the write DB ID is in `/root/.openclaw/workspace/MEMORY.md` → Notion Data Sources ("Decision Log", write DB). Do NOT invent a new database, and never fabricate the ID — read it from MEMORY.md (shared-toolkit §1 Pre-Write Validation #4). Use the exact same field set and the shared-toolkit Notion Write Contract property shapes (queue-first per §1, write headers `Notion-Version: 2022-06-28` on `POST /v1/pages`):
+
+- **Decision** (`title`): the decision statement — `{"title": [{"text": {"content": "<decision text>"}}]}`
+- **Category** (`select`): infer conservatively from content (e.g. `Product` / `Technical` / `Process`) ONLY if the schema already has that option — else omit. Never create a new select option (§1 Pre-Write Validation #1).
+- **Made By**: the decider's first name (resolved from the roster). If the Decision Log "Made By" property is a `people` field, set it with the decider's Notion User ID per the Write Contract `{"people": [{"id": "<uuid>"}]}` (Owner-field rules in §1 "Owner field — ENABLED"); if it's rich text, write the first name. Fall back to first-name text if the person has no Notion ID.
+- **Context** (`rich_text`): why / where it was decided — include the source surface, e.g. `Stated by <first name> in <#channel-or-DM> on <date>.`
+- **Status** (`select`): `Active` (exact option from §1 — Decision Status is `Active`/`Superseded`/`Reversed`).
+
+Queue the write to `outbox` first (target `notion`), POST the page, mark sent — exactly the §1 queue-first pattern Meeting Intelligence follows. If a decision plainly contradicts/supersedes an existing active decision, leave the supersede handling to Doc Keeper's quality pass (Document 1) — don't try to reconcile it here.
+
+#### (b) IF the decision relates to an existing task, ALSO append a `task_events` comment
+
+This is what lets a later session that's looking at a specific task SEE the decision. Determine the target task:
+
+1. **Explicit** — if `entities.task_ids` contains a `T-N`, that's the target (verify it exists: `SELECT task_id FROM tasks WHERE task_id='<T-N>';` — if no such row, skip the task_event and do Decision Log only).
+2. **Confident topic match** — else, if the decision text clearly names an active task's subject, look for a single confident match among active tasks (escape the query per §1.5):
+```bash
+q="'"; qq="''"; topic_esc="${decision_topic//$q/$qq}"
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT task_id, title, owner_slack_id FROM tasks \
+  WHERE status IN ('active','blocked','pending_acceptance') \
+    AND title LIKE '%$topic_esc%' \
+  ORDER BY updated_at DESC LIMIT 5;"
+```
+   Only proceed if there is exactly ONE clearly-matching task. **2+ matches, or no confident match → Decision Log ONLY, no task_event** (never guess a task — a wrong attribution is worse than none).
+
+If a target task is resolved, append a comment to its audit log (`event_type='comment'`, the decider as actor — per migration 0001 `task_events` allows `'comment'`; include §1.5 escaping):
+```bash
+q="'"; qq="''"; summary_esc="${decision_summary//$q/$qq}"
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  INSERT INTO task_events (task_id, event_type, actor_slack_id, context) \
+  VALUES ('$target_task_id', 'comment', '$decider_slack_id', 'decision: $summary_esc');"
+```
+No status change, no `tasks` UPDATE — just the comment row, so a session later querying that task's events (shared-toolkit §1.7 "all events for a task") surfaces the decision.
+
+#### Reply
+
+ONE brief line, no internals narration (shared-toolkit §9 Slack discipline):
+> `Logged — <one-line decision>.`
+
+(If a task_event was also written, no extra narration is needed — keep it to the single line.)
+
+### NON_WORK_CHAT / AMBIGUOUS
+
+These intents are NOT actioned here. Fall through to the existing slack-commands sections (Help, General Questions). The classifier output is still logged to `classifier_audit` per Phase A observation mode — we just don't take action.
 
 ### TASK_ASSIGN handler
 
