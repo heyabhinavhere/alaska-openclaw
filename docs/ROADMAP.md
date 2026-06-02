@@ -11,7 +11,7 @@
 |---|---|---|
 | **v1–v3** | The reactive PM era + the stabilization patches (v2.0 → v2.3). Alaska as a meeting/standup/follow-up bot. | History — see `memory/system-evolution.md` |
 | **V4** | **The proactive-coworker foundation.** Turns Alaska from reactive → ambient teammate. Built as Phases A→E. | 🟡 A–D built **+ activated (06-01)**; **E: generator done (#53), cutover ~Jun 4–5** |
-| **V5** | The broader "true teammate" vision for Alaska. First major application track: **PMF Cohort Operating System** for BON's V2 launch cohort. | 🟡 PMF OS foundation merged (#59); implementation phases in progress |
+| **V5** | **PMF Cohort Operating System.** The headline/current focus of the V5 era: Alaska becomes the active PMF cohort operator for BON's V2 launch cohort, inside the larger AI-coworker arc. | 🟡 foundation merged (#59); implementation phases in progress |
 
 **Naming rules (so we stay consistent):**
 - **Phase A–E** = the V4 build stages. Use these going forward (not "vX.Y").
@@ -57,6 +57,13 @@ This is where "proactive ambient coworker" actually gets built. **Two sub-phases
 ### Phase E — Cutover 🟡 IN PROGRESS (the operating-model flip)
 - Flip SQLite to the **source of truth**; `DAILY_STATE.md` becomes a generated read-only view; retire direct MI writes to it. **P4.1 done (#53):** the read-only generator (`lib/generate_daily_state.py`) renders the per-person + blockers sections from the graph (13 tests). **Remaining, data-paced ~Jun 4–5:** P4.2 prove dual-write parity → P4.3 hard-cut + flip operating-model §2. Until then `DAILY_STATE.md` stays authoritative.
 
+### Deferred V4 capstone — KB self-maintenance watcher ⚪ GATED
+The watcher that keeps the BON Knowledge Base updated is a **V4 capstone**, not V5. Owner: **V4 track**. Build it only after both gates are true:
+- **Gate 1:** V4 validates in live end-to-end testing, including Ops-4 tasks-landing proof.
+- **Gate 2:** Phase E is activated, with SQLite as source of truth and `DAILY_STATE.md` generated/read-only.
+
+Shape: a scheduled Watcher scans recent Slack, Meeting Intelligence, DMs, and product/system changes; diffs them against `workspace/knowledge/`; drafts proposed KB edits; and asks Abhinav for approval before any write. Keep this item visible so it is not lost, but do not route it through the V5/PMF track.
+
 ---
 
 ## The complete V4 write-path map (what feeds the task graph)
@@ -98,9 +105,11 @@ The "self-improving" half of the coworker thesis: Alaska learns from feedback an
 
 ---
 
-## V5 — first major application: PMF Cohort Operating System 🟡 STARTED
+## V5 — PMF Cohort Operating System 🟡 STARTED
 
-The broader V5 vision is still Alaska as a genuinely helpful teammate/partner inside the company. The first concrete V5 application track is BON's focused PMF cohort: Alaska as a **PMF Cohort Operating System**, not just a Slackbot or analytics dashboard.
+V5 is the **PMF Cohort Operating System**: Alaska's current top-priority evolution from useful Slack coworker into an active operator for BON's focused PMF cohort. This is the headline of the V5 era and the thing to build now.
+
+This sits inside the larger horizontal AI-coworker arc: Alaska should eventually feel like "the rest of your startup team." V5 does not mean Alaska is only ever a cohort tool. It means the high-leverage teammate job V5 is centered on now is operating the PMF cohort end to end.
 
 Canonical plan: `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-cohort-os.md`. Runtime contract: `workspace/knowledge/definitions/pmf-cohort-os.md`. Skill: `skills/pmf-cohort-os/SKILL.md`.
 
@@ -137,6 +146,7 @@ Next: P4.2 parity (Jun 2–4) → P4.3 hard-cut (~Jun 4–5). Hold #48 until pos
 ## Dependency chain (the critical path)
 
 ```
-D.1 ✅ ──→ D.2 ✅ ──→ [ Ops-4: does the prod task graph populate? ] ──→ E (cutover) + #49 (watcher task-actions) ──→ V5 tracks (PMF OS first; KB self-maintenance and broader teammate work later)
+V4 spine: D.1 ✅ ──→ D.2 ✅ ──→ [ Ops-4: does the prod task graph populate? ] ──→ E (cutover) + #49 (watcher task-actions) ──→ V4 capstone: KB self-maintenance watcher
+V5 spine: PMF Cohort Operating System, running as the current top-priority focus inside the larger AI-coworker arc
 ```
 **Ops-4 is now the gate.** Phase E (SQLite→source-of-truth) and the task-dependent watcher templates both need a populated graph. Everything non-task — the live reactive cadence, DM actions, channel/customer-signal watchers, reminders — is already running and does NOT wait on Ops-4.

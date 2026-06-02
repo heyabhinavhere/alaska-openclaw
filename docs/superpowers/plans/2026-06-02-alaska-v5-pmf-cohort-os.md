@@ -9,7 +9,9 @@
 
 ## Executive Summary
 
-The first major V5 application track is the **PMF Cohort Operating System** for BON's focused V2 launch cohort. The broader V5 vision remains Alaska as a genuinely helpful teammate/partner inside the company; PMF OS is the urgent operating application for the June PMF push, not necessarily the whole V5 end-state.
+Alaska V5 is the **PMF Cohort Operating System** for BON's first focused V2 launch cohort. This is the headline of the V5 era and the most important Alaska work right now.
+
+The goal is not another dashboard. The goal is an operating layer that lets Alaska track, understand, and act on one selected 3-day signup cohort at user-level depth. PMF OS sits inside the larger horizontal AI-coworker arc: Alaska should eventually feel like "the rest of your startup team." V5 is not saying Alaska is only ever a cohort tool; it is saying the current V5 focus is the PMF cohort job.
 
 PR #59 completed the **foundation layer**:
 
@@ -29,6 +31,18 @@ PR #59 does **not** mean the PMF OS track is production-complete. Live Amplitude
 
 ---
 
+## Product Scope Boundary
+
+Use this scope unless Abhinav changes it explicitly:
+
+- **V5 = PMF Cohort Operating System.** It is the current top-priority focus and headline of the V5 era.
+- **Bigger product arc = horizontal AI coworker / the rest of your startup team.** PMF OS lives inside this arc; it does not delete or exhaust it.
+- **KB self-maintenance agent = deferred V4 capstone.** It belongs to the V4 Watchers/KB track, not the V5/PMF track. It should be built only after V4 live validation plus Ops-4 tasks-landing proof, and after Phase E cutover is activated.
+
+Do not route KB self-maintenance work through this PMF OS plan. Keep this plan focused on cohort operation.
+
+---
+
 ## Business Context
 
 BON is preparing a V2 app launch and a PMF cohort push. The cohort will be a configurable 3-day signup window, likely around June 2026. Exact dates are chosen at activation time.
@@ -42,18 +56,6 @@ Planning assumptions:
 - users before/after the selected window are excluded from this cohort.
 
 The core operating problem: humans cannot track 1,000 users at sufficient depth across onboarding, financial state, CredGPT interactions, campaign touches, product friction, intent, retention, and qualitative love signals. Alaska should become the active PMF operator.
-
----
-
-## Product Scope Boundary
-
-Until Abhinav explicitly says otherwise, use this scope:
-
-- **V5** = broader teammate/partner direction.
-- **PMF Cohort OS** = first major V5 application track, optimized for the immediate BON V2/PMF cohort.
-- **KB self-maintenance** = another V5 track that can ride on Watchers later.
-
-Do not rewrite the whole V5 roadmap as only PMF OS, and do not treat the older KB-agent idea as cancelled. PMF OS is simply the current highest-leverage track.
 
 ---
 
@@ -184,7 +186,7 @@ PR #59 includes a lightweight stdlib artifact renderer. The user added a stronge
 
 | Phase | Name | Status | What PR #59 did | Remaining work |
 |---|---|---|---|---|
-| 0 | Contracts and guardrails | Mostly done | schema, PMF rules, privacy tiers, Customer.io boundary, CredGPT rubric, skill/KB contract | review follow-ups; DocFlow docs renderer contract |
+| 0 | Contracts and guardrails | Mostly done | schema, PMF rules, privacy tiers, Customer.io boundary, CredGPT rubric, skill/KB contract | DocFlow docs renderer contract |
 | 1 | Cohort Registry | Partially done | tables, CLI, batch signup ingestion, date-window exclusion | live Amplitude extraction, activation workflow, cron/manual operator path |
 | 2 | Signal Spine and Case Files | Partially done | normalized fact/evidence tables, case-file builder | full Amplitude/User 360/Customer.io normalizers |
 | 3 | PMF Funnel Engine | Mostly done | deterministic engine and tests | calibrate against real data and finalize metric mapping |
@@ -195,9 +197,9 @@ PR #59 includes a lightweight stdlib artifact renderer. The user added a stronge
 
 ---
 
-## Follow-Up PR Sequence
+## Follow-Up Sequence
 
-### PR #60 — V5 Documentation and Roadmap
+### Completed: PR #60 — V5 Documentation and Roadmap
 
 Goal: make V5 understandable to a new session/agent.
 
@@ -207,7 +209,30 @@ Scope:
 - update `docs/ROADMAP.md`;
 - update `workspace/MEMORY.md` with the V5 PMF OS entry point.
 
-### PR #61 — DocFlow Artifact Integration
+### Completed: PR #61 — Review Follow-Ups
+
+Goal: harden the inert foundation before live intake.
+
+Scope:
+
+- separate PMF DB default from V4's SQLite database;
+- preserve resolved CredGPT clusters;
+- prevent partial daily snapshots from demoting users;
+- make deterministic CredGPT checks explicit triage, not a safety net;
+- tighten artifact privacy and QA temp handling;
+- add regression tests for review findings.
+
+### In review: PR #62 — V5 Framing Reconciliation
+
+Goal: make the product story unambiguous.
+
+Scope:
+
+- V5 = PMF Cohort Operating System;
+- PMF OS sits inside the larger AI-coworker arc;
+- KB self-maintenance moves to deferred V4 capstone after V4 validation plus Phase E cutover.
+
+### Planned Next — DocFlow Artifact Integration
 
 Goal: replace/augment the lightweight DOCX/PDF renderer with the stronger DocFlow spec-based renderer.
 
@@ -219,7 +244,7 @@ Scope:
 - render DOCX/PDF from a shared report spec;
 - preserve visual QA gating.
 
-### PR #62 — Live Cohort Intake
+### Planned — Live Cohort Intake
 
 Goal: populate the cohort registry from real Amplitude data.
 
@@ -231,7 +256,7 @@ Scope:
 - activation command/runbook;
 - idempotency and exclusion reporting.
 
-### PR #63 — User 360 Enrichment and Case Files
+### Planned — User 360 Enrichment and Case Files
 
 Goal: turn the registry into living user case files.
 
@@ -243,7 +268,7 @@ Scope:
 - generate daily snapshots;
 - preserve evidence for every derived claim.
 
-### PR #64 — Daily Cockpit Delivery
+### Planned — Daily Cockpit Delivery
 
 Goal: make daily reporting usable by the team.
 
@@ -255,7 +280,7 @@ Scope:
 - no PII in team artifacts;
 - report metadata in `pmf_report_runs`.
 
-### PR #65 — CredGPT Live Observability
+### Planned — CredGPT Live Observability
 
 Goal: evaluate actual cohort chat quality.
 
@@ -267,7 +292,7 @@ Scope:
 - create clusters and internal recommendations;
 - annotate case files.
 
-### PR #66 — Customer.io Execution Layer
+### Planned — Customer.io Execution Layer
 
 Goal: execute approved email/push interventions safely.
 
@@ -279,7 +304,7 @@ Scope:
 - email/push execution only;
 - delivery/open/click/conversion outcome tracking.
 
-### PR #67 — End-Cohort Intelligence
+### Planned — End-Cohort Intelligence
 
 Goal: generate the final PMF cohort memo and next-cohort recommendations.
 
@@ -329,7 +354,7 @@ Tests:
 6. Choose the next PR from the sequence above.
 7. Avoid touching V4 Phase E / live-testing changes unless the current task explicitly requires it.
 
-Current recommended next PR: **Review follow-ups, then DocFlow Artifact Integration**.
+Current recommended next PR after this reconciliation merges: **DocFlow Artifact Integration**.
 
 ---
 
