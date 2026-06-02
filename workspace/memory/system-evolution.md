@@ -96,6 +96,8 @@ V5 PMF reports now use a renderer-neutral DocFlow-style document spec as the sta
 
 The user-supplied `Artifacts and docx/docflow-agent` package established the right shape, but the implementation adopted the contract repo-natively instead of copying generated examples, zips, temp files, or `node_modules`, and without adding runtime npm/pip dependencies to the production image.
 
+Follow-up correction: DocFlow alone was not enough. The DOCX/PDF delivery gate depends on deployed system binaries: LibreOffice/`soffice` for DOCX-to-PDF rendering and Poppler/`pdftoppm` for page-image rendering. Alaska now carries a runtime smoke check at `/opt/lib/pmf_artifact_runtime_check.py`; after any artifact-runtime deploy, run it in the Railway container and do not treat DOCX/PDF as deliverable until it returns `"ok": true`.
+
 ### V5 Scope Decision + KB Self-Maintenance Reclassification (2026-06-02)
 
 Abhinav clarified the V5 product framing:
