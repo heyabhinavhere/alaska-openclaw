@@ -27,7 +27,7 @@ PR #59 completed the **foundation layer**:
 - `pmf-cohort-os` skill and KB contract.
 - focused tests.
 
-PR #59 does **not** mean the PMF OS track is production-complete. Live Amplitude extraction, User 360 enrichment, Slack delivery, polished report templates, live CredGPT ingestion, LLM judging, Customer.io execution, and end-cohort intelligence still need follow-up PRs.
+PR #59 does **not** mean the PMF OS track is production-complete. Live Amplitude extraction, User 360 enrichment, Slack delivery, polished report templates, live CredGPT ingestion, LLM judging, Customer.io execution, and end-cohort intelligence still need follow-up PRs. Artifact runtime changes also require a deploy-time smoke check before DOCX/PDF delivery.
 
 ---
 
@@ -186,6 +186,8 @@ The artifact contract is now:
 4. store all paths in `pmf_report_runs.file_refs_json`;
 5. gate delivery with structural QA plus visual render QA for DOCX/PDF.
 
+The production artifact runtime must include LibreOffice/`soffice` and Poppler/`pdftoppm`. After deploy, run `python3 /opt/lib/pmf_artifact_runtime_check.py` through Railway SSH or an equivalent container shell. DOCX/PDF are not deliverable until that smoke check returns `"ok": true`.
+
 The user added a stronger `Artifacts and docx/docflow-agent` package after PR #59. The implementation adopted the DocFlow spec pattern without copying the package wholesale because it includes generated examples, temp files, a zip, and `node_modules`, and because the production image does not yet install the package's optional `docx`/`reportlab` runtime dependencies.
 
 ---
@@ -198,7 +200,7 @@ The user added a stronger `Artifacts and docx/docflow-agent` package after PR #5
 | 1 | Cohort Registry | Partially done | tables, CLI, batch signup ingestion, date-window exclusion | live Amplitude extraction, activation workflow, cron/manual operator path |
 | 2 | Signal Spine and Case Files | Partially done | normalized fact/evidence tables, case-file builder | full Amplitude/User 360/Customer.io normalizers |
 | 3 | PMF Funnel Engine | Mostly done | deterministic engine and tests | calibrate against real data and finalize metric mapping |
-| 4 | Artifact Generation | Partially done | structured snapshot, DocFlow spec, HTML, DOCX/PDF, QA gates | Slack file/link delivery, polished templates, richer document renderers if runtime deps are approved |
+| 4 | Artifact Generation | Partially done | structured snapshot, DocFlow spec, runtime visual-QA packages, smoke check, HTML, DOCX/PDF, QA gates | deploy-time smoke check, Slack file/link delivery, polished templates, richer document renderers if runtime deps are approved |
 | 5 | Customer.io Execution | Guardrails done | validation/approval gate | live segment/attribute sync, email/push execution, outcome tracking |
 | 6 | CredGPT Quality Observatory | Partially done | deterministic review, queue creation, clustering | live chat ingestion, selected LLM judging, optional Langfuse phase |
 | 7 | End-Cohort Intelligence | Not started | storage/report foundation only | final memo, lover list, dropoff analysis, roadmap implications |
@@ -252,6 +254,18 @@ Scope:
 - record snapshot/spec/HTML/DOCX/PDF paths in `pmf_report_runs.file_refs_json`;
 - exclude `.DS_Store`, generated examples, temp files, zips, and `node_modules`;
 - keep visual QA gating for DOCX/PDF.
+
+### Current Runtime Slice — Artifact Runtime Verification
+
+Goal: make the DOCX/PDF delivery gate pass in the deployed Railway container, not only in theory.
+
+Scope:
+
+- install LibreOffice/`soffice` and Poppler/`pdftoppm` in the Docker image;
+- add a runtime smoke check that renders PMF DOCX/PDF artifacts and runs visual QA;
+- verify the smoke check through Railway SSH after deploy;
+- keep HTML deliverable even if DOCX/PDF are awaiting visual QA;
+- record any image-size/cold-start impact before moving to live cohort intake.
 
 ### Planned — Live Cohort Intake
 
@@ -363,7 +377,7 @@ Tests:
 6. Choose the next PR from the sequence above.
 7. Avoid touching V4 Phase E / live-testing changes unless the current task explicitly requires it.
 
-Current recommended next PR after the DocFlow artifact slice merges: **Live Cohort Intake**.
+Current recommended next PR after the artifact runtime slice is deployed and the smoke check passes: **Live Cohort Intake**.
 
 ---
 

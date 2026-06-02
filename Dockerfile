@@ -11,10 +11,15 @@ USER root
 # - sqlite3: local task queue + v2 task model storage
 # - curl: health checks + Notion/Slack API calls
 # - python3-dateutil: RRULE parsing for the Phase C scheduling engine
+# - libreoffice-writer + poppler-utils: V5 DOCX/PDF visual render QA
 RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
     curl \
     python3-dateutil \
+    libreoffice-writer \
+    poppler-utils \
+    fonts-dejavu-core \
+    fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 # Pre-install the Slack plugin (baked into the image, survives restarts)

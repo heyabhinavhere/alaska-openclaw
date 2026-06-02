@@ -202,6 +202,14 @@ The report run writes:
 
 `pmf_report_runs.file_refs_json` stores all artifact paths. `pmf_report_runs.qa_json` stores structural and visual QA results. DOCX/PDF are deliverable only after visual render QA passes; HTML may be delivered after structural QA because it has no external CDN dependency.
 
+After any Docker/runtime change touching artifact tooling, verify the deployed container:
+
+```bash
+python3 /opt/lib/pmf_artifact_runtime_check.py
+```
+
+This command must return `"ok": true` before DOCX/PDF artifacts are treated as deliverable. Local development may use `--structural-only`, but production delivery may not.
+
 ## Customer.io Approval Pack
 
 Before any Customer.io write:

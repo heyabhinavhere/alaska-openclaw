@@ -123,12 +123,12 @@ Canonical plan: `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-cohort-os.md`. 
 | 1 | Cohort Registry | Partially done — live Amplitude extraction pending |
 | 2 | Signal Spine and Case Files | Partially done — full User 360 normalization pending |
 | 3 | PMF Funnel Engine | Mostly done — real-data calibration pending |
-| 4 | Artifact Generation | Partially done — DocFlow spec contract added; Slack delivery + polished templates pending |
+| 4 | Artifact Generation | Partially done — DocFlow spec contract + artifact runtime smoke check added; deploy-time smoke check, Slack delivery, and polished templates pending |
 | 5 | Customer.io Execution | Guardrails done — live email/push execution pending |
 | 6 | CredGPT Quality Observatory | Partially done — live chat ingestion + LLM judging pending |
 | 7 | End-Cohort Intelligence | Not started beyond storage/report foundation |
 
-Recommended next PR sequence after the DocFlow artifact slice: live cohort intake → User 360 enrichment/case files → daily cockpit delivery → CredGPT live observability → Customer.io execution → end-cohort intelligence.
+Recommended next PR sequence after the artifact runtime slice is deployed and smoke-tested: live cohort intake → User 360 enrichment/case files → daily cockpit delivery → CredGPT live observability → Customer.io execution → end-cohort intelligence.
 
 ---
 

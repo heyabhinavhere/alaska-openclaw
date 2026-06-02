@@ -98,4 +98,4 @@ Team artifacts are aggregate/redacted. Founder artifacts may contain user-level 
 
 Every report starts as a structured PMF snapshot, then writes a renderer-neutral `*.docflow.json` spec. DOCX/PDF render from that DocFlow spec; HTML stays self-contained and CDN-free. `pmf_report_runs.file_refs_json` stores snapshot, DocFlow spec, HTML, DOCX, and PDF paths.
 
-DOCX/PDF files must pass visual render QA before delivery. If render tooling is unavailable, HTML may still be delivered and DOCX/PDF should remain in rendered/awaiting-QA state.
+DOCX/PDF files must pass visual render QA before delivery. The deployed runtime must have LibreOffice/`soffice` and Poppler/`pdftoppm`, and `python3 /opt/lib/pmf_artifact_runtime_check.py` must pass after deploy. If render tooling is unavailable, HTML may still be delivered and DOCX/PDF should remain in rendered/awaiting-QA state.
