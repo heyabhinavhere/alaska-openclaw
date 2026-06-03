@@ -41,7 +41,9 @@ test -f /root/.openclaw/workspace/DAILY_STATE.md && echo 'EXISTS' || echo 'MISSI
 - 48–96 hours old: post the pulse BUT prepend a one-line warning: "_⚠️ State data is [N] days old — values may lag actual progress. Last compiled [date]._"
 - > 96 hours old (4+ days): DO NOT post. DM Abhinav: "⚠️ DAILY_STATE.md is [N] days stale — no Meeting Intelligence update since [date]. Daily Pulse skipped to avoid posting bad data."
 
-This guard prevents the failure mode where DAILY_STATE.md goes stale (e.g., over a long weekend, retreat, or a Meeting Intelligence outage) and the pulse silently posts outdated commitments as if they were fresh.
+**Weekend-aware softening.** Use `date` to check which days the staleness spans (don't reason about the calendar from memory). If the gap is explained by **weekend days on which no call happened** — the common, benign case (no standup over Sat/Sun) — don't fire the alarming ⚠️ warning; omit it, or soften to one neutral line: "_Quiet weekend — last call data [date]._" Reserve the prominent ⚠️ (and the >96h skip) for when a **weekday with an expected call** passed with no DAILY_STATE refresh. BON does sometimes meet on weekends, so base "was a call expected" on whether a standup/transcript actually occurred (see the Meeting Intelligence no-show guard), not purely on the day of week.
+
+This guard prevents two failure modes: (1) DAILY_STATE.md goes stale (a Meeting Intelligence outage) and the pulse silently posts outdated commitments as if fresh; and (2) the inverse — alarming about staleness that's just an expected quiet weekend.
 
 ## Trigger
 

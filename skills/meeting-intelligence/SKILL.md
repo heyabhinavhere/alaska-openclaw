@@ -48,6 +48,10 @@ curl -s -X POST https://api.fireflies.ai/graphql \
 
 Full sentences are the source of truth (meetings may be in Hinglish). Process ONE transcript per run to avoid timeouts.
 
+**No-show / no-transcript guard (the nightly team standup is a daily ~9 PM IST fixture).** If the list returns NO new transcript for the expected call window — i.e. there should have been a daily team call but Fireflies captured nothing (it didn't join, or the call didn't happen) — do NOT silently proceed, and do NOT refresh `DAILY_STATE.md` or let a standup sheet be re-emitted from stale state. Instead:
+- DM Abhinav **once**: "No Fireflies transcript found for the [run `date` for the date] call — either the call didn't happen or Fireflies didn't join. I did NOT refresh DAILY_STATE.md. Want me to flag the team?"
+- Then end the run cleanly (nothing to extract). This is the silent-miss that happened 2026-06-01; flagging it beats producing stale duplicates. (The Pre-Call Brief freshness guard stops the duplicate-sheet symptom downstream.)
+
 ## Step 2: Deduplication (THREE levels)
 
 ### Level 1: Transcript ID dedup

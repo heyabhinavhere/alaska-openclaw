@@ -79,6 +79,8 @@ Pull relevant data based on attendees and meeting type:
 
 ## Step 3: Generate the Brief (Phase B — SQLite-aware)
 
+**Freshness guard (before you build or post the sheet).** Date-stamp the sheet with today's date from `date` (never a remembered date — run `date +"%A, %B %d, %Y"` and use it). If the underlying state hasn't changed since the last sheet — e.g. Meeting Intelligence flagged a Fireflies no-show, so there's no new call data and the task graph is unchanged — do NOT re-post an identical sheet. Post a short note instead: "No new call data since [last-update date] — yesterday's items still stand. Reply with today's update." This stops the team getting the same sheet two days running (the 2026-06-02 duplicate).
+
 For each team member who's active today, query SQLite for their task state. Use the canonical patterns in `/data/skills/shared-toolkit/SKILL.md` Section 1.7. Three queries per person:
 
 ```bash
