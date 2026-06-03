@@ -1,6 +1,6 @@
 # MEMORY.md — Alaska's Long-Term Memory (always-injected core)
 
-Last updated: 2026-06-02
+Last updated: 2026-06-03
 
 **This is the single source of truth for the team roster and Slack/Notion identity mapping.** Every skill, workspace file, and cron prompt should point here rather than embedding its own copy.
 
@@ -11,6 +11,7 @@ This file is auto-loaded into context at the start of **every** session, and Ope
 | Need | Where |
 |---|---|
 | Current operational state (per-person focus, blockers, decisions, metrics) | `DAILY_STATE.md` (live; written by Meeting Intelligence) |
+| **My own private working memory — self-tasks + notes/references I must recall on cue** | the **`agent-memory`** skill (`agent_memory` table, migration 0006). Private to ME by construction — team readers (Daily Pulse, Follow-Through, Risk Radar, "what's X working on") NEVER query it, so a self-task or note can't leak into a team report. I `remember` / `recall` / `complete` it myself. |
 | Why the system is the way it is — version history, past fixes, superseded snapshots | `memory/system-evolution.md` (historical archive) |
 | Day-by-day raw logs | `memory/YYYY-MM-DD.md` |
 | API access patterns + capability boundaries | `TOOLS.md` |
@@ -23,17 +24,18 @@ This file is auto-loaded into context at the start of **every** session, and Ope
 
 ## 🧭 Currently working on (next-session entry point)
 
-**As of 2026-06-02. V4 build is COMPLETE (Phases A–E coded) and ACTIVATED — now in a 24h end-to-end test/hardening pass.** Canonical map: `docs/ROADMAP.md`; full detail: `memory/system-evolution.md` → "V4 Completion + Activation".
+**As of 2026-06-03. V4 build is COMPLETE (Phases A–E coded) and ACTIVATED; the 24h end-to-end test window has closed and Abhinav is collating feedback.** Canonical map: `docs/ROADMAP.md`; full detail: `memory/system-evolution.md` → "V4 Completion + Activation".
 
 **Live in prod:**
 - **A** intent-classifier (observe + ONE gated channel→task path). **B** the write path is now ACTIVE — the MI cron was thinned to run the SKILL verbatim (incl. Step 5b → task-handler) and the channel / DM / standup-reply feeders create tasks. **The v2 task graph is *populating*** (it was 0-row/dormant until 06-01 — the MI *cron prompt* had overridden the SKILL and never called task-handler). **C** reminders. **D.1** BON KB (18 files, committed). **D.2** Watchers Gen 1 (W-1/2/3 live; the task-dependent templates `stale-task` + `cross-person-assign` are un-gated, handlers built).
 - Cross-person assignment (TASK_ASSIGN) is live on DM **and** channel; decisions are logged (Decision Log + a `task_event`); SOUL carries the action-honesty (execute-then-report) + check-before-ask rules.
+- **My private working memory is live** (#68): the `agent-memory` skill + `agent_memory` table. When a teammate shares a reference ("show the CTA table when asked"), I `remember` it; when the topic resurfaces I `recall` it instead of re-asking; a follow-up I'll do later becomes a `self_task` so it isn't dropped. SOUL is wired to reach for it. It is mine alone — see the memory-organization table above.
 
 **Phase E (cutover) is the only piece left:** the read-only DAILY_STATE generator is built (`lib/generate_daily_state.py`, PR #53). **P4.2 parity + P4.3 hard-cut are data-paced (~June 4–5)** — they need a few days of real graph data first. **Until then, `DAILY_STATE.md` is still the source of truth**; the graph runs in parallel (dual-write). Do NOT state the graph as authoritative yet.
 
 **V5 = PMF Cohort OS.** PR #59 merged the foundation only: PMF SQLite layer, Python core/CLI, PMF Funnel engine, case files/queues, CredGPT quality deterministic layer, Customer.io guardrails, artifact scaffolding, `pmf-cohort-os` skill, and KB contract. It is **not production-complete**. PMF OS is the current top-priority focus inside the larger AI-coworker arc. KB self-maintenance is a deferred V4 capstone gated on V4 validation + Phase E cutover. Canonical V5 plan: `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-cohort-os.md`. Runtime contract: `workspace/knowledge/definitions/pmf-cohort-os.md`.
 
-**Right now (24h test):** verify tomorrow AM — tasks landing by `source` (the real "is B alive" proof), W-1's clean 9:30 fire, the 6 PM pulse double-fire. Watch DM behaviors (relays actually sent, no internals leaks, no re-asking answered things). Parked: a Fireflies-no-show detector (a team call wasn't logged 06-01 because Fireflies didn't join — silent miss).
+**Right now (post-24h-test):** the test window closed 06-03; Abhinav is collating his observations (feedback pass pending). Things to confirm from it: tasks landing by `source` (the real "is B alive" proof), W-1's clean 9:30 fire, the 6 PM pulse double-fire, and DM behaviors (relays actually sent, no internals leaks, no re-asking answered things). Parked: a Fireflies-no-show detector (a team call wasn't logged 06-01 because Fireflies didn't join — silent miss).
 
 **Deploy hygiene (hard lesson):** NEVER `railway up` from local unless local == origin/main; deploy via GitHub push → Railway; always branch off CURRENT main (`git fetch` + verify 0-behind).
 
@@ -196,7 +198,7 @@ All agents read AGENT_RULES.md first. **DAILY_STATE.md is still the single sourc
 
 Full version-by-version history (v2.1 → V4 + all fixes) is in `memory/system-evolution.md`. Most recent:
 - **V5 PMF Cohort OS foundation (2026-06-02):** PR #59 merged the durable PMF OS foundation. V5 is PMF OS, inside the larger AI-coworker arc; KB self-maintenance moved to deferred V4 capstone. Artifact generation now uses a DocFlow spec contract and requires a deployed runtime smoke check before DOCX/PDF delivery. Follow-up phases remain: live Amplitude intake, User 360 enrichment, daily cockpit delivery, CredGPT live observability, Customer.io execution, and end-cohort intelligence.
-- **V4 Completion + Activation (2026-06-01→02):** finished V4 (Phases A–E coded), activated the dormant write path (MI cron→task-handler + gated channel→task), un-gated the task-watchers, built the DAILY_STATE generator (Phase E groundwork), and hardened from the first live-test feedback (channel TASK_ASSIGN, DM action-honesty, cross-session decision memory). PRs #46–#56. Phase E cutover pending (~Jun 4–5).
+- **V4 Completion + Activation (2026-06-01→03):** finished V4 (Phases A–E coded), activated the dormant write path (MI cron→task-handler + gated channel→task), un-gated the task-watchers, built the DAILY_STATE generator (Phase E groundwork), and hardened from live-test feedback (channel TASK_ASSIGN; DM action-honesty; cross-session decision memory; read-the-message/thread-before-asking, #67). **Added my own private working memory** — the `agent-memory` skill + `agent_memory` table (migration 0006, #68): my self-tasks + notes/references, separate from the team graph and private by construction. PRs #46–#56, #67, #68. Phase E cutover pending (~Jun 4–5).
 - **Issue G (2026-05-29):** MEMORY.md split — history moved to `memory/system-evolution.md` so the injected core isn't truncated.
 - **Issue H (2026-05-29):** Workspace moved to the persistent /data volume — runtime state now survives deploys.
 - **v2.4 (May 25-26):** v2 task model Phases B/C shipped (PRs #9–#12); Watchers V1 + BON KB designed.

@@ -115,7 +115,7 @@ Owner note: this is a **V4 track** item because it rides directly on the V4 Watc
 
 This supersedes the older May 30 note that put KB self-maintenance in the V5 bucket.
 
-### V4 Completion + Activation (2026-06-01 → 06-02)
+### V4 Completion + Activation (2026-06-01 → 06-03)
 
 V4 went from "build-incomplete + dormant" to fully built (Phases A–E coded), activated in prod, and hardened against the first wave of live feedback. Map: `docs/ROADMAP.md`. Plan: `docs/superpowers/plans/2026-06-01-alaska-v4-completion.md`.
 
@@ -131,6 +131,9 @@ V4 went from "build-incomplete + dormant" to fully built (Phases A–E coded), a
 - **#54** — activated channel `TASK_ASSIGN` (I'd wrongly carved it out vs the agreed "activate channel→task" scope and buried it — corrected; now captures channel requests directed at a teammate). Made the classifier cron *defer to the SKILL* so the intent list can't drift again.
 - **#55** — DM action-honesty: a *requested* relay to a named person is **authorized** and a do-it-this-turn commitment (Alaska had claimed "messaged Nilesh" without sending); + a 3-point pre-send self-check (also kills the "Note: I did not schedule a reminder…" internals leak — which L109 already forbade and Alaska violated anyway).
 - **#56** — cross-session memory: log decisions (Decision Log + a `task_event`) + check-the-graph-before-asking (Alaska had re-asked an already-answered question across isolated sessions, and asked "is the gift card new?" when it was already in Pankaj's tasks).
+- **#67** — read-before-asking: read the ENTIRE message + its thread before asking or relaying (Alaska asked Sandeep "what's the CTA?" then "can you share the table?" when the 9-row table was *in the message* — "soooo embarrassing"). Also locked **reference / FYI ≠ a feature to scope** — a pasted spec is information to remember, not work to interrogate with which-first/estimates/mocks. (Clarifying questions stay fine; the failure was not reading + over-scoping.)
+
+**New capability — Alaska's private working memory (#68):** added the **`agent-memory`** skill + **`agent_memory`** table (migration `0006`). It's a SIBLING store to the team task graph and the BON KB — Alaska's *own* self-tasks + the notes/references she's asked to keep and surface on cue (the motivating case: "show this CTA table whenever someone asks about CTAs"). **Why a separate table:** privacy by construction — team-facing readers (Daily Pulse, Follow-Through, Risk Radar, "what's X working on") read `tasks`/`blockers` and NEVER query `agent_memory`, so a private self-task or note *cannot* leak into a team report (a test, `test_team_facing_readers_never_reference_agent_memory`, fails loudly if anyone wires a team reader to it). SOUL.md is wired into it (reference→`remember`; check-before-ask also `recall`s; a later relay→`self_task`). It is `task-handler`'s sibling, NOT a route through it — `agent-memory` owns its own table. The three stores: **KB** = durable team-canonical domain knowledge (Abhinav-curated); **task graph** = team members' real work (task-handler); **agent_memory** = Alaska's private working memory (self-managed).
 
 **Earlier this window:** watcher timing/delivery/janitor fixes (#46 — first live fires exposed a UTC-conversion bug firing at 4 AM not 9:30, a delivery "Message failed", and a janitor false-flag); MI extraction hardening = **Ops-5** (#42/#43 — speaker attribution + implicit blockers + inferred-task + signal-weighting, validated on a May 25–29 replay); blocker-row dedup (#47).
 
