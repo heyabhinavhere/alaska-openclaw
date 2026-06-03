@@ -29,6 +29,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable
 
+from ..funnel import is_meaningful_credgpt_message
 from ..model import minimize_secrets
 
 BON_API_BASE_URL = os.environ.get("BON_API_BASE_URL", "").rstrip("/")
@@ -180,6 +181,26 @@ def fetch_profile(user_id: int, *, profile_fetcher: ProfileFetcher | None = None
     return {"status": "ok", "payload": payload, "detail": "fetched"}
 
 
+def _real_chat_turns(recent_turns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Real user turns only (drop proactive briefings).
+
+    Mirrors the user-profile-360 summarizer heuristic: a turn is a real user
+    question if it has a non-empty answer OR its thread has more than one turn;
+    single-turn + null-answer turns are system/proactive prompts the user never typed.
+    """
+    if not recent_turns:
+        return []
+    counts: dict[Any, int] = {}
+    for turn in recent_turns:
+        counts[turn.get("thread_id")] = counts.get(turn.get("thread_id"), 0) + 1
+    real = []
+    for turn in recent_turns:
+        answer = turn.get("answer")
+        if (answer not in (None, "")) or counts.get(turn.get("thread_id"), 0) > 1:
+            real.append(turn)
+    return real
+
+
 def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = None) -> dict[str, Any]:
     """Map a raw /profile payload into PMF profile_facts + daily_facts.
 
@@ -193,13 +214,15 @@ def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = 
     credit_score = (summary.get("credit") or {}).get("score")
     linking = summary.get("linking") or {}
     profile = payload.get("profile") or {}
-    chat = summary.get("chat") or {}
+    real_turns = _real_chat_turns(((payload.get("chat") or {}).get("recent_turns")) or [])
 
     card_linked = bool(linking.get("card_linked"))
     bank_linked = bool(linking.get("bank_linked"))
     onboarding_complete = bool(linking.get("credit_activated")) or bool(credit_score and credit_score > 0)
     value_actions = [action for flag, action in _VALUE_ACTION_FLAGS.items() if profile.get(flag)]
-    meaningful_messages = int(chat.get("real_turns") or 0)
+    # Greeting-filtered: only real turns whose question is a substantive financial
+    # message count toward activation (matches the funnel's meaningful definition).
+    meaningful_messages = sum(1 for turn in real_turns if is_meaningful_credgpt_message(turn.get("question")))
 
     # Only the clearly-evidenced PMF metric is asserted here; the rest stay for
     # data-calibration (the six-metric mapping is still under review per the plan).
@@ -236,4 +259,4 @@ def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = 
         "financial_context": financial_context,
         "profile_summary": {"identity": summary.get("identity"), "linking": linking},
     }
-    return {"profile_facts": profile_facts, "daily_facts": daily_facts, "summary": summary}
+    return {"profile_facts": profile_facts, "daily_facts": daily_facts, "summary": summary, "chat_turns": real_turns}

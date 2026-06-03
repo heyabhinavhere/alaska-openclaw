@@ -52,7 +52,7 @@ def _export_zip(events: list[dict]) -> bytes:
 
 def _profile(uid: int, *, real_turns: int = 3) -> dict:
     turns = [
-        {"thread_id": "t1", "question": f"q{i}", "answer": f"a{i}", "created_at": "2026-06-12T18:00:00Z"}
+        {"thread_id": "t1", "question": "how should i pay down my credit card debt", "answer": f"a{i}", "created_at": "2026-06-12T18:00:00Z"}
         for i in range(real_turns)
     ]
     return {

@@ -9,6 +9,22 @@
 
 ---
 
+## Progress log (updated 2026-06-03)
+
+**Done + merged:** P0 privacy→**data-minimization** + dogfood (#66) · P1 Amplitude intake (#70) · P2 User 360 enrichment + identity (#71) · P3 daily orchestrator (#72). **P4** (CredGPT turn ingestion + Amplitude message-count fallback + greeting-filtered meaningful count) in PR.
+
+**Privacy policy changed (supersedes the tier framing in §7 below):** not aggregate-vs-detail tiers — the whole team sees full per-user detail (name/email/phone/credit/financials). We *minimize at the source*: drop SSN / routing numbers / home address, reduce account numbers to last-4 (`lib/pmf_os/model.py: minimize_secrets`).
+
+**Real-data validation (dev User 360 + prod Amplitude) — passed:** intake, identity (backfilled signup events carry `user_id` → trivial resolution; backfill-after-window is the clean path), credit, chat, funnel, and privacy all confirmed on live data. Timezone confirmed **Pacific** (`EVENT_TIME_TZ`, verified via wave mapping). User 360 chat can be **thin/incomplete** → the Amplitude `credgpt_message_sent` fallback (P4) exists for exactly this.
+
+**Open items (tracked):**
+- **⚠️ The 6 PMF success-metrics are unmapped — the top gate.** Funnel tops out at `activated_user`; no Activated Saver / Lover until each metric is defined as a concrete signal. Product/data-definition task (Abhinav + team).
+- **Cron activation** — orchestrator built, not scheduled (gated, explicit go).
+- **Cohort window** date not finalized; **User 360 prod** migration ~week of Jun 9.
+- **LLM quality judge (P4.1)**, Slack delivery (P5), Customer.io execution (P6), end-cohort intelligence (P7). DOCX/PDF + LibreOffice still deferred.
+
+---
+
 ## 1. Purpose and the bar
 
 V5 turns Alaska into the **active operator of BON's first PMF launch cohort**: one configurable 3-day signup window (~1,000 signups, ~750 real users), tracked at user-level depth across onboarding, financial state, CredGPT chat quality, engagement, friction, intent, retention, and qualitative "love" signals. The job no human can do at 1,000-user scale: know every cohort user, surface who is stuck / at risk / a likely lover, and operate interventions.
