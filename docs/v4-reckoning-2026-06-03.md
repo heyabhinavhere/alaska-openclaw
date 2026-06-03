@@ -25,6 +25,32 @@ Turn Alaska from a reactive meeting/standup bot into a **proactive, grounded cow
 
 **One-line V4 truth:** A–D are built and (mostly) live; **E is the real unfinished piece**, and the standup-reply feeder inside B is dormant.
 
+> **Note (added after review):** the phase table above is *coarse* — it collapses several distinct capabilities into phase rows. The capability list below is the complete one. In particular, **cross-person assignment** was the original "Phase D — cross-person workflow" before it was absorbed into D.2 as a watcher template.
+
+## 2b. V4 capabilities — the COMPLETE list (this is what was actually built)
+
+| Capability | Status | Notes |
+|---|---|---|
+| SQLite task graph (migrations 0001–0002) | ✅ live | 50 tables |
+| Intent classifier — 10 intents, observe + gated action | ✅ live | 1.4.1 |
+| `task-handler` — sole writer, match-or-create dedup | ✅ live | 1.2.0 |
+| Feeders → graph: Meeting Intelligence / channel (gated ≥0.85) / Slack DM | ✅ live | |
+| Feeder → graph: **standup-reply parser** | ⚠️ **dormant** | built (pre-call-brief Step 4), no cron triggers it |
+| **Cross-person assignment + accept/decline handshake** (the original "Phase D") | ✅ live | `pending_acceptance` → ack/pass, owner-only guard; **T-9 proved it end-to-end**; #73 fixed the channel path |
+| ↳ Unacked-assignment **escalation** (2h/24h/48h) | ☑️ built | follow-through `escalate_unacked_assignments`; fires as the graph fills — not yet observed |
+| **Graph-aware reads + NL queries** ("what's X working on") | ☑️ built | Daily Pulse / Follow-Through / Risk Radar / slack-commands read the graph (1.3.0 / 2.1.0); live behavior not separately re-verified |
+| **DM intent-action layer** (DM → classify → route to handler) | ✅ live | slack-commands 1.3.0 |
+| **DECISION_RECORDED capture** → Notion Decision Log + `task_event` | ☑️ built | #52/#56; live status not separately verified |
+| Scheduling — reminders (RRULE) + routine-proposal approval (Phase C) | ✅ live | reminder-dispatcher; `scheduled_actions`=1 |
+| BON Knowledge Base (D.1) | ✅ live | 19 files; **now wired into conversation** (was unused) |
+| Watchers V1 (D.2): creator / dispatcher / event-poller / janitor | ✅ live | |
+| ↳ Watcher templates: `stale-task`, `cross-person-assign` | ☑️ un-gated (#52) | produce as graph fills |
+| ↳ Event-pollers: `new_signup`, `bug_closed`, `task_status_changed`, `pr_merged` | ✅ live | 4 crons |
+| ↳ User watchers: W-1 (metrics), W-2 (sub-600 signups), W-3 (card linkage) | ✅ live | `watchers`=3 |
+| **Phase E** — graph → source of truth; `DAILY_STATE.md` → generated view | ⚪ **not done** | the big remaining piece |
+| **KB self-maintenance watcher** — deferred V4 **capstone** | ⚪ gated on E | scans Slack/MI/DMs → diffs KB → proposes edits → Abhinav approves |
+| *(hardening-window adds, not original phases)* agent_memory; grounding + capture reflexes | ✅ live | agent_memory ⚠️ 0 rows / unexercised |
+
 ---
 
 ## 3. The 24-hour observation test — findings & dispositions
