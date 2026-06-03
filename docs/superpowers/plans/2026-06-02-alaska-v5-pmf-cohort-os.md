@@ -1,5 +1,7 @@
 # Alaska V5 — PMF Cohort Operating System Plan
 
+> **⚠️ SUPERSEDED (2026-06-03)** by [`2026-06-03-alaska-v5-master-plan.md`](2026-06-03-alaska-v5-master-plan.md). This doc captured the #59-#64 foundation. The master plan reprioritizes the remaining work around the data pipeline (collectors + orchestrator) and the full build-before-launch sequence. Kept for history.
+
 **Date:** 2026-06-02  
 **Status:** In progress. Foundation merged in PR #59; DocFlow artifact contract added in the follow-up artifact slice.
 **Canonical runtime contract:** `workspace/knowledge/definitions/pmf-cohort-os.md`  
