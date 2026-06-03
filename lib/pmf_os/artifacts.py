@@ -25,7 +25,7 @@ from .docflow import (
     docflow_pdf_lines,
     validate_docflow_spec,
 )
-from .model import FUNNEL_STAGES, PII_KEYS, now_utc
+from .model import FUNNEL_STAGES, minimize_secrets, now_utc
 
 
 def build_report_snapshot(
@@ -39,55 +39,39 @@ def build_report_snapshot(
     report_type: str = "daily_cockpit",
     snapshot_date: str | None = None,
 ) -> dict[str, Any]:
-    safe_users = redact_for_privacy(users, privacy_tier)
-    counts = _stage_counts(safe_users)
+    # Data minimization is tier-independent and enforced as data enters the
+    # store: SSN, routing numbers, and home address are never kept; financial
+    # account numbers are reduced to last-4. Everything operationally useful —
+    # name, email, phone, credit, financial context, stage, health — stays fully
+    # visible, because the whole team needs it to troubleshoot. No tier masking.
+    users = minimize_secrets(users)
+    queues = minimize_secrets(queues)
+    quality_reviews = minimize_secrets(quality_reviews or [])
+    clusters = minimize_secrets(clusters or [])
+    counts = _stage_counts(users)
+    health_counts = _count_by(users, "current_health")
     queue_counts = _count_by(queues, "queue_type")
-    quality_reviews = quality_reviews or []
-    clusters = clusters or []
     return {
         "schema_version": "pmf_report_snapshot.v1",
         "generated_at": now_utc(),
         "snapshot_date": snapshot_date,
         "report_type": report_type,
         "privacy_tier": privacy_tier,
-        "cohort": redact_for_privacy(cohort, privacy_tier),
+        "cohort": minimize_secrets(cohort),
         "summary": {
-            "total_signup_users": len(safe_users),
-            "real_users": sum(1 for user in safe_users if user.get("is_real_user")),
+            "total_signup_users": len(users),
+            "real_users": sum(1 for user in users if user.get("is_real_user")),
             "stage_counts": counts,
+            "health_counts": health_counts,
             "queue_counts": queue_counts,
             "credgpt_reviews": len(quality_reviews),
             "weak_credgpt_reviews": sum(1 for item in quality_reviews if item.get("quality_state") not in (None, "ok")),
             "quality_clusters": len(clusters),
         },
-        "users": safe_users,
-        "queues": redact_for_privacy(queues, privacy_tier),
-        "credgpt_quality": {
-            "reviews": redact_for_privacy(quality_reviews, privacy_tier),
-            "clusters": redact_for_privacy(clusters, privacy_tier),
-        },
+        "users": users,
+        "queues": queues,
+        "credgpt_quality": {"reviews": quality_reviews, "clusters": clusters},
     }
-
-
-def redact_for_privacy(value: Any, privacy_tier: str) -> Any:
-    if privacy_tier != "team":
-        return value
-    if isinstance(value, list):
-        return [redact_for_privacy(item, privacy_tier) for item in value]
-    if isinstance(value, dict):
-        redacted: dict[str, Any] = {}
-        for key, item in value.items():
-            key_lower = str(key).lower()
-            if key_lower in PII_KEYS or any(token in key_lower for token in ("email", "phone", "ssn", "address")):
-                redacted[key] = "[redacted]"
-            else:
-                redacted[key] = redact_for_privacy(item, privacy_tier)
-        return redacted
-    if isinstance(value, str):
-        value = re.sub(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", "[redacted-email]", value, flags=re.I)
-        value = re.sub(r"\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}", "[redacted-phone]", value)
-        return value
-    return value
 
 
 def write_snapshot_json(snapshot: dict[str, Any], path: str | Path) -> str:
@@ -116,6 +100,19 @@ def render_html(snapshot: dict[str, Any], path: str | Path) -> str:
     queues = snapshot.get("queues", [])[:80]
     clusters = snapshot.get("credgpt_quality", {}).get("clusters", [])[:20]
     max_stage = max(stage_counts.values(), default=1) or 1
+    health_counts = summary.get("health_counts", {})
+    detail_sections = f"""<section class="panel" style="margin-top:16px">
+      <h2>Health Breakdown</h2>
+      {_count_list(health_counts, "No health data yet.")}
+    </section>
+    <section class="panel" style="margin-top:16px">
+      <h2>Priority Queue Items</h2>
+      {_queues_table(queues)}
+    </section>
+    <section class="panel" style="margin-top:16px">
+      <h2>User Registry Sample</h2>
+      {_users_table(users)}
+    </section>"""
 
     stage_bars = "\n".join(
         f"""
@@ -193,14 +190,7 @@ def render_html(snapshot: dict[str, Any], path: str | Path) -> str:
         {_queue_count_list(queue_counts)}
       </div>
     </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>Priority Queue Items</h2>
-      {_queues_table(queues)}
-    </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>User Registry Sample</h2>
-      {_users_table(users)}
-    </section>
+    {detail_sections}
     <section class="panel" style="margin-top:16px">
       <h2>CredGPT Quality Clusters</h2>
       {_clusters_table(clusters)}
@@ -339,6 +329,16 @@ def _queue_count_list(queue_counts: dict[str, int]) -> str:
     if not queue_counts:
         return "<p>No open operating queues.</p>"
     rows = "".join(f"<tr><td>{_e(_label(key))}</td><td><strong>{count}</strong></td></tr>" for key, count in queue_counts.items())
+    return f"<table><tbody>{rows}</tbody></table>"
+
+
+def _count_list(counts: dict[str, int], empty_msg: str = "No data.") -> str:
+    if not counts:
+        return f"<p>{_e(empty_msg)}</p>"
+    rows = "".join(
+        f"<tr><td>{_e(_label(key))}</td><td><strong>{count}</strong></td></tr>"
+        for key, count in sorted(counts.items())
+    )
     return f"<table><tbody>{rows}</tbody></table>"
 
 
