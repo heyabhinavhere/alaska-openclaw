@@ -46,7 +46,7 @@ All crons run in UTC; times below are IST (UTC+5:30). The nightly team standup i
 
 | Time (IST) | Cron (UTC) | Agent | Reads / Writes |
 |---|---|---|---|
-| every 5 min | `*/5 * * * *` | Intent Classifier (batch, Phase A obs) | reads channel msgs → `intent_inbox` (observe-only) |
+| every 5 min | `*/5 * * * *` | Intent Classifier (batch) | classifies channel msgs → `intent_inbox`/`classifier_audit`; **acts on the gated task path** (task-worthy ≥0.85 → task-handler) |
 | every 15 min | `*/15 * * * *` | Reminder Dispatcher | reads `scheduled_actions` → fires due reminders |
 | 9:00 AM | `30 3 * * *` | Daily Pulse | reads `DAILY_STATE.md` → posts `#alaska-daily-pulse` |
 | 9:05 AM | `35 3 * * *` | Follow-Through (AM) | reads per-person state → DMs overdue owners |
