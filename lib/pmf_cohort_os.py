@@ -45,6 +45,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--cohort-id", required=True)
     p.add_argument("--pad-days", type=int, default=1, help="Days to over-fetch on each side (timezone/boundary safety)")
 
+    p = sub.add_parser("enrich-user", help="Resolve a cohort user's BON id, fetch their User 360 profile, and update the registry")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--user-key", required=True)
+
     p = sub.add_parser("update-profile", help="Update user registry fields from User 360/profile facts")
     p.add_argument("--cohort-id", required=True)
     p.add_argument("--user-key", required=True)
@@ -118,6 +122,27 @@ def main(argv: list[str] | None = None) -> int:
             )
             out = store.ingest_signup_events(args.cohort_id, events)
             out["fetched_events"] = len(events)
+        elif args.cmd == "enrich-user":
+            from pmf_os.collectors import user360
+
+            row = store.get_user(args.cohort_id, args.user_key)
+            resolved = user360.resolve_bon_user_id(row)
+            if resolved["status"] != "resolved":
+                out = {"status": resolved["status"], "user_key": args.user_key, "detail": resolved.get("detail")}
+            else:
+                fetched = user360.fetch_profile(resolved["user_id"])
+                if fetched["status"] != "ok":
+                    out = {"status": fetched["status"], "user_key": args.user_key, "bon_user_id": resolved["user_id"], "detail": fetched.get("detail")}
+                else:
+                    enriched = user360.enrich_facts(fetched["payload"])
+                    store.update_user_profile(args.cohort_id, args.user_key, enriched["profile_facts"])
+                    out = {
+                        "status": "ok",
+                        "user_key": args.user_key,
+                        "bon_user_id": resolved["user_id"],
+                        "profile_facts": enriched["profile_facts"],
+                        "daily_facts": enriched["daily_facts"],
+                    }
         elif args.cmd == "update-profile":
             out = store.update_user_profile(args.cohort_id, args.user_key, _load_json_arg(args.profile_json))
         elif args.cmd == "snapshot-user":
