@@ -65,6 +65,54 @@ def _truthy_count(values: dict[str, Any], wanted_state: str) -> int:
     return count
 
 
+def compute_pmf_success_metrics(facts: dict[str, Any]) -> dict[str, str]:
+    """Map raw signal facts to confirmed/candidate PMF success-metric states.
+
+    Reads ONLY raw signals (greeting-filtered chat exchanges, active days, raw
+    user product actions, link flags) — never CredGPT's interpreted layer — so
+    Alaska's funnel stays an independent judge of CredGPT. Two metrics have no
+    usable data source yet and are intentionally left uncomputed:
+      - qualitative_positive_signal: chat thumbs are effectively dead (~1 across
+        hundreds of turns) and the API exposes no sentiment field — deferred to
+        the P4.1 LLM judge on turn text.
+      - retained_value: time-gated; computed later from Alaska's own raw credit/
+        savings snapshots over the cohort, not BON's precomputed deltas.
+
+    Expected fact keys: meaningful_credgpt_messages (int), meaningful_threads
+    (int), active_days (int|list[YYYY-MM-DD]), financial_actions
+    (list[{type, level}]), card_linked/bank_linked (bool).
+    """
+    metrics: dict[str, str] = {}
+
+    # 1. activation_depth — deep CredGPT use, strictly ABOVE the activated_user
+    #    gate (meaningful>=3). Confirmed-only: a candidate band at 3-4 messages
+    #    would equal the activation gate and collapse the two funnel tiers.
+    msgs = _as_int(facts.get("meaningful_credgpt_messages")) or 0
+    threads = _as_int(facts.get("meaningful_threads")) or 0
+    if threads >= 2 or msgs >= 5:
+        metrics["activation_depth"] = "confirmed"
+
+    # 2. repeat_engagement — returned across distinct days.
+    active = _active_day_count(facts.get("active_days"))
+    if active >= 3:
+        metrics["repeat_engagement"] = "confirmed"
+    elif active == 2:
+        metrics["repeat_engagement"] = "candidate"
+
+    # 3. financial_action — a real money/plan action beyond linking.
+    financial_actions = facts.get("financial_actions") or []
+    if any((action or {}).get("level") == "confirmed" for action in financial_actions):
+        metrics["financial_action"] = "confirmed"
+    elif financial_actions:
+        metrics["financial_action"] = "candidate"
+
+    # 4. linked_financial_context — connected a card or bank.
+    if facts.get("card_linked") or facts.get("bank_linked"):
+        metrics["linked_financial_context"] = "confirmed"
+
+    return metrics
+
+
 def evaluate_funnel(
     facts: dict[str, Any],
     *,
