@@ -41,6 +41,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--cohort-id", required=True)
     p.add_argument("--events-file", required=True)
 
+    p = sub.add_parser("ingest-cohort", help="Pull signup events from the Amplitude Export API for the cohort window and ingest them")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--pad-days", type=int, default=1, help="Days to over-fetch on each side (timezone/boundary safety)")
+
     p = sub.add_parser("update-profile", help="Update user registry fields from User 360/profile facts")
     p.add_argument("--cohort-id", required=True)
     p.add_argument("--user-key", required=True)
@@ -103,6 +107,17 @@ def main(argv: list[str] | None = None) -> int:
             out = store.upsert_signup_user(args.cohort_id, _load_json_arg(args.event_json))
         elif args.cmd == "ingest-signups-file":
             out = store.ingest_signup_events(args.cohort_id, _load_events_file(args.events_file))
+        elif args.cmd == "ingest-cohort":
+            from pmf_os.collectors.amplitude import fetch_signup_events
+
+            cohort = store.get_cohort(args.cohort_id)
+            events = fetch_signup_events(
+                cohort["signup_window_start"],
+                cohort["signup_window_end"],
+                pad_days=args.pad_days,
+            )
+            out = store.ingest_signup_events(args.cohort_id, events)
+            out["fetched_events"] = len(events)
         elif args.cmd == "update-profile":
             out = store.update_user_profile(args.cohort_id, args.user_key, _load_json_arg(args.profile_json))
         elif args.cmd == "snapshot-user":
