@@ -3,6 +3,8 @@
 > **What this is:** an honest, **verification-marked** accounting of V4 — what we set out to build, what's actually running, what's dormant or drifted, and what's left. Built against the live ground-truth audit (2026-06-03) + the [Live System Map](alaska-live-system-map.md), not against aspirational docs. Where this disagrees with `ROADMAP.md`'s status claims, **this wins** (ROADMAP predates the audit and overstates "active").
 >
 > **Legend:** ✅ **live-verified** (audit confirmed running) · ☑️ **merged to repo, live status not separately verified** · ⚠️ **dormant / drift** (built but not actually running, or repo ≠ live) · ⚪ **not done**
+>
+> **⚠️ Update — full live-cron verification (post `cron.list` dump):** **NONE of this session's dashboard-cron edits landed.** `HARD CHANNEL BOUNDARY` (#74 Thinker), `DATE DISCIPLINE` (Phase 1.4), and `WEEKEND-AWARE` + `FRESHNESS` (#80) are **ABSENT from every live cron**. The auto-deploy path IS live (SOUL/MEMORY/AGENT_RULES markers, classifier 1.4.1, MI + classifier defer-to-SKILL). **Confirmed split: CONFIG files + SKILL-deferring crons reach Alaska; fat-prompt cron edits do not** — those crons carry their own logic and the dashboard edits were never applied. **Decided structural fix: thin the fat crons to defer to their SKILLs** (as MI/classifier already do) so the auto-deployed repo is the single source of truth and the dashboard stops drifting. Until then, every "needs dashboard" item below is **NOT live** — including #74 (Thinker can still post check-ins → the 6 PM double-fire can recur) and #80's Pre-Call freshness / Daily-Pulse weekend guards. *(Live now via auto-deploy: #77 grounding, #78 capture, #73 classifier 1.4.1, #80 MI no-show [SKILL-defer].)*
 
 ---
 
