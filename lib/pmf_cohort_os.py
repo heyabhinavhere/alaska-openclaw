@@ -88,6 +88,12 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("validate-customerio-action", help="Validate a PMF Customer.io action JSON")
     p.add_argument("--action-json", required=True)
 
+    p = sub.add_parser("run-cohort-day", help="Run the full daily cohort pass: intake -> enrich+snapshot -> clusters -> report")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--date", required=True)
+    p.add_argument("--no-intake", action="store_true", help="Skip Amplitude intake (use when already ingested)")
+    p.add_argument("--no-render", action="store_true", help="Skip artifact rendering")
+
     args = parser.parse_args(argv)
     store = PmfStore(args.db)
 
@@ -181,6 +187,16 @@ def main(argv: list[str] | None = None) -> int:
                 "decision": validate_customerio_action(action).as_dict(),
                 "approval_pack": build_approval_pack(action),
             }
+        elif args.cmd == "run-cohort-day":
+            from pmf_os.orchestrator import run_cohort_day
+
+            out = run_cohort_day(
+                store,
+                args.cohort_id,
+                args.date,
+                do_intake=not args.no_intake,
+                render=not args.no_render,
+            )
         else:
             parser.error(f"unknown command {args.cmd}")
             return 2
