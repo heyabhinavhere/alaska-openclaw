@@ -29,7 +29,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable
 
-from ..funnel import is_meaningful_credgpt_message
+from ..funnel import compute_pmf_success_metrics, is_meaningful_credgpt_message
 from ..model import minimize_secrets
 
 BON_API_BASE_URL = os.environ.get("BON_API_BASE_URL", "").rstrip("/")
@@ -43,6 +43,11 @@ _VALUE_ACTION_FLAGS = {
     "is_bank_added": "bank_link_success",
     "is_paydown_schedule_created": "paydown_plan_created",
 }
+
+# Task types whose completion is a deterministic financial action.
+_MONEY_TASK_TYPES = {"call_creditor", "cancel_subscription"}
+# Budget-plan provenance proving user/CredGPT intent (vs a system auto-seed).
+_USER_BUDGET_PLAN_SOURCES = {"manual", "credgpt"}
 
 # (query_type, value) -> (status_code, body_bytes)
 SearchFetcher = Callable[[str, str], "tuple[int, bytes]"]
@@ -201,6 +206,65 @@ def _real_chat_turns(recent_turns: list[dict[str, Any]]) -> list[dict[str, Any]]
     return real
 
 
+def _meaningful_chat_stats(real_turns: list[dict[str, Any]]) -> "tuple[int, int]":
+    """(meaningful-message count, distinct meaningful-thread count).
+
+    A turn counts only as a genuine two-way exchange: a non-null answer AND a
+    substantive financial question (greetings/logistics filtered). The non-null
+    answer gate is the inflation guard — it excludes null-answer proactive
+    mega-threads (e.g. user 2762's templated briefings) that _real_chat_turns
+    keeps for observatory ingestion but which are not real user exchanges.
+    """
+    threads: set[Any] = set()
+    count = 0
+    for turn in real_turns:
+        if turn.get("answer") in (None, ""):
+            continue
+        if not is_meaningful_credgpt_message(turn.get("question")):
+            continue
+        count += 1
+        threads.add(turn.get("thread_id"))
+    return count, len(threads)
+
+
+def _active_days(real_turns: list[dict[str, Any]]) -> list[str]:
+    """Distinct YYYY-MM-DD days the user engaged CredGPT (drives repeat_engagement;
+    the store unions these across daily snapshots)."""
+    days = {str(turn.get("created_at"))[:10] for turn in real_turns if turn.get("created_at")}
+    return sorted(days)
+
+
+def _financial_actions(payload: dict[str, Any]) -> list[dict[str, str]]:
+    """Raw user-driven financial actions from the 360 product layer.
+
+    Confirmed = an action the user (or CredGPT on their behalf) took: a completed
+    money task, a user/CredGPT-authored budget plan, or a budget check-in.
+    Candidate = weaker/system-seeded evidence (an auto-seeded plan, an existing
+    budget, a completed non-money task). We read raw *actions* only here, never
+    CredGPT's interpreted analysis (financial_profile_v2 / progress deltas), so
+    Alaska can still judge CredGPT independently.
+    """
+    actions: list[dict[str, str]] = []
+    tasks = payload.get("tasks") or {}
+    for task in tasks.get("completed") or []:
+        if not task.get("completed_at"):
+            continue
+        ttype = task.get("task_type") or "general"
+        level = "confirmed" if ttype in _MONEY_TASK_TYPES else "candidate"
+        actions.append({"type": f"task_completed:{ttype}", "level": level})
+    budgeting = payload.get("budgeting") or {}
+    plan = budgeting.get("budget_plan") or {}
+    if plan:
+        source = str(plan.get("source") or "").lower()
+        level = "confirmed" if source in _USER_BUDGET_PLAN_SOURCES else "candidate"
+        actions.append({"type": f"budget_plan:{source or 'unknown'}", "level": level})
+    if budgeting.get("checkin_history"):
+        actions.append({"type": "budget_checkin", "level": "confirmed"})
+    elif not plan and budgeting.get("active_budget"):
+        actions.append({"type": "active_budget", "level": "candidate"})
+    return actions
+
+
 def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = None) -> dict[str, Any]:
     """Map a raw /profile payload into PMF profile_facts + daily_facts.
 
@@ -220,15 +284,14 @@ def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = 
     bank_linked = bool(linking.get("bank_linked"))
     onboarding_complete = bool(linking.get("credit_activated")) or bool(credit_score and credit_score > 0)
     value_actions = [action for flag, action in _VALUE_ACTION_FLAGS.items() if profile.get(flag)]
-    # Greeting-filtered: only real turns whose question is a substantive financial
-    # message count toward activation (matches the funnel's meaningful definition).
-    meaningful_messages = sum(1 for turn in real_turns if is_meaningful_credgpt_message(turn.get("question")))
 
-    # Only the clearly-evidenced PMF metric is asserted here; the rest stay for
-    # data-calibration (the six-metric mapping is still under review per the plan).
-    pmf_success_metrics: dict[str, Any] = {}
-    if card_linked or bank_linked:
-        pmf_success_metrics["linked_financial_context"] = "confirmed"
+    # Raw-signal inputs to the six PMF metrics. meaningful_messages/threads is the
+    # greeting-filtered two-way-exchange count, non-null-answer-gated (activation_depth);
+    # active_days drives repeat_engagement (the store unions days across snapshots);
+    # financial_actions are raw user actions from the product layer (financial_action).
+    meaningful_messages, meaningful_threads = _meaningful_chat_stats(real_turns)
+    active_days = _active_days(real_turns)
+    financial_actions = _financial_actions(payload)
 
     financial_context = minimize_secrets(
         {
@@ -254,9 +317,16 @@ def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = 
         "onboarding_complete": onboarding_complete,
         "credit_score": credit_score,
         "meaningful_credgpt_messages": meaningful_messages,
+        "meaningful_threads": meaningful_threads,
+        "active_days": active_days,
         "value_actions": value_actions,
-        "pmf_success_metrics": pmf_success_metrics,
+        "financial_actions": financial_actions,
+        "card_linked": card_linked,
+        "bank_linked": bank_linked,
         "financial_context": financial_context,
         "profile_summary": {"identity": summary.get("identity"), "linking": linking},
     }
+    # Compute the six PMF success metrics from raw signals only (qualitative_positive_
+    # signal + retained_value are intentionally deferred — see compute_pmf_success_metrics).
+    daily_facts["pmf_success_metrics"] = compute_pmf_success_metrics(daily_facts)
     return {"profile_facts": profile_facts, "daily_facts": daily_facts, "summary": summary, "chat_turns": real_turns}

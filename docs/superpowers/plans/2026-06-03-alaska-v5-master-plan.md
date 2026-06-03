@@ -11,14 +11,20 @@
 
 ## Progress log (updated 2026-06-03)
 
-**Done + merged:** P0 privacy→**data-minimization** + dogfood (#66) · P1 Amplitude intake (#70) · P2 User 360 enrichment + identity (#71) · P3 daily orchestrator (#72). **P4** (CredGPT turn ingestion + Amplitude message-count fallback + greeting-filtered meaningful count) in PR.
+**Done + merged:** P0 privacy→**data-minimization** + dogfood (#66) · P1 Amplitude intake (#70) · P2 User 360 enrichment + identity (#71) · P3 daily orchestrator (#72) · **P4** CredGPT turn ingestion + Amplitude message-count fallback + greeting-filtered meaningful count (#75). **6-metric computation** (the four deterministic PMF metrics + chat over-count fix) in PR.
 
 **Privacy policy changed (supersedes the tier framing in §7 below):** not aggregate-vs-detail tiers — the whole team sees full per-user detail (name/email/phone/credit/financials). We *minimize at the source*: drop SSN / routing numbers / home address, reduce account numbers to last-4 (`lib/pmf_os/model.py: minimize_secrets`).
 
 **Real-data validation (dev User 360 + prod Amplitude) — passed:** intake, identity (backfilled signup events carry `user_id` → trivial resolution; backfill-after-window is the clean path), credit, chat, funnel, and privacy all confirmed on live data. Timezone confirmed **Pacific** (`EVENT_TIME_TZ`, verified via wave mapping). User 360 chat can be **thin/incomplete** → the Amplitude `credgpt_message_sent` fallback (P4) exists for exactly this.
 
+**Six-metric computation — scoped + built (lean):** Full 360 API re-analyzed end-to-end via parallel subagents against dev (the 05-27 "product layer empty" catalog note is stale — `tasks` / `budgeting` / `progress` / `opportunities` / `financial_profile_v2` now populate). Definitions locked with Abhinav; activated_saver bar = **2 of 6 confirmed**.
+- **Built now (raw signals only):** `activation_depth` (≥2 meaningful threads OR ≥5 greeting-filtered **non-null-answer** exchanges; confirmed-only — no candidate tier, so it can't collapse the activated_user / activated_saver tiers) · `repeat_engagement` (≥3 active days = confirmed, 2 = candidate; chat distinct-days, store unions across snapshots) · `financial_action` (completed money-task / `budget_plan.source ∈ {manual, credgpt}` / budget check-in = confirmed; auto-seed plan / active-budget / general task = candidate — from raw `tasks` + `budgeting`) · `linked_financial_context` (card OR bank).
+- **Principle (load-bearing):** Alaska derives from **raw facts/actions, never CredGPT's interpreted layer**, so it can independently judge CredGPT (the quality observatory). Explicitly **skipped** `financial_profile_v2` + `progress.ledger` deltas; `opportunities` skipped as system noise (0 user-acted transitions across all sampled users — 100% auto-detected, daily-regenerated).
+- **Deferred (with clear unlocks):** `qualitative_positive_signal` — no API source (chat thumbs effectively dead, ~1 across hundreds of turns; no sentiment field anywhere) → P4.1 LLM judge on turn text. `retained_value` — time-gated (weekly cadence, needs ≥2 snapshots) → computed later from Alaska's *own* raw credit/savings snapshots over the cohort, not BON's precomputed deltas.
+- **Fix shipped:** the chat real-turn heuristic over-counted on null-answer mega-threads (user 2762: 92 "real" turns from 2 null-answer threads) — the meaningful count is now gated on a non-null answer; `_real_chat_turns` stays broad for observatory ingestion.
+
 **Open items (tracked):**
-- **⚠️ The 6 PMF success-metrics are unmapped — the top gate.** Funnel tops out at `activated_user`; no Activated Saver / Lover until each metric is defined as a concrete signal. Product/data-definition task (Abhinav + team).
+- **6 PMF success-metrics: 4 of 6 defined + computed (see above)** → funnel now reaches Activated Saver / Lover. Remaining 2 (`qualitative_positive_signal`, `retained_value`) deferred with clear unlocks (LLM judge / raw time-series).
 - **Cron activation** — orchestrator built, not scheduled (gated, explicit go).
 - **Cohort window** date not finalized; **User 360 prod** migration ~week of Jun 9.
 - **LLM quality judge (P4.1)**, Slack delivery (P5), Customer.io execution (P6), end-cohort intelligence (P7). DOCX/PDF + LibreOffice still deferred.
