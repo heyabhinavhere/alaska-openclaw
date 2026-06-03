@@ -44,6 +44,13 @@ EVENT_TIME_TZ = PROJECT_TZ
 # (start_t, end_t) hour-granular strings "YYYYMMDDTHH" -> raw export bytes (zip).
 ExportFetcher = Callable[[str, str], bytes]
 
+# Event Segmentation API — used to count a user's CredGPT messages as the
+# activation-signal fallback when User 360 chat comes back thin/empty.
+AMPLITUDE_SEGMENTATION_URL = "https://amplitude.com/api/2/events/segmentation"
+CREDGPT_MESSAGE_EVENT = "credgpt_message_sent"
+# (e_json, start_YYYYMMDD, end_YYYYMMDD) -> parsed segmentation response dict.
+SegmentationFetcher = Callable[[str, str, str], "dict[str, Any]"]
+
 
 class AmplitudeAuthError(RuntimeError):
     """Raised when Amplitude credentials are missing."""
@@ -56,6 +63,70 @@ def _auth_header() -> str:
         raise AmplitudeAuthError("AMPLITUDE_API_KEY and AMPLITUDE_SECRET_KEY must be set for live Amplitude export")
     token = base64.b64encode(f"{key}:{secret}".encode("utf-8")).decode("ascii")
     return f"Basic {token}"
+
+
+def _to_segmentation_date(value: str) -> str:
+    """Coerce an ISO/date string to the YYYYMMDD (project tz) the API expects."""
+    text = str(value).strip()
+    # A bare calendar date (YYYY-MM-DD) is already the intended day — don't tz-shift it.
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        return text.replace("-", "")
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        try:
+            dt = datetime.strptime(text[:10], "%Y-%m-%d")
+        except ValueError:
+            return text.replace("-", "")[:8]
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(ZoneInfo(PROJECT_TZ)).strftime("%Y%m%d")
+
+
+def _live_segmentation_fetch(e_json: str, start: str, end: str, *, timeout: float = 60.0) -> "dict[str, Any]":
+    import urllib.parse
+    import urllib.request
+
+    qs = urllib.parse.urlencode({"e": e_json, "m": "totals", "start": start, "end": end, "i": "30"})
+    url = f"{AMPLITUDE_SEGMENTATION_URL}?{qs}"
+    request = urllib.request.Request(url, headers={"Authorization": _auth_header()})
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+        return json.loads(response.read())
+
+
+def fetch_message_count(
+    user_id: str | int,
+    window_start: str,
+    window_end: str,
+    *,
+    segmentation_fetcher: SegmentationFetcher | None = None,
+) -> int:
+    """Total CredGPT messages a user sent in the window (activation fallback).
+
+    Uses the Event Segmentation API (gp:user_id filter, m=totals) — the canonical
+    engagement metric — when User 360 chat is thin/empty. Note this is a raw
+    message count (greetings included), so it's an activation proxy, not the
+    greeting-filtered "meaningful" count we get from User 360 turn text.
+    """
+    fetcher = segmentation_fetcher or _live_segmentation_fetch
+    definition = {
+        "event_type": CREDGPT_MESSAGE_EVENT,
+        "filters": [
+            {
+                "subprop_key": "gp:user_id",
+                "subprop_op": "is",
+                "subprop_type": "user",
+                "subprop_value": [str(user_id)],
+            }
+        ],
+    }
+    data = fetcher(json.dumps(definition), _to_segmentation_date(window_start), _to_segmentation_date(window_end))
+    series = ((data or {}).get("data") or {}).get("series") or []
+    if not series:
+        return 0
+    return int(sum(v for v in series[0] if isinstance(v, (int, float))))
 
 
 def _live_export_fetch(start_t: str, end_t: str, *, timeout: float = 420.0) -> bytes:

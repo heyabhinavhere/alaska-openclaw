@@ -39,6 +39,7 @@ def run_cohort_day(
     search_fetcher: Callable | None = None,
     profile_fetcher: Callable | None = None,
     summarize_fn: Callable | None = None,
+    segmentation_fetcher: Callable | None = None,
 ) -> dict[str, Any]:
     """Run one full cohort day. Returns a structured run record (never raises for
     per-user/per-step failures — they're captured in `errors`)."""
@@ -48,6 +49,8 @@ def run_cohort_day(
         "intake": None,
         "users": {"total": 0, "enriched": 0, "unresolved": 0, "failed": 0},
         "clusters": 0,
+        "turns_ingested": 0,
+        "amplitude_fallback_used": 0,
         "report": None,
         "summary": {},
         "errors": [],
@@ -83,15 +86,43 @@ def run_cohort_day(
                 run["errors"].append({"user_key": key, "step": "fetch_profile", "error": fetched["status"]})
                 continue
             enriched = user360.enrich_facts(fetched["payload"], summarize_fn=summarize_fn)
+            facts = enriched["daily_facts"]
+            # Activation fallback: if User 360 chat is thin/empty, use Amplitude's
+            # message count (the canonical engagement metric) so the funnel stages
+            # correctly. Validated need — User 360 chat can be incomplete.
+            if not facts.get("meaningful_credgpt_messages"):
+                try:
+                    count = amplitude.fetch_message_count(
+                        resolved["user_id"], cohort["signup_window_start"], snapshot_date,
+                        segmentation_fetcher=segmentation_fetcher,
+                    )
+                    if count:
+                        facts["meaningful_credgpt_messages"] = count
+                        run["amplitude_fallback_used"] += 1
+                except Exception as exc:  # noqa: BLE001 - fallback is best-effort
+                    run["errors"].append({"user_key": key, "step": "amplitude_fallback", "error": str(exc)})
             store.update_user_profile(cohort_id, key, enriched["profile_facts"])
-            store.apply_daily_snapshot(cohort_id, key, snapshot_date, enriched["daily_facts"])
+            store.apply_daily_snapshot(cohort_id, key, snapshot_date, facts)
             run["users"]["enriched"] += 1
+            # Ingest the user's real chat turns into the CredGPT quality observatory.
+            for idx, turn in enumerate(enriched.get("chat_turns") or []):
+                try:
+                    store.record_credgpt_turn(cohort_id, key, {
+                        "thread_id": turn.get("thread_id"),
+                        "turn_id": turn.get("turn_id") or f"{turn.get('thread_id')}:{idx}",
+                        "event_time": turn.get("created_at"),
+                        "question": turn.get("question"),
+                        "answer": turn.get("answer"),
+                    })
+                    run["turns_ingested"] += 1
+                except Exception as exc:  # noqa: BLE001 - one turn never sinks the user
+                    run["errors"].append({"user_key": key, "step": "ingest_turn", "error": str(exc)})
         except Exception as exc:  # noqa: BLE001
             run["users"]["failed"] += 1
             run["errors"].append({"user_key": key, "step": "enrich", "error": str(exc)})
 
-    # 3. Refresh CredGPT quality clusters (live turn ingestion + LLM review = P4;
-    #    harmless to call now — yields nothing until turns are recorded).
+    # 3. Refresh CredGPT quality clusters from the turns ingested above. (The LLM
+    #    quality judge on flagged turns is the P4.1 follow-up.)
     try:
         run["clusters"] = len(store.refresh_credgpt_clusters(cohort_id))
     except Exception as exc:  # noqa: BLE001
