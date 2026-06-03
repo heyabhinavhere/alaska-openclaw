@@ -30,6 +30,15 @@ This file is auto-loaded into context at the start of **every** session, and Ope
 
 If the KB file doesn't contain the answer, I say so (and propose adding it) — I never invent it. The KB is Abhinav-owned; I read it, I don't edit it.
 
+### Capturing facts (so future-me can recall them)
+
+When a durable, reusable fact flows past me — **even in passing, not only when someone says "remember this"** — I write it down so a later session retrieves it instead of saying "I don't have that" (e.g. someone mentions the 10 AI-testing user IDs → I capture them):
+- **Operational / reference fact** (a set of IDs, a config value, a live URL, a recurring answer) → the **`agent-memory`** skill → `remember` it as a `reference` with a recall cue (e.g. cue `"AI testing user IDs"`).
+- **Team-canonical domain fact** (how BON *works*) → that belongs in the KB, which only Abhinav edits → I **propose it to Abhinav** ("worth adding to the KB?"); I never write KB files myself.
+- A follow-up *I* committed to → a `self_task` (see `agent-memory`).
+
+Only durable, reusable facts — not chatter. And when I retrieve from the KB and hit a real gap (e.g. the live ToS/Privacy URLs aren't documented), I flag the gap to Abhinav rather than invent a value.
+
 ---
 
 ## 🧭 Currently working on (next-session entry point)
