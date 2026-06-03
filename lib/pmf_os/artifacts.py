@@ -41,7 +41,12 @@ def build_report_snapshot(
 ) -> dict[str, Any]:
     safe_users = redact_for_privacy(users, privacy_tier)
     counts = _stage_counts(safe_users)
+    health_counts = _count_by(safe_users, "current_health")
     queue_counts = _count_by(queues, "queue_type")
+    # Privacy gate: team-tier reports are AGGREGATE-ONLY. Aggregates are computed
+    # from the full set above; per-user rows are dropped below so none can reach
+    # a team artifact (HTML/DOCX/PDF/JSON all consume this snapshot).
+    is_team = privacy_tier == "team"
     quality_reviews = quality_reviews or []
     clusters = clusters or []
     return {
@@ -55,15 +60,16 @@ def build_report_snapshot(
             "total_signup_users": len(safe_users),
             "real_users": sum(1 for user in safe_users if user.get("is_real_user")),
             "stage_counts": counts,
+            "health_counts": health_counts,
             "queue_counts": queue_counts,
             "credgpt_reviews": len(quality_reviews),
             "weak_credgpt_reviews": sum(1 for item in quality_reviews if item.get("quality_state") not in (None, "ok")),
             "quality_clusters": len(clusters),
         },
-        "users": safe_users,
-        "queues": redact_for_privacy(queues, privacy_tier),
+        "users": [] if is_team else safe_users,
+        "queues": [] if is_team else redact_for_privacy(queues, privacy_tier),
         "credgpt_quality": {
-            "reviews": redact_for_privacy(quality_reviews, privacy_tier),
+            "reviews": [] if is_team else redact_for_privacy(quality_reviews, privacy_tier),
             "clusters": redact_for_privacy(clusters, privacy_tier),
         },
     }
@@ -116,6 +122,23 @@ def render_html(snapshot: dict[str, Any], path: str | Path) -> str:
     queues = snapshot.get("queues", [])[:80]
     clusters = snapshot.get("credgpt_quality", {}).get("clusters", [])[:20]
     max_stage = max(stage_counts.values(), default=1) or 1
+    is_team = snapshot.get("privacy_tier") == "team"
+    health_counts = summary.get("health_counts", {})
+    if is_team:
+        # Team cockpit is aggregate-only: no per-user registry or queue rows.
+        detail_sections = f"""<section class="panel" style="margin-top:16px">
+      <h2>Health Breakdown</h2>
+      {_count_list(health_counts, "No health data yet.")}
+    </section>"""
+    else:
+        detail_sections = f"""<section class="panel" style="margin-top:16px">
+      <h2>Priority Queue Items</h2>
+      {_queues_table(queues)}
+    </section>
+    <section class="panel" style="margin-top:16px">
+      <h2>User Registry Sample</h2>
+      {_users_table(users)}
+    </section>"""
 
     stage_bars = "\n".join(
         f"""
@@ -193,14 +216,7 @@ def render_html(snapshot: dict[str, Any], path: str | Path) -> str:
         {_queue_count_list(queue_counts)}
       </div>
     </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>Priority Queue Items</h2>
-      {_queues_table(queues)}
-    </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>User Registry Sample</h2>
-      {_users_table(users)}
-    </section>
+    {detail_sections}
     <section class="panel" style="margin-top:16px">
       <h2>CredGPT Quality Clusters</h2>
       {_clusters_table(clusters)}
@@ -339,6 +355,16 @@ def _queue_count_list(queue_counts: dict[str, int]) -> str:
     if not queue_counts:
         return "<p>No open operating queues.</p>"
     rows = "".join(f"<tr><td>{_e(_label(key))}</td><td><strong>{count}</strong></td></tr>" for key, count in queue_counts.items())
+    return f"<table><tbody>{rows}</tbody></table>"
+
+
+def _count_list(counts: dict[str, int], empty_msg: str = "No data.") -> str:
+    if not counts:
+        return f"<p>{_e(empty_msg)}</p>"
+    rows = "".join(
+        f"<tr><td>{_e(_label(key))}</td><td><strong>{count}</strong></td></tr>"
+        for key, count in sorted(counts.items())
+    )
     return f"<table><tbody>{rows}</tbody></table>"
 
 

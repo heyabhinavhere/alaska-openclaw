@@ -462,7 +462,12 @@ def test_reports_redact_team_pii_and_render_self_contained_artifacts():
     assert "https://" not in html_text
 
     snapshot = json.loads(Path(rendered["snapshot_json_path"]).read_text(encoding="utf-8"))
-    assert snapshot["users"][0]["email"] == "[redacted]"
+    # team tier is aggregate-only: zero per-user rows leak, but the summary stays complete
+    assert snapshot["users"] == []
+    assert snapshot["queues"] == []
+    assert snapshot["credgpt_quality"]["reviews"] == []
+    assert snapshot["summary"]["total_signup_users"] == 1
+    assert snapshot["summary"]["real_users"] == 1
     spec = json.loads(Path(rendered["docflow_spec_path"]).read_text(encoding="utf-8"))
     assert spec["schema_version"] == DOCFLOW_SCHEMA_VERSION
     assert validate_docflow_spec(spec) == []
