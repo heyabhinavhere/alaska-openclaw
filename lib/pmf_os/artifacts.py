@@ -25,7 +25,7 @@ from .docflow import (
     docflow_pdf_lines,
     validate_docflow_spec,
 )
-from .model import FUNNEL_STAGES, PII_KEYS, now_utc
+from .model import FUNNEL_STAGES, minimize_secrets, now_utc
 
 
 def build_report_snapshot(
@@ -39,26 +39,28 @@ def build_report_snapshot(
     report_type: str = "daily_cockpit",
     snapshot_date: str | None = None,
 ) -> dict[str, Any]:
-    safe_users = redact_for_privacy(users, privacy_tier)
-    counts = _stage_counts(safe_users)
-    health_counts = _count_by(safe_users, "current_health")
+    # Data minimization is tier-independent and enforced as data enters the
+    # store: SSN, routing numbers, and home address are never kept; financial
+    # account numbers are reduced to last-4. Everything operationally useful —
+    # name, email, phone, credit, financial context, stage, health — stays fully
+    # visible, because the whole team needs it to troubleshoot. No tier masking.
+    users = minimize_secrets(users)
+    queues = minimize_secrets(queues)
+    quality_reviews = minimize_secrets(quality_reviews or [])
+    clusters = minimize_secrets(clusters or [])
+    counts = _stage_counts(users)
+    health_counts = _count_by(users, "current_health")
     queue_counts = _count_by(queues, "queue_type")
-    # Privacy gate: team-tier reports are AGGREGATE-ONLY. Aggregates are computed
-    # from the full set above; per-user rows are dropped below so none can reach
-    # a team artifact (HTML/DOCX/PDF/JSON all consume this snapshot).
-    is_team = privacy_tier == "team"
-    quality_reviews = quality_reviews or []
-    clusters = clusters or []
     return {
         "schema_version": "pmf_report_snapshot.v1",
         "generated_at": now_utc(),
         "snapshot_date": snapshot_date,
         "report_type": report_type,
         "privacy_tier": privacy_tier,
-        "cohort": redact_for_privacy(cohort, privacy_tier),
+        "cohort": minimize_secrets(cohort),
         "summary": {
-            "total_signup_users": len(safe_users),
-            "real_users": sum(1 for user in safe_users if user.get("is_real_user")),
+            "total_signup_users": len(users),
+            "real_users": sum(1 for user in users if user.get("is_real_user")),
             "stage_counts": counts,
             "health_counts": health_counts,
             "queue_counts": queue_counts,
@@ -66,34 +68,10 @@ def build_report_snapshot(
             "weak_credgpt_reviews": sum(1 for item in quality_reviews if item.get("quality_state") not in (None, "ok")),
             "quality_clusters": len(clusters),
         },
-        "users": [] if is_team else safe_users,
-        "queues": [] if is_team else redact_for_privacy(queues, privacy_tier),
-        "credgpt_quality": {
-            "reviews": [] if is_team else redact_for_privacy(quality_reviews, privacy_tier),
-            "clusters": redact_for_privacy(clusters, privacy_tier),
-        },
+        "users": users,
+        "queues": queues,
+        "credgpt_quality": {"reviews": quality_reviews, "clusters": clusters},
     }
-
-
-def redact_for_privacy(value: Any, privacy_tier: str) -> Any:
-    if privacy_tier != "team":
-        return value
-    if isinstance(value, list):
-        return [redact_for_privacy(item, privacy_tier) for item in value]
-    if isinstance(value, dict):
-        redacted: dict[str, Any] = {}
-        for key, item in value.items():
-            key_lower = str(key).lower()
-            if key_lower in PII_KEYS or any(token in key_lower for token in ("email", "phone", "ssn", "address")):
-                redacted[key] = "[redacted]"
-            else:
-                redacted[key] = redact_for_privacy(item, privacy_tier)
-        return redacted
-    if isinstance(value, str):
-        value = re.sub(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", "[redacted-email]", value, flags=re.I)
-        value = re.sub(r"\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}", "[redacted-phone]", value)
-        return value
-    return value
 
 
 def write_snapshot_json(snapshot: dict[str, Any], path: str | Path) -> str:
@@ -122,16 +100,12 @@ def render_html(snapshot: dict[str, Any], path: str | Path) -> str:
     queues = snapshot.get("queues", [])[:80]
     clusters = snapshot.get("credgpt_quality", {}).get("clusters", [])[:20]
     max_stage = max(stage_counts.values(), default=1) or 1
-    is_team = snapshot.get("privacy_tier") == "team"
     health_counts = summary.get("health_counts", {})
-    if is_team:
-        # Team cockpit is aggregate-only: no per-user registry or queue rows.
-        detail_sections = f"""<section class="panel" style="margin-top:16px">
+    detail_sections = f"""<section class="panel" style="margin-top:16px">
       <h2>Health Breakdown</h2>
       {_count_list(health_counts, "No health data yet.")}
-    </section>"""
-    else:
-        detail_sections = f"""<section class="panel" style="margin-top:16px">
+    </section>
+    <section class="panel" style="margin-top:16px">
       <h2>Priority Queue Items</h2>
       {_queues_table(queues)}
     </section>

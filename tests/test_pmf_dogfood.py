@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 from pmf_os.dogfood import build_synthetic_cohort, run_dogfood  # noqa: E402
 
 
-def test_pipeline_spreads_funnel_and_team_is_aggregate_only():
+def test_pipeline_spreads_funnel_and_shows_full_detail():
     result = run_dogfood(n=40, seed=7)
     ingest, team, founder = result["ingest"], result["team"], result["founder"]
 
@@ -38,11 +38,10 @@ def test_pipeline_spreads_funnel_and_team_is_aggregate_only():
     assert sum(team["summary"]["queue_counts"].values()) > 0
     assert team["summary"]["weak_credgpt_reviews"] > 0
 
-    # PRIVACY: team is aggregate-only; founder has per-user detail; aggregates agree.
-    assert team["users"] == []
-    assert team["queues"] == []
-    assert team["credgpt_quality"]["reviews"] == []
+    # No tier masking: team and founder both show full per-user detail.
+    assert len(team["users"]) == 40
     assert len(founder["users"]) == 40
+    assert team["users"][0].get("email")  # email stays visible to the whole team
     assert founder["summary"]["stage_counts"] == stage_counts
 
 
@@ -56,7 +55,7 @@ def test_ingest_is_idempotent_on_reingest():
     assert before == after == 20
 
 
-def test_team_html_has_no_user_pii_but_founder_does():
+def test_team_html_shows_user_detail():
     result = run_dogfood(n=24, seed=11)
     store = result["store"]
     root = Path(tempfile.mkdtemp(prefix="pmf_dogfood_art_"))
@@ -66,15 +65,10 @@ def test_team_html_has_no_user_pii_but_founder_does():
         artifact_root=str(root), snapshot_date="2026-06-13",
     )
     team_html = Path(team["html_path"]).read_text(encoding="utf-8")
-    assert "@example.com" not in team_html
-    assert "user:2000" not in team_html  # no per-user registry rows in a team cockpit
-
-    founder = store.render_report_artifacts(
-        "pmf-dogfood", report_id="dogfood-founder", privacy_tier="founder",
-        artifact_root=str(root), snapshot_date="2026-06-13",
-    )
-    founder_html = Path(founder["html_path"]).read_text(encoding="utf-8")
-    assert "user:2000" in founder_html  # founder cockpit shows per-user rows
+    assert "user:2000" in team_html  # the whole team sees per-user rows
+    # HTML stays self-contained (no external network dependency).
+    assert "http://" not in team_html
+    assert "https://" not in team_html
 
 
 if __name__ == "__main__":

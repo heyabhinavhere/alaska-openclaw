@@ -18,7 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "lib"))
 
-from pmf_os.artifacts import artifact_ready_for_delivery, qa_artifact, redact_for_privacy  # noqa: E402
+from pmf_os.artifacts import artifact_ready_for_delivery, qa_artifact  # noqa: E402
+from pmf_os.model import minimize_secrets  # noqa: E402
 from pmf_os.credgpt_quality import review_turn  # noqa: E402
 from pmf_os.customerio_guard import validate_customerio_action  # noqa: E402
 from pmf_os.docflow import DOCFLOW_SCHEMA_VERSION, build_docflow_spec, validate_docflow_spec  # noqa: E402
@@ -430,7 +431,7 @@ def test_customerio_guard_blocks_sms_and_unapproved_actions():
     assert allowed.allowed is True
 
 
-def test_reports_redact_team_pii_and_render_self_contained_artifacts():
+def test_reports_show_full_detail_and_render_self_contained_artifacts():
     store = _store()
     user_key = store.upsert_signup_user("pmf-test", _signup("2714"))["user_key"]
     store.update_user_profile("pmf-test", user_key, {"onboarding_complete": True, "credit_score": 711})
@@ -456,16 +457,18 @@ def test_reports_redact_team_pii_and_render_self_contained_artifacts():
     assert all(item["structural_pass"] for item in rendered["qa"])
 
     html_text = Path(rendered["html_path"]).read_text(encoding="utf-8")
-    assert "asha@example.com" not in html_text
-    assert "555 123 4567" not in html_text
+    # Team sees full per-user detail (the registry row is present).
+    assert "user:2714" in html_text
+    assert "Asha" in html_text
+    # HTML stays self-contained (no external CDN/network dependency).
     assert "http://" not in html_text
     assert "https://" not in html_text
 
     snapshot = json.loads(Path(rendered["snapshot_json_path"]).read_text(encoding="utf-8"))
-    # team tier is aggregate-only: zero per-user rows leak, but the summary stays complete
-    assert snapshot["users"] == []
-    assert snapshot["queues"] == []
-    assert snapshot["credgpt_quality"]["reviews"] == []
+    # No tier masking: name/email/phone stay fully visible to the team.
+    assert len(snapshot["users"]) == 1
+    assert snapshot["users"][0]["email"] == "asha@example.com"
+    assert snapshot["users"][0]["phone_number"] == "+1 555 123 4567"
     assert snapshot["summary"]["total_signup_users"] == 1
     assert snapshot["summary"]["real_users"] == 1
     spec = json.loads(Path(rendered["docflow_spec_path"]).read_text(encoding="utf-8"))
@@ -518,9 +521,57 @@ def test_docx_pdf_delivery_gate_requires_visual_qa():
     )
 
 
-def test_founder_privacy_preserves_user_level_details():
-    assert redact_for_privacy({"email": "asha@example.com"}, "founder") == {"email": "asha@example.com"}
-    assert redact_for_privacy({"email": "asha@example.com"}, "team") == {"email": "[redacted]"}
+def test_minimize_secrets_drops_ssn_routing_address_and_last4s_accounts():
+    out = minimize_secrets(
+        {
+            "name": "Asha",
+            "email": "asha@example.com",
+            "phone_number": "+1 555 123 4567",
+            "credit_score": 711,
+            "ssn": "123-45-6789",
+            "routing_number": "021000021",
+            "address": "1 Main St",
+            "financial_context": {
+                "account_name": "Chase Checking",
+                "account_number": "1234567890",
+                "card_number": "4111111111111111",
+            },
+            "note": "user typed SSN 123-45-6789 in chat",
+        }
+    )
+    assert out["name"] == "Asha"  # operational fields stay visible
+    assert out["email"] == "asha@example.com"
+    assert out["phone_number"] == "+1 555 123 4567"
+    assert out["credit_score"] == 711
+    assert out["financial_context"]["account_name"] == "Chase Checking"
+    assert "ssn" not in out  # secrets dropped entirely
+    assert "routing_number" not in out
+    assert "address" not in out
+    assert out["financial_context"]["account_number"] == "••7890"  # accounts -> last4
+    assert out["financial_context"]["card_number"] == "••1111"
+    assert "123-45-6789" not in out["note"]  # SSN scrubbed from free text
+
+
+def test_case_file_minimizes_financial_secrets_at_write():
+    store = _store()
+    user_key = store.upsert_signup_user("pmf-test", _signup("2714"))["user_key"]
+    store.update_user_profile("pmf-test", user_key, {"onboarding_complete": True, "credit_score": 700})
+    store.apply_daily_snapshot(
+        "pmf-test",
+        user_key,
+        "2026-06-12",
+        {
+            "meaningful_credgpt_messages": 3,
+            "financial_context": {"account_name": "Chase", "account_number": "1234567890", "routing_number": "021000021"},
+        },
+    )
+    conn = sqlite3.connect(store.db_path)
+    row = conn.execute("SELECT case_file_json FROM pmf_user_case_files WHERE user_key=?", (user_key,)).fetchone()
+    conn.close()
+    fc = json.loads(row[0])["financial_context"]
+    assert fc["account_name"] == "Chase"
+    assert fc["account_number"] == "••7890"
+    assert "routing_number" not in fc
 
 
 def test_signup_wave_uses_cohort_timezone_not_utc_date():

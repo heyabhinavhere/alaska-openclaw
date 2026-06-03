@@ -24,7 +24,7 @@ from .artifacts import (
 from .credgpt_quality import cluster_reviews, review_turn
 from .docflow import build_docflow_spec
 from .funnel import evaluate_funnel
-from .model import Evidence, higher_stage, now_utc
+from .model import Evidence, higher_stage, minimize_secrets, now_utc
 
 
 DEFAULT_DB_PATH = os.environ.get("PMF_DB_PATH", "/data/queue/alaska_pmf.db")
@@ -874,7 +874,7 @@ class PmfStore:
 def build_case_file(user: dict[str, Any], facts: dict[str, Any], funnel: dict[str, Any]) -> dict[str, Any]:
     credit_score = _as_int(facts.get("credit_score") or user.get("credit_score"))
     onboarding_complete = bool(facts.get("onboarding_complete")) or user.get("onboarding_status") == "complete"
-    return {
+    return minimize_secrets({
         "identity": {
             "user_key": user.get("user_key"),
             "bon_user_id": user.get("bon_user_id"),
@@ -901,7 +901,7 @@ def build_case_file(user: dict[str, Any], facts: dict[str, Any], funnel: dict[st
         "interventions": facts.get("interventions") or [],
         "qualitative_notes": facts.get("qualitative_notes") or [],
         "product_learning_tags": facts.get("product_learning_tags") or [],
-    }
+    })
 
 
 def user_key_from_event(event: dict[str, Any]) -> str:

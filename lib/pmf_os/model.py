@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -70,19 +71,57 @@ PMF_SUCCESS_METRICS = [
     "retained_value",
 ]
 
-PII_KEYS = {
-    "name",
-    "first_name",
-    "last_name",
-    "email",
-    "phone",
-    "phone_number",
-    "dob",
+# Data-minimization policy (tier-independent). The whole team sees full
+# operational detail — name, email, phone, credit, financial context, stage,
+# health. We never STORE or SHOW a small set of high-sensitivity secrets, and we
+# reduce financial account numbers to their last 4 digits. Enforced where data
+# enters the store and reports (minimize_secrets), so an SSN, routing number, or
+# home address never lands in SQLite, Slack, or an artifact file.
+SECRET_DROP_KEYS = {
     "ssn",
+    "social_security_number",
+    "tax_id",
+    "routing_number",
+    "aba",
+    "aba_number",
     "address",
     "street",
-    "employer_name",
+    "address_line1",
+    "address_line2",
+    "home_address",
+    "mailing_address",
 }
+_ACCOUNT_NUMBER_SUFFIXES = ("account_number", "card_number", "account_no", "card_no")
+_SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+
+
+def _last4(value: Any) -> str:
+    digits = re.sub(r"\D", "", str(value if value is not None else ""))
+    return f"••{digits[-4:]}" if len(digits) >= 4 else "••••"
+
+
+def minimize_secrets(value: Any) -> Any:
+    """Drop high-sensitivity secrets; reduce account numbers to last-4.
+
+    Keeps everything operationally useful (name/email/phone/credit/financial
+    context) visible. Recurses through nested dicts and lists.
+    """
+    if isinstance(value, list):
+        return [minimize_secrets(item) for item in value]
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for key, item in value.items():
+            key_lower = str(key).lower()
+            if key_lower in SECRET_DROP_KEYS or key_lower.endswith("_ssn") or "routing_number" in key_lower:
+                continue
+            if key_lower.endswith(_ACCOUNT_NUMBER_SUFFIXES):
+                out[key] = _last4(item)
+            else:
+                out[key] = minimize_secrets(item)
+        return out
+    if isinstance(value, str):
+        return _SSN_RE.sub("[ssn-redacted]", value)
+    return value
 
 
 def now_utc() -> str:
