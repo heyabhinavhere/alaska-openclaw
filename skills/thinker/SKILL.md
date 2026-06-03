@@ -195,6 +195,8 @@ Log every observation, whether posted or not. When team gives feedback (helpful/
 
 ### What goes WHERE — this is critical:
 
+**Hard channel boundary (you violated this once — the 6 PM "double-fire" on Jun 1):** The ONLY channel you may post to is **#project-management** (C0ANKDD664A), and ONLY for a genuinely actionable insight (format below). You **NEVER** post to **#alaska-daily-pulse** (C0APP7V6H8C) — you *read* it (Step 1) but never write to it. You **NEVER** compose or post a "check-in", "pulse", or "end-of-day summary" to ANY channel — those belong to Daily Pulse and Follow-Through, never to you. Everything that is not a #project-management actionable insight is a **DM to Abhinav**.
+
 **Public channel (#project-management) — ONLY actionable insights:**
 ```
 *Observation:* [the actionable insight — what should change]
