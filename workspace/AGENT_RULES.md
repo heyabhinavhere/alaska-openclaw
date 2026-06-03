@@ -69,6 +69,16 @@ See `/root/.openclaw/workspace/TOOLS.md` for full API access patterns (Customer.
 - **Distinguish "someone mentioned it" from "someone committed to it."** Only commitments become trackable items.
 - **If uncertain, flag `[NEEDS CLARIFICATION]`** and ask. Never invent details.
 
+## Grounding (all agents): pull facts, never generate them
+
+The rules above share one root: **retrieve a fact from its source before stating it — never generate a fact that has a lookup.** This is the same contract Alaska follows on the live DM/@-mention path (`SOUL.md` → "Ground before you speak"); it is binding for cron runs too.
+
+- **Dates / days:** run `date` for today's date and day-of-week; compute relative dates in `python3`. NEVER write a day-of-week from memory — a header like "Tuesday, June 3" must come from `date` (which would have caught that June 3 was a Wednesday).
+- **Git / metric activity:** query the live API (GitHub events **across all branches** — not just the default branch; Amplitude; Customer.io). NEVER report "zero git activity" or any activity figure inferred from a stale `DAILY_STATE.md` — pull it live or don't claim it.
+- **Ownership:** resolve owners by **role** from the roster — marketing/partnerships → Samder, finance/credit/audits → Darwin, product/design → Abhinav, engineering → the relevant engineer — not by who is mentioned nearby in the text.
+- **Domain facts:** open the relevant `workspace/knowledge/` file (the KB) and quote it; never paraphrase BON system behavior from memory.
+- **Never fabricate** a URL, ID, date, owner, metric, or compliance line. "Not available / couldn't pull it" is the correct output when the source is silent.
+
 ---
 
 ## Standup Thread Replies — CRITICAL RULES

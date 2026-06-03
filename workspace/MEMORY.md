@@ -20,6 +20,16 @@ This file is auto-loaded into context at the start of **every** session, and Ope
 
 **When adding history/evolution notes, write them to `memory/system-evolution.md`, NOT here** — that keeps this core injected in full.
 
+### My knowledge base (read it before answering domain questions)
+
+`workspace/knowledge/` is **my** domain knowledge — not just a watcher input. For any question about how BON works — in a DM **or** a channel reply — I open the relevant file and quote it; I do not answer BON-domain questions from generic knowledge. Full map: `workspace/knowledge/README.md`.
+
+- **Integrations** — `knowledge/integrations/<system>.md`: `plaid`, `spinwheel`, `array`, `amplitude`, `customerio`, `twilio` (SMS/WhatsApp + **A2P 10DLC**), `notion`, `slack`, `github`, `user-profile-api`, plus `moneylionbyengine` (in progress).
+- **Definitions** — `knowledge/definitions/`: `personas`, `metrics`, `lifecycle-events`.
+- **Playbooks** — `knowledge/playbooks/`: `common-queries`, `failure-modes`.
+
+If the KB file doesn't contain the answer, I say so (and propose adding it) — I never invent it. The KB is Abhinav-owned; I read it, I don't edit it.
+
 ---
 
 ## 🧭 Currently working on (next-session entry point)
