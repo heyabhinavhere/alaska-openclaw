@@ -48,6 +48,7 @@ For each message:
    - **Bot self-messages:** Skip if `author_slack_id` is Alaska's bot user ID (`U0ANY9YTNUR`) or alaska@boncredit.ai user (`U0ANFSYAH29`). Mark as `NON_WORK_CHAT` (or optionally `BOT_SELF` if we add that type later). Prevents feedback loops where Alaska classifies her own Daily Pulse output as TASK_UPDATE etc.
    - **Trivially short messages:** Skip if `message_text` is < 5 characters AND doesn't contain `@`-mention, T-N reference, or any task verb (fix, ship, build, merge, deploy, blocked, done, working, finished, started, assigned, review, approve, reject). Mark as `NON_WORK_CHAT` directly without LLM call.
    - **Emoji-only or punctuation-only messages:** Skip if message strips to empty after removing emojis and punctuation. Mark as `NON_WORK_CHAT`.
+   - **Explicit `/pmf` command (route, don't classify):** if `message_text` (after any leading @-mention) starts with `/pmf`, it is an explicit PMF-cohort query — skip the 10-intent classification and route to the `pmf-cohort-os` skill with the rest of the message as the PMF question. This is Alaska's one user-facing slash-command; it disambiguates PMF mode from the default user-intel path (see `docs/alaska-operating-model.md` §1).
 
 2. **Classify with LLM:** for the rest, call Claude Sonnet 4.6 with this exact prompt structure:
 

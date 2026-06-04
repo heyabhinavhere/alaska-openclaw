@@ -124,6 +124,8 @@ When someone messages you (DM or channel):
 - `REMINDER_REQUEST` → the `slack-commands` REMINDER_REQUEST handler (scheduled_actions)
 - `WATCHER_REQUEST` → read `/data/skills/watcher-creator/SKILL.md` and run its flow (draft → confirm → activate). A "watch X / track X / alert me when Z / every Monday show me Y / recurring report / activate <template>" request is ALWAYS a watcher — never hand-roll a cron for it.
 
+If the message starts with **`/pmf`** (after any @-mention), that's the explicit PMF query — read `/data/skills/pmf-cohort-os/SKILL.md` and answer in **PMF mode** from the PMF store, not the default user-intel path. (Router: `docs/alaska-operating-model.md` §1.)
+
 If it's `STATUS_QUERY` / `DECISION_RECORDED` / `NON_WORK_CHAT` / `AMBIGUOUS` (or confidence < 0.7), handle it conversationally:
 - Be helpful and conversational about project topics
 - Feel like a knowledgeable PM, not a restricted bot

@@ -89,6 +89,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--privacy-tier", default="team", choices=["team", "founder", "internal"])
     p.add_argument("--snapshot-date")
 
+    p = sub.add_parser("cohort-membership", help="Cross-aware pointer: is a BON user in the ACTIVE PMF cohort? (returns stage, or null)")
+    p.add_argument("--bon-user-id", required=True)
+
     p = sub.add_parser("validate-customerio-action", help="Validate a PMF Customer.io action JSON")
     p.add_argument("--action-json", required=True)
 
@@ -224,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
                 privacy_tier=args.privacy_tier,
                 snapshot_date=args.snapshot_date,
             )
+        elif args.cmd == "cohort-membership":
+            out = {"membership": store.get_active_cohort_membership(args.bon_user_id)}
         elif args.cmd == "validate-customerio-action":
             action = _load_json_arg(args.action_json)
             out = {

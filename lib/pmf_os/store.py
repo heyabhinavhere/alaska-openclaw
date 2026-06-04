@@ -131,6 +131,27 @@ class PmfStore:
             row = conn.execute("SELECT * FROM pmf_cohorts WHERE status='active' ORDER BY activated_at DESC LIMIT 1").fetchone()
         return dict(row) if row else None
 
+    def get_active_cohort_membership(self, bon_user_id: str | int) -> dict[str, Any] | None:
+        """Cross-aware pointer support: is this BON user in the ACTIVE PMF cohort?
+
+        Returns {cohort_id, current_stage, activated_saver_state} if the user is a
+        registry member of the one active cohort, else None (no active cohort, or not
+        a member). Read-only — used by the default user-intel path to append the
+        '/pmf for the case file' pointer WITHOUT blending PMF data into the answer.
+        """
+        if bon_user_id in (None, ""):
+            return None
+        active = self.active_cohort()
+        if not active:
+            return None
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT cohort_id, current_stage, activated_saver_state FROM pmf_cohort_users "
+                "WHERE cohort_id=? AND bon_user_id=? LIMIT 1",
+                (active["cohort_id"], str(bon_user_id)),
+            ).fetchone()
+        return dict(row) if row else None
+
     # ------------------------------------------------------------------
     # Registry and signal spine
     # ------------------------------------------------------------------
