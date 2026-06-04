@@ -162,6 +162,43 @@ def test_no_intake_uses_existing_registry():
     assert run["users"]["enriched"] == 2
 
 
+def test_run_cohort_day_delivers_to_slack():
+    store = _store()
+    sent = {}
+
+    def fake_sender(channel, summary, html_path):
+        sent.update(channel=channel, summary=summary, html_path=html_path)
+        return {"ok": True, "summary": {"ok": True, "ts": "1.1"}, "file": {"ok": True}}
+
+    run = run_cohort_day(
+        store, "pmf-orch", DATE, do_intake=True,
+        artifact_root=str(Path(tempfile.mkdtemp(prefix="pmf_orch_art_"))),
+        export_fetcher=_fake_export, search_fetcher=_fake_search, profile_fetcher=_fake_profile,
+        slack_sender=fake_sender, slack_channel="C123",
+    )
+    assert run["delivery"]["ok"] is True
+    assert sent["channel"] == "C123"
+    assert "PMF Cohort daily run" in sent["summary"]
+    assert sent["html_path"] and Path(sent["html_path"]).exists()
+
+
+def test_run_cohort_day_delivery_failure_is_captured():
+    store = _store()
+
+    def boom(channel, summary, html_path):
+        raise RuntimeError("slack 503")
+
+    run = run_cohort_day(
+        store, "pmf-orch", DATE, do_intake=True,
+        artifact_root=str(Path(tempfile.mkdtemp(prefix="pmf_orch_art_"))),
+        export_fetcher=_fake_export, search_fetcher=_fake_search, profile_fetcher=_fake_profile,
+        slack_sender=boom, slack_channel="C123",
+    )
+    assert run["delivery"]["ok"] is False
+    assert any(e.get("step") == "deliver" for e in run["errors"])
+    assert run["report"] is not None  # delivery failure didn't sink the run
+
+
 if __name__ == "__main__":
     import subprocess
 

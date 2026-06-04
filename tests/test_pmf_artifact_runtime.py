@@ -17,11 +17,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent
 
 
-def test_dockerfile_installs_visual_qa_runtime_packages():
+def test_dockerfile_excludes_heavy_visual_qa_runtime():
+    """DOCX/PDF visual-QA (LibreOffice/poppler) is deferred for the V5 launch, so the
+    image stays slim. Structural DOCX/PDF rendering is pure-python and needs none."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
-    assert "libreoffice-writer" in dockerfile
-    assert "poppler-utils" in dockerfile
-    assert "fonts-dejavu-core" in dockerfile
+    assert "libreoffice" not in dockerfile.lower()
+    assert "poppler-utils" not in dockerfile
 
 
 def test_artifact_runtime_smoke_check_structural_mode():
@@ -48,7 +49,7 @@ def test_artifact_runtime_smoke_check_structural_mode():
 
 def run():
     tests = [
-        test_dockerfile_installs_visual_qa_runtime_packages,
+        test_dockerfile_excludes_heavy_visual_qa_runtime,
         test_artifact_runtime_smoke_check_structural_mode,
     ]
     for test in tests:

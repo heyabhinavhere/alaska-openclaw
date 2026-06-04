@@ -232,4 +232,14 @@ Open queues: 126 · Weak CredGPT turns: 18
 Attached: HTML cockpit. Founder DOCX/PDF are awaiting visual QA.
 ```
 
-Never paste user-level PII into team channels.
+Never paste user-level PII into the Slack message *text* — keep it aggregate (the
+generated summary already is). Per-user detail lives in the cockpit file, not the line.
+
+## Daily delivery (`run-cohort-day --deliver`)
+
+`run-cohort-day --deliver --slack-channel <id>` posts the aggregate summary line above
+and uploads the HTML cockpit as a file (needs `SLACK_BOT_TOKEN`). Delivery is
+best-effort and recorded in the run's `delivery` field — a Slack failure is captured,
+it never sinks the run. The cockpit file carries the full per-user operating view
+(name / stage / health), which the whole team is meant to see per the data-minimization
+policy: SSN / routing / address are never present and account numbers are last-4.

@@ -40,6 +40,8 @@ def run_cohort_day(
     profile_fetcher: Callable | None = None,
     summarize_fn: Callable | None = None,
     segmentation_fetcher: Callable | None = None,
+    slack_sender: Callable | None = None,
+    slack_channel: str | None = None,
 ) -> dict[str, Any]:
     """Run one full cohort day. Returns a structured run record (never raises for
     per-user/per-step failures — they're captured in `errors`)."""
@@ -52,6 +54,7 @@ def run_cohort_day(
         "turns_ingested": 0,
         "amplitude_fallback_used": 0,
         "report": None,
+        "delivery": None,
         "summary": {},
         "errors": [],
     }
@@ -157,6 +160,18 @@ def run_cohort_day(
             run["errors"].append({"step": "report", "error": str(exc)})
 
     run["slack_summary"] = _slack_summary(run)
+
+    # 6. Deliver to Slack (best-effort): post the summary line + upload the HTML
+    #    cockpit. Injectable sender so the run is fixture-tested with no live Slack
+    #    call; a delivery failure is captured, it never sinks the run.
+    if slack_sender and slack_channel:
+        try:
+            html_path = (run.get("report") or {}).get("html_path")
+            run["delivery"] = slack_sender(slack_channel, run["slack_summary"], html_path)
+        except Exception as exc:  # noqa: BLE001 - delivery is best-effort
+            run["delivery"] = {"ok": False, "error": str(exc)}
+            run["errors"].append({"step": "deliver", "error": str(exc)})
+
     return run
 
 
