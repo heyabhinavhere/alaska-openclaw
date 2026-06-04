@@ -167,6 +167,18 @@ If all three queries return zero rows for a person, fall back to the OLD DAILY_S
 _(I'm switching to a new task system. DM me anything you're working on and I'll start tracking it — you'll get T-IDs next call.)_
 ```
 
+### Quality gate — DAILY_STATE.md fallback path ONLY
+
+The SQLite path above uses **structured** task rows — trust them as-is (no filtering). But when you fall back to DAILY_STATE.md prose for a person (their graph is empty), that text can carry Meeting-Intelligence extraction errors, so filter every item before showing it:
+
+1. **Role relevance** — drop items that don't match the person's role: Samder=CEO (marketing/partnerships/investors, NOT engineering); Darwin=COO (finance/credit/user-audits, NOT code); Pankaj=Frontend/Flutter; Sandeep=AI Eng (CredGPT/V2/Python/DevOps); Shailesh=AI Eng (testing/agents); Nilesh=Backend (MoneyLion/KT); Tarun=QA. If a task doesn't fit the role, drop it.
+2. **Non-work filter** — drop logistics/personal (flights, cabs, trip coordination) and status-updates-masquerading-as-tasks ("pushed X to next week" is an update, not a commitment).
+3. **Staleness** — drop any commitment whose stated due date is >7 days in the past.
+4. **Frankenstein check** — if an item looks like several tasks mashed into one (an MI hallucination, e.g. "finish activities section, integration testing with Pankaj, filter web app"), drop it and note "one item unclear — will verify on call."
+5. If everything filters out for a person → show "No clear commitments from last call — will establish today."
+
+(These gates exist because the OLD DAILY_STATE-only brief was hallucination-prone; the SQLite path makes them unnecessary for tracked tasks, but the fallback still needs them.)
+
 ### Rules for the brief
 
 - **Omit empty section headings.** If ACTIVE has 0 items, do not print "ACTIVE (0):" — drop the section entirely.
