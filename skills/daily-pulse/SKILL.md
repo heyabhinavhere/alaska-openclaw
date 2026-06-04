@@ -56,7 +56,7 @@ This guard prevents two failure modes: (1) DAILY_STATE.md goes stale (a Meeting 
 
 **Primary source: the SQLite task graph** (`tasks` + `blockers` on `/data/queue/alaska.db`). These are the canonical query shapes from shared-toolkit §1.7 — reuse them, don't invent new SQL.
 
-Run all four category queries. Resolve `owner_slack_id` → first names via the Team Roster in `MEMORY.md` (per the Communication Standards in shared-toolkit — first names only, never raw Slack IDs).
+Run all four category queries. Resolve `owner_slack_id` → first names via the Team Roster in `MEMORY.md` — the single maintained source, covering every current member incl. recent joiners like Nilesh/Tarun (per the Communication Standards in shared-toolkit — first names only, never raw Slack IDs). Never guess or invent a name from partial data; keep `Sandeep` (AI Eng) distinct from `Samder` (CEO); an `owner_slack_id` you cannot resolve stays *"unassigned"* rather than mislabeled.
 
 ```bash
 # Shipped — done in the last 24 hours (shared-toolkit §1.7 "tasks done in last N hours")
