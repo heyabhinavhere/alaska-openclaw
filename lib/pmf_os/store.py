@@ -517,27 +517,35 @@ class PmfStore:
                 ),
             )
             transition_type = _transition_type(old_stage, result.stage)
-            conn.execute(
-                """
-                INSERT INTO pmf_funnel_transitions (
-                  cohort_id, user_key, from_stage, to_stage, activated_saver_state,
-                  transition_type, evidence_state, freshness_state, confidence, evidence_json
+            # Only record an ACTUAL stage movement. transition_type == "recomputed"
+            # means from_stage == to_stage (the funnel re-evaluated to the same stage):
+            # a same-date re-run, or a stage-stable user on a later day. Recording it
+            # would add a no-op row on every run — breaking re-run idempotency (the
+            # §6/§10 gate) and bloating the table daily for stable users. The briefing
+            # read-path already filters to promotion/demotion, so nothing reads these.
+            # 'initial' + promotion + demotion are still recorded.
+            if transition_type != "recomputed":
+                conn.execute(
+                    """
+                    INSERT INTO pmf_funnel_transitions (
+                      cohort_id, user_key, from_stage, to_stage, activated_saver_state,
+                      transition_type, evidence_state, freshness_state, confidence, evidence_json
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        cohort_id,
+                        user_key,
+                        old_stage,
+                        result.stage,
+                        result.activated_saver_state,
+                        transition_type,
+                        "confirmed" if result.confidence >= 0.8 else "stale",
+                        "confirmed",
+                        result.confidence,
+                        dumps([item.as_dict() for item in result.evidence]),
+                    ),
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    cohort_id,
-                    user_key,
-                    old_stage,
-                    result.stage,
-                    result.activated_saver_state,
-                    transition_type,
-                    "confirmed" if result.confidence >= 0.8 else "stale",
-                    "confirmed",
-                    result.confidence,
-                    dumps([item.as_dict() for item in result.evidence]),
-                ),
-            )
             for evidence in result.evidence:
                 self._record_claim_evidence(conn, cohort_id, user_key, "pmf_funnel_stage", user_key, evidence)
             for queue in result.queues:

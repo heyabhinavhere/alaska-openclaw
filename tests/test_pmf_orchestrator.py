@@ -148,10 +148,17 @@ def test_partial_failure_one_user_does_not_sink_run():
 def test_rerun_is_idempotent():
     store = _store()
     _run(store)
+    with store.connect() as conn:
+        transitions_after_first = conn.execute("SELECT count(*) FROM pmf_funnel_transitions").fetchone()[0]
     run2 = _run(store)
     assert run2["users"]["total"] == 2
     assert run2["users"]["enriched"] == 2
     assert len(store.list_users("pmf-orch")) == 2  # no duplicate rows on re-run
+    with store.connect() as conn:
+        transitions_after_rerun = conn.execute("SELECT count(*) FROM pmf_funnel_transitions").fetchone()[0]
+    # An identical re-run must add ZERO funnel transitions — no no-op 'recomputed'
+    # rows (the §6/§10 idempotency gate). Regression guard for the doubling bug.
+    assert transitions_after_rerun == transitions_after_first
 
 
 def test_no_intake_uses_existing_registry():
