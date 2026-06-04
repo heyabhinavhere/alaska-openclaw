@@ -1,0 +1,78 @@
+{
+  "user_id": 1414,
+  "profile": {
+    "first_name": "Albert",
+    "age": 47,
+    "city": "Toledo",
+    "state": "OH",
+    "created_at": "2026-05-20T10:20:00Z",
+    "is_card_added": true,
+    "is_bank_added": true,
+    "is_credit_activated": true,
+    "is_paydown_schedule_created": false,
+    "email": "albert@example.com",
+    "mobile_no": "+15555551414",
+    "ssn": "123-45-6789"
+  },
+  "credit_report_history": [
+    {
+      "report_date": "2026-06-01",
+      "credit_score": {"@_Value": "642", "@CreditRepositorySourceType": "Equifax"}
+    }
+  ],
+  "credit_report": {
+    "borrower": {
+      "@_SSN": "123456789",
+      "@_BirthDate": "1979-02-14",
+      "_RESIDENCE": {"address": "742 Evergreen Terrace", "city": "Toledo", "state": "OH"}
+    },
+    "credit_liability": [
+      {"@_AccountIdentifier": "4147202099887766", "creditor": "Citi", "balance": 11937.63, "limit": 12000, "status": "Open"},
+      {"@_AccountIdentifier": "5500330011224488", "creditor": "Capital One", "balance": 1240.0, "limit": 6000, "status": "Open"}
+    ]
+  },
+  "spinwheel_credit_report": {
+    "profile_details": {"creditScore": 640, "ssn": "123-45-6789", "addresses": [{"line1": "742 Evergreen Terrace"}]},
+    "credit_card_summary": {"currentOutstandingBalance": 13177.63, "creditUtilization": 0.73, "noOfCreditCards": 2}
+  },
+  "plaid_profiles": {
+    "card_profile": {
+      "total_cc_balance_exact": 13177.63,
+      "total_cc_limit_exact": 18000,
+      "overall_utilization_exact": 0.7265,
+      "num_cards_active": 2,
+      "weighted_avg_apr_exact": 24.99,
+      "monthly_interest_exact": 273.4,
+      "total_min_payment_exact": 410,
+      "any_card_overdue": false
+    },
+    "bank_profile": {
+      "total_cash_on_hand": 2150.0,
+      "monthly_income_exact": 5200.0,
+      "monthly_spending_exact": 4870.0,
+      "low_balance_risk": true
+    }
+  },
+  "plaid_liabilities": [
+    {"name": "Citi Executive", "mask": "7766", "balance": 11937.63, "limit": 12000, "apr_percentage": 24.99, "minimum_payment_amount": 360, "next_payment_due_date": "2026-06-25", "account_number": "4147202099887766"},
+    {"name": "Capital One Quicksilver", "mask": "4488", "balance": 1240.0, "limit": 6000, "apr_percentage": 22.9, "minimum_payment_amount": 50, "next_payment_due_date": "2026-06-18"}
+  ],
+  "plaid_accounts": {
+    "summary": {"total_available": 2150.0},
+    "checking": [{"mask": "0011", "balance": 1850.0}],
+    "savings": [{"mask": "0012", "balance": 300.0}],
+    "credit": [{"mask": "7766"}, {"mask": "4488"}]
+  },
+  "plaid_transactions": {
+    "by_category_current_month": {"FOOD_AND_DRINK": 812.45, "GENERAL_MERCHANDISE": 540.1, "BANK_FEES": 30.0}
+  },
+  "plaid_income": {
+    "income_signals": [
+      {"employer_name": "Owens Corning", "net_monthly_income": 5200.0, "frequency": "biweekly", "variability": "low"}
+    ]
+  },
+  "subscriptions": [
+    {"name": "Streaming Plus", "is_active": true, "monthly_cost_normalized": 19.99, "yearly_cost": 239.88, "detection_confidence": 0.95}
+  ],
+  "chat": {"total_threads": 2, "recent_turns": [], "intent_breakdown": {"debt": 2}}
+}

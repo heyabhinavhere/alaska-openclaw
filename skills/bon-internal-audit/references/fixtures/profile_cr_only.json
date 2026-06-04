@@ -1,0 +1,36 @@
+{
+  "user_id": 2714,
+  "profile": {
+    "first_name": "Dana",
+    "age": 33,
+    "city": "Akron",
+    "state": "OH",
+    "created_at": "2026-05-22T09:00:00Z",
+    "is_card_added": false,
+    "is_bank_added": false,
+    "is_credit_activated": true,
+    "email": "dana@example.com",
+    "mobile_no": "+15555552714",
+    "ssn": "987-65-4321"
+  },
+  "credit_report_history": [
+    {"report_date": "2026-06-01", "credit_score": {"@_Value": "598", "@CreditRepositorySourceType": "Equifax"}}
+  ],
+  "credit_report": {
+    "borrower": {
+      "@_SSN": "987654321",
+      "@_BirthDate": "1993-07-09",
+      "_RESIDENCE": {"address": "19 Birch Lane", "city": "Akron", "state": "OH"}
+    },
+    "credit_liability": [
+      {"@_AccountIdentifier": "6011009912345678", "creditor": "Discover", "balance": 3200.0, "limit": 4000, "status": "Open"}
+    ]
+  },
+  "spinwheel_credit_report": {
+    "profile_details": {"creditScore": 598, "ssn": "987-65-4321", "addresses": [{"line1": "19 Birch Lane"}]},
+    "credit_card_summary": {"currentOutstandingBalance": 3200.0, "creditUtilization": 0.8, "noOfCreditCards": 1}
+  },
+  "plaid_profiles": {},
+  "plaid_liabilities": [],
+  "subscriptions": []
+}
