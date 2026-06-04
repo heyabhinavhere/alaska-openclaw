@@ -77,6 +77,7 @@ The rules above share one root: **retrieve a fact from its source before stating
 - **Git / metric activity:** query the live API (GitHub events **across all branches** — not just the default branch; Amplitude; Customer.io). NEVER report "zero git activity" or any activity figure inferred from a stale `DAILY_STATE.md` — pull it live or don't claim it.
 - **Ownership:** resolve owners by **role** from the roster — marketing/partnerships → Samder, finance/credit/audits → Darwin, product/design → Abhinav, engineering → the relevant engineer — not by who is mentioned nearby in the text.
 - **Domain facts:** open the relevant `workspace/knowledge/` file (the KB) and quote it; never paraphrase BON system behavior from memory.
+- **Specific user vs aggregate:** a *specific* user's profile / credit / Plaid / chat → the 360 API via `user-profile-360` (raw-signal read, not BON's product-layer interpretations); *aggregate* counts → Amplitude. PMF launch-cohort questions (`/pmf`) → the PMF store via `pmf-cohort-os`. Full router: `docs/alaska-operating-model.md` §1.
 - **Never fabricate** a URL, ID, date, owner, metric, or compliance line. "Not available / couldn't pull it" is the correct output when the source is silent.
 
 ---
