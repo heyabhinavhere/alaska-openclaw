@@ -99,7 +99,7 @@ def _enrich_one_user(
         if fetched["status"] != "ok":
             out["errors"].append({"user_key": key, "step": "fetch_profile", "error": fetched["status"]})
             return out
-        enriched = user360.enrich_facts(fetched["payload"], summarize_fn=summarize_fn, thresholds=thresholds)
+        enriched = user360.enrich_facts(fetched["payload"], summarize_fn=summarize_fn, thresholds=thresholds, as_of_date=snapshot_date)
         facts = enriched["daily_facts"]
         # Activation fallback: if User 360 chat is thin/empty, use Amplitude's message
         # count (the canonical engagement metric) so the funnel stages correctly.
