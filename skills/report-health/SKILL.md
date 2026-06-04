@@ -1,8 +1,9 @@
 ---
 name: report-health
-description: Agent health reporting — write heartbeats and status updates to Agent Signals database in Notion
+description: "DEPRECATED (2026-06-05) — Notion heartbeat path is no longer used; operational health now comes from cron lastRunStatus/consecutiveErrors + the Daily Cost Report. Originally wrote heartbeats to the Agent Signals Notion DB."
 version: 1.0.0
 metadata:
+  deprecated: true
   openclaw:
     requires:
       bins: [sqlite3]
@@ -10,6 +11,8 @@ metadata:
 ---
 
 # Report Health
+
+> **Status as of 2026-06-05: DEPRECATED.** No cron invokes this skill, and the live write-path no longer uses Notion Agent Signals — operational health is tracked via cron `lastRunStatus`/`consecutiveErrors` + the Daily Cost Report DM. Retained for reference, not maintained. Do not invoke unless Abhinav explicitly asks.
 
 Use this skill to report agent health status. Every agent should report its status after completing work.
 
