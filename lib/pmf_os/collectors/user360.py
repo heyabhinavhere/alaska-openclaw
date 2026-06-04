@@ -265,7 +265,7 @@ def _financial_actions(payload: dict[str, Any]) -> list[dict[str, str]]:
     return actions
 
 
-def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = None) -> dict[str, Any]:
+def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = None, thresholds: dict[str, int] | None = None) -> dict[str, Any]:
     """Map a raw /profile payload into PMF profile_facts + daily_facts.
 
     Reuses the skill summarizer for derivation; applies minimize_secrets to the
@@ -328,5 +328,5 @@ def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = 
     }
     # Compute the six PMF success metrics from raw signals only (qualitative_positive_
     # signal + retained_value are intentionally deferred — see compute_pmf_success_metrics).
-    daily_facts["pmf_success_metrics"] = compute_pmf_success_metrics(daily_facts)
+    daily_facts["pmf_success_metrics"] = compute_pmf_success_metrics(daily_facts, thresholds=thresholds)
     return {"profile_facts": profile_facts, "daily_facts": daily_facts, "summary": summary, "chat_turns": real_turns}

@@ -17,6 +17,7 @@ from .model import (
     VALUE_ACTION_TYPES,
     higher_stage,
 )
+from .thresholds import DEFAULT_THRESHOLDS
 
 
 def is_meaningful_credgpt_message(text: str | None, intent: str | None = None) -> bool:
@@ -65,7 +66,7 @@ def _truthy_count(values: dict[str, Any], wanted_state: str) -> int:
     return count
 
 
-def compute_pmf_success_metrics(facts: dict[str, Any]) -> dict[str, str]:
+def compute_pmf_success_metrics(facts: dict[str, Any], *, thresholds: dict[str, int] | None = None) -> dict[str, str]:
     """Map raw signal facts to confirmed/candidate PMF success-metric states.
 
     Reads ONLY raw signals (greeting-filtered chat exchanges, active days, raw
@@ -82,21 +83,22 @@ def compute_pmf_success_metrics(facts: dict[str, Any]) -> dict[str, str]:
     (int), active_days (int|list[YYYY-MM-DD]), financial_actions
     (list[{type, level}]), card_linked/bank_linked (bool).
     """
+    t = thresholds or DEFAULT_THRESHOLDS
     metrics: dict[str, str] = {}
 
     # 1. activation_depth — deep CredGPT use, strictly ABOVE the activated_user
-    #    gate (meaningful>=3). Confirmed-only: a candidate band at 3-4 messages
-    #    would equal the activation gate and collapse the two funnel tiers.
+    #    gate. Confirmed-only: a candidate band at the gate would collapse the
+    #    activated_user / activated_saver tiers.
     msgs = _as_int(facts.get("meaningful_credgpt_messages")) or 0
     threads = _as_int(facts.get("meaningful_threads")) or 0
-    if threads >= 2 or msgs >= 5:
+    if threads >= t["activation_depth_threads"] or msgs >= t["activation_depth_messages"]:
         metrics["activation_depth"] = "confirmed"
 
     # 2. repeat_engagement — returned across distinct days.
     active = _active_day_count(facts.get("active_days"))
-    if active >= 3:
+    if active >= t["repeat_engagement_confirmed_days"]:
         metrics["repeat_engagement"] = "confirmed"
-    elif active == 2:
+    elif active >= t["repeat_engagement_candidate_days"]:
         metrics["repeat_engagement"] = "candidate"
 
     # 3. financial_action — a real money/plan action beyond linking.
@@ -117,6 +119,7 @@ def evaluate_funnel(
     facts: dict[str, Any],
     *,
     previous_highest_stage: str | None = None,
+    thresholds: dict[str, int] | None = None,
 ) -> FunnelResult:
     """Evaluate one user's current PMF stage, flags, queues, and evidence.
 
@@ -135,6 +138,7 @@ def evaluate_funnel(
     - explicit_love_proof: bool
     - negative_signals: list[str]
     """
+    t = thresholds or DEFAULT_THRESHOLDS
     evidence: list[Evidence] = []
     flags: list[str] = []
     queues: list[dict[str, Any]] = []
@@ -163,8 +167,8 @@ def evaluate_funnel(
     value_actions = set(facts.get("value_actions") or [])
     qualifying_value_actions = sorted(value_actions.intersection(VALUE_ACTION_TYPES))
     activated = is_real_user and (
-        meaningful_messages >= 3
-        or high_intent_usable_qas >= 2
+        meaningful_messages >= t["activation_meaningful_messages"]
+        or high_intent_usable_qas >= t["activation_high_intent_qas"]
         or bool(qualifying_value_actions)
     )
     evidence.append(
@@ -208,10 +212,10 @@ def evaluate_funnel(
     pmf_metrics = facts.get("pmf_success_metrics") or {}
     computed_metric_count = _truthy_count(pmf_metrics, "confirmed")
     candidate_metric_count = computed_metric_count + _truthy_count(pmf_metrics, "candidate")
-    if activated and computed_metric_count >= 2:
+    if activated and computed_metric_count >= t["activated_saver_confirmed_metrics"]:
         stage = "activated_saver"
         activated_saver_state = ACTIVATED_SAVER_COMPUTED
-    elif activated and candidate_metric_count >= 2:
+    elif activated and candidate_metric_count >= t["activated_saver_candidate_metrics"]:
         stage = "activated_saver"
         activated_saver_state = ACTIVATED_SAVER_CANDIDATE
         flags.append("activated_saver_candidate")
@@ -242,7 +246,7 @@ def evaluate_funnel(
     negative_signals = list(facts.get("negative_signals") or [])
     likely_lover = (
         stage == "activated_saver"
-        and active_days >= 2
+        and active_days >= t["likely_lover_active_days"]
         and not negative_signals
     )
     if likely_lover:
@@ -321,7 +325,7 @@ def evaluate_funnel(
             )
 
     inactive_days = _as_int(facts.get("inactive_days")) or 0
-    if is_real_user and inactive_days >= 3 and stage not in {"confirmed_lover", "likely_lover"}:
+    if is_real_user and inactive_days >= t["at_risk_inactive_days"] and stage not in {"confirmed_lover", "likely_lover"}:
         health = "at_risk"
         flags.append("at_risk")
         queues.append(

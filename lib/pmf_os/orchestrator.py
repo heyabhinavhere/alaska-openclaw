@@ -25,6 +25,7 @@ from typing import Any, Callable
 
 from .collectors import amplitude, user360
 from .store import DEFAULT_ARTIFACT_ROOT
+from .thresholds import resolve_thresholds
 
 
 def run_cohort_day(
@@ -61,6 +62,9 @@ def run_cohort_day(
         "errors": [],
     }
     cohort = store.get_cohort(cohort_id)
+    # Resolve the cohort's tunable funnel/metric thresholds once (config overrides ->
+    # defaults), then thread them through enrich (metrics) + snapshot (funnel).
+    thresholds = resolve_thresholds(cohort.get("config_json"))
 
     # 1. Intake — refresh the registry from Amplitude (idempotent; skippable when
     #    the operator already ran ingest-cohort).
@@ -90,7 +94,7 @@ def run_cohort_day(
                 run["users"]["failed"] += 1
                 run["errors"].append({"user_key": key, "step": "fetch_profile", "error": fetched["status"]})
                 continue
-            enriched = user360.enrich_facts(fetched["payload"], summarize_fn=summarize_fn)
+            enriched = user360.enrich_facts(fetched["payload"], summarize_fn=summarize_fn, thresholds=thresholds)
             facts = enriched["daily_facts"]
             # Activation fallback: if User 360 chat is thin/empty, use Amplitude's
             # message count (the canonical engagement metric) so the funnel stages
@@ -107,7 +111,7 @@ def run_cohort_day(
                 except Exception as exc:  # noqa: BLE001 - fallback is best-effort
                     run["errors"].append({"user_key": key, "step": "amplitude_fallback", "error": str(exc)})
             store.update_user_profile(cohort_id, key, enriched["profile_facts"])
-            store.apply_daily_snapshot(cohort_id, key, snapshot_date, facts)
+            store.apply_daily_snapshot(cohort_id, key, snapshot_date, facts, thresholds=thresholds)
             run["users"]["enriched"] += 1
             # Ingest the user's real chat turns into the CredGPT quality observatory.
             for idx, turn in enumerate(enriched.get("chat_turns") or []):
