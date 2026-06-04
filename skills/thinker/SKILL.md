@@ -63,6 +63,8 @@ for c in data.get('channels', []):
 
 For each row in `/tmp/thinker-conversations.tsv`: **channel** → `conversations.history` limit=15; **DM / mpim** → limit=5; for any message with a `thread_ts`, also fetch `conversations.replies`.
 
+**Resolve Slack IDs → names before you analyze or report.** Fetched messages carry only `author_slack_id` (e.g. `U0AQFJV9B32`), never a display name. Map every ID to a first name using the **Team Roster in `MEMORY.md`** (`AGENT_RULES.md` points there) — it is the single maintained source of truth and includes recent joiners (e.g. **Tarun**, **Nilesh**) that any hardcoded list silently misses. **Never infer who's speaking from message content, and never guess a name** — `Sandeep ≠ Samder`, and an `author_slack_id` you cannot resolve from the roster stays *"unknown"* (or look it up via `users.info`); do not invent a person. This map is load-bearing for Step 2 (per-person comparison vs. `DAILY_STATE.md`) and Step 4 (naming people in observations) — a wrong or invented name is exactly the fabrication this agent must not produce.
+
 **Filter ruthlessly** for which messages to ANALYZE in later Thinker steps (the ingestion below still writes EVERYTHING to `intent_inbox` for the classifier — the filter only governs Thinker's own analysis):
 
 **PROCESS these (work-related):**
