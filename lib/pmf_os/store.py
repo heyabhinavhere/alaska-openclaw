@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -39,6 +40,20 @@ from .model import Evidence, higher_stage, minimize_secrets, now_utc
 DEFAULT_DB_PATH = os.environ.get("PMF_DB_PATH", "/data/queue/alaska_pmf.db")
 DEFAULT_ARTIFACT_ROOT = "/data/workspace/pmf_artifacts"
 
+logger = logging.getLogger(__name__)
+
+
+def _is_test_db_path(db_path: str) -> bool:
+    """True only for clearly-isolated test DBs. Gates the test-only wide signup
+    window in `create_cohort` so a PRODUCTION DB can NEVER receive one: the DB file
+    must be named with '_test' or live under /tmp/ (or /private/tmp/ on macOS)."""
+    p = str(db_path or "")
+    return (
+        "_test" in os.path.basename(p)
+        or p.startswith("/tmp/")
+        or p.startswith("/private/tmp/")
+    )
+
 
 class PmfStore:
     def __init__(self, db_path: str = DEFAULT_DB_PATH):
@@ -66,13 +81,39 @@ class PmfStore:
         created_by: str | None = None,
         activate: bool = False,
         config: dict[str, Any] | None = None,
+        allow_wide_window: bool = False,
     ) -> dict[str, Any]:
         start_dt = parse_dt(signup_window_start)
         end_dt = parse_dt(signup_window_end)
         if end_dt <= start_dt:
             raise ValueError("signup_window_end must be after signup_window_start")
         if end_dt - start_dt > timedelta(days=3, minutes=1):
-            raise ValueError("V5 Phase 1 supports one signup window of at most 3 days")
+            # The 3-day cap is the PRODUCTION default. A test-only, tightly
+            # guardrailed affordance lets ONE isolated backfill cohort span a wider
+            # window so V5 can be validated on a meaningful historical sample. It can
+            # never apply to prod: it requires (a) the explicit allow_wide_window
+            # flag, (b) a clearly-isolated test DB path, and (c) a non-active cohort
+            # — otherwise the original 3-day error still raises.
+            if not allow_wide_window:
+                raise ValueError("V5 Phase 1 supports one signup window of at most 3 days")
+            if not _is_test_db_path(self.db_path):
+                raise ValueError(
+                    "allow_wide_window refused: the wide signup window is test-only "
+                    "and requires a clearly-isolated test DB (filename containing "
+                    f"'_test', or under /tmp/); got db_path={self.db_path!r}"
+                )
+            if activate:
+                raise ValueError(
+                    "allow_wide_window refused: a wide-window cohort cannot be "
+                    "activated — it must stay 'planned' so it can never become the "
+                    "live cohort or collide with the one-active-cohort index"
+                )
+            logger.warning(
+                "WIDE SIGNUP WINDOW ENABLED (test-only): cohort %r spans %s -> %s "
+                "(> 3 days) on test DB %s. NEVER use this on production data or for "
+                "the live cohort.",
+                cohort_id, signup_window_start, signup_window_end, self.db_path,
+            )
         status = "active" if activate else "planned"
         activated_at = now_utc() if activate else None
         with self.connect() as conn:

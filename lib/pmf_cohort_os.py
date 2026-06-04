@@ -29,6 +29,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--created-by")
     p.add_argument("--activate", action="store_true")
     p.add_argument("--config-json")
+    p.add_argument(
+        "--allow-wide-window",
+        action="store_true",
+        help="TEST-ONLY: allow a signup window > 3 days. Refused unless the DB is a "
+        "test DB (filename contains '_test', or under /tmp/) AND the cohort is NOT "
+        "activated. Never affects production.",
+    )
 
     p = sub.add_parser("activate-cohort", help="Mark an existing cohort active")
     p.add_argument("--cohort-id", required=True)
@@ -170,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
                 created_by=args.created_by,
                 activate=args.activate,
                 config=_load_json_arg(args.config_json) if args.config_json else {},
+                allow_wide_window=args.allow_wide_window,
             )
         elif args.cmd == "activate-cohort":
             out = store.activate_cohort(args.cohort_id)
