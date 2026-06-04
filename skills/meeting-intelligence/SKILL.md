@@ -48,9 +48,12 @@ curl -s -X POST https://api.fireflies.ai/graphql \
 
 Full sentences are the source of truth (meetings may be in Hinglish). Process ONE transcript per run to avoid timeouts.
 
-**No-show / no-transcript guard (the nightly team standup is a daily ~9 PM IST fixture).** If the list returns NO new transcript for the expected call window — i.e. there should have been a daily team call but Fireflies captured nothing (it didn't join, or the call didn't happen) — do NOT silently proceed, and do NOT refresh `DAILY_STATE.md` or let a standup sheet be re-emitted from stale state. Instead:
-- DM Abhinav **once**: "No Fireflies transcript found for the [run `date` for the date] call — either the call didn't happen or Fireflies didn't join. I did NOT refresh DAILY_STATE.md. Want me to flag the team?"
-- Then end the run cleanly (nothing to extract). This is the silent-miss that happened 2026-06-01; flagging it beats producing stale duplicates. (The Pre-Call Brief freshness guard stops the duplicate-sheet symptom downstream.)
+**No-show / no-transcript guard (the nightly team standup is a daily ~9 PM IST fixture).** **Timing matters — declaring a no-show too early is the bug that fired false alarms on 2026-06-03/04.** The team call runs ~9–10:30 PM IST (`15:30–17:00 UTC`), and **Fireflies needs ~30–60 min after the call ends to publish the transcript** — so a transcript is not even *expected* until ~17:30–18:00 UTC. Therefore:
+- **Compute `now` with `date -u`** (never guess the clock). **Do NOT declare a no-show before `18:30 UTC`** (call-end ~17:00 + ~90 min Fireflies buffer).
+- On any run **before 18:30 UTC** that finds no new transcript: that is the *normal* "call still in progress, or Fireflies still processing" case — end the run **quietly** (no DM, no `DAILY_STATE.md` refresh). **Do not alarm.**
+- Only on a run **at/after 18:30 UTC** that *still* finds no new transcript for today's date do you conclude a genuine no-show. Then do NOT refresh `DAILY_STATE.md` or re-emit a standup sheet from stale state, and:
+  - DM Abhinav **once**: "No Fireflies transcript found for the [run `date` for the date] call by 18:30 UTC — either the call didn't happen or Fireflies didn't join. I did NOT refresh DAILY_STATE.md. Want me to flag the team?"
+  - Then end the run cleanly. This still catches the genuine silent-miss (the 2026-06-01 case) while no longer crying wolf while the call is mid-flight. (The Pre-Call Brief freshness guard stops the duplicate-sheet symptom downstream.)
 
 ## Step 2: Deduplication (THREE levels)
 
