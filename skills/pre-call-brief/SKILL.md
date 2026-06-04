@@ -187,9 +187,15 @@ The SQLite path above uses **structured** task rows — trust them as-is (no fil
 - **Mirror Slack mrkdwn.** Use single asterisks for bold (`*T-42*`), not double.
 - **No internal narration.** Per shared-toolkit Slack discipline, the brief is the final output — no "Let me pull your tasks…" preface.
 
-## Step 4: Listen for replies and parse
+## Step 4: Parse standup replies (runs as the Standup-Reply Parser cron, not inside the brief run)
 
-After posting the brief, monitor the thread (or DM thread) for replies. Each reply gets parsed using the grammar above:
+Reply-parsing does NOT run inside the brief-posting cron (that run ends after posting the sheets). It runs as its own **Standup-Reply Parser** cron pass (post-standup ~10 PM IST + a morning catch-up). Each pass:
+
+**(a) Gather** recent #daily-standup (`C0ASLANJ0RL`) human activity — `conversations.history` (limit ~40, last ~16h); for any message with replies, also `conversations.replies`. **Exclude Alaska's own posts** (bot `U0ANY9YTNUR` / user `U0ANFSYAH29`) — the brief sheets are hers; only parse human messages/replies.
+
+**(b) Dedup by reply `ts`** with a dedicated marker — `CREATE TABLE IF NOT EXISTS standup_processed (reply_ts TEXT PRIMARY KEY, processed_at DATETIME DEFAULT CURRENT_TIMESTAMP);` skip a `ts` already present; INSERT it after handling. **Do NOT reuse `intent_inbox` as the dedup flag** — the Thinker's hourly sweep also ingests #daily-standup there, so it is not a reliable processed-marker for this parser. (This makes the "never re-process a reply" anti-pattern concrete.)
+
+**(c) Parse** each new human reply with the grammar below — `T-N` patterns first; free-form replies via step 3. Each reply is parsed using the grammar:
 
 ```
 Regex patterns (try in order, first match wins). Each verb anchors with \b to avoid swallowing
@@ -220,7 +226,7 @@ For each matched reply (other than `on leave`):
    - For `mark_blocked`: `T-N marked blocked (B-N logged). I'll check back tomorrow.`
    - For `create_new_task`: `Tracking as T-M: <title>.`
    - For ambiguous/no match: do NOT guess — reply: `Couldn't parse that. Try "T-N done", "T-N blocked by X", or "new: <description>".`
-3. For replies that don't match any pattern, invoke `intent-classifier` synchronously and route via slack-commands handlers (Phase B handles TASK_CREATE/UPDATE/BLOCKER from DMs — thread replies use the same handler logic).
+3. **Free-form replies (no `T-N`) — the common case.** The team rarely cites `T-N`; real replies look like *"streaming's done, on MoneyLion now."* Route these to `/data/skills/task-handler/SKILL.md` with `extraction`=the reply text, `owner_slack_id`=the reply author, `creator_slack_id`=same, `source=standup_reply`, `source_ref` as above, and **no** `explicit_task_id` — let task-handler's match-or-create **fuzzy dedup (its Step 2)** bind the update to the author's existing task by title/topic (≥0.8 → update that task; <0.8 → it creates a new task tagged `[NEEDS LINK?]`). **Work-relevance gate (anti-garbage), apply BEFORE routing:** skip pure chatter — greetings, "thanks", "👍", "sounds good", reactions — these are not status updates; log nothing (at most a `task_mentions` row). Only route replies that describe work (a deliverable, a verb like done/shipped/working/blocked/merged, or an impediment). **When in doubt, log — do not create.** A missed update is recoverable next standup; a hallucinated task erodes trust. (This replaces the old "invoke intent-classifier" fallback: a #daily-standup reply is already known to be a status update, so it goes straight to task-handler with `source=standup_reply` rather than through generic 10-intent classification.)
 
 ### Anti-patterns for the parser
 
