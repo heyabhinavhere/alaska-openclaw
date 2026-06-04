@@ -71,6 +71,23 @@ PMF_SUCCESS_METRICS = [
     "retained_value",
 ]
 
+
+def rollup_pmf_metrics(metric_records: list[Any] | None) -> dict[str, dict[str, int]]:
+    """Count confirmed/candidate per PMF success metric across per-user metric records.
+    Shared by the end-cohort memo (P7) and the weekly digest (P11) — one source."""
+    rollup = {metric: {"confirmed": 0, "candidate": 0} for metric in PMF_SUCCESS_METRICS}
+    for record in metric_records or []:
+        if not isinstance(record, dict):
+            continue
+        for metric in PMF_SUCCESS_METRICS:
+            value = record.get(metric)
+            if value == "confirmed" or value is True:
+                rollup[metric]["confirmed"] += 1
+            elif value == "candidate":
+                rollup[metric]["candidate"] += 1
+    return rollup
+
+
 # Data-minimization policy (tier-independent). The whole team sees full
 # operational detail — name, email, phone, credit, financial context, stage,
 # health. We never STORE or SHOW a small set of high-sensitivity secrets, and we

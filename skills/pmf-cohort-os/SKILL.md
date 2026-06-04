@@ -293,3 +293,25 @@ best-effort and recorded in the run's `delivery` field — a Slack failure is ca
 it never sinks the run. The cockpit file carries the full per-user operating view
 (name / stage / health), which the whole team is meant to see per the data-minimization
 policy: SSN / routing / address are never present and account numbers are last-4.
+
+## Weekly digest (`weekly-digest`)
+
+```bash
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db weekly-digest --cohort-id <id> [--week-start YYYY-MM-DD] [--narrate-live]
+```
+
+Deterministic facts (this-week stage movements, the current funnel + 6-metric rollup, product-friction themes from friction queues + CredGPT clusters, intervention outcomes) plus — with `--narrate-live` — Alaska's trajectory read (`toward_pmf` / `flat` / `away_from_pmf` / `too_early` + what's working / what's blocking / do-this-week). This is the *PMF-signal* + *product-friction* report. Aggregate-only.
+
+## Cron activation (GATED — do not enable until the dry run passes + Abhinav's go)
+
+Once activated, the PMF OS runs on a schedule. These are the specs to add **in the OpenClaw dashboard** (the live dashboard is canonical — do NOT hand-edit the cron snapshot, and nothing here is live yet). All times IST; `delivery.mode='none'`; payload = an agent turn that shells the command.
+
+| When | Command | Purpose |
+|---|---|---|
+| Daily ~9:00 AM | `run-cohort-day --cohort-id <id> --date <today> --deliver --slack-channel <c> --briefing-live` | daily pass + cockpit + founder briefing |
+| 2nd pass during the 3-day signup window (~3 PM) | `run-cohort-day ...` | catch intake-only queues (stuck onboarding) fast |
+| Daily, after the main run | `judge-credgpt-reviews --cohort-id <id>` | LLM quality/safety pass on flagged turns |
+| Weekly (Mon ~9 AM) | `weekly-digest --cohort-id <id> --week-start <mon> --narrate-live` | the trajectory step-back |
+| Once, after the window closes | `end-cohort-memo --cohort-id <id> --narrate-live` | the PMF verdict |
+
+**Gate:** enable these only after a real-data dry run looks right (calibration) and Abhinav explicitly says go. Customer.io sends stay human-approved regardless of any cron.

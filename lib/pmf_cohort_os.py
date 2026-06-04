@@ -139,6 +139,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--artifact-root", default=DEFAULT_ARTIFACT_ROOT)
     p.add_argument("--narrate-live", action="store_true", help="Write the LLM narrative (gated; needs ANTHROPIC_API_KEY)")
 
+    p = sub.add_parser("weekly-digest", help="Build the weekly PMF digest (trajectory + this-week movements + friction + outcomes; optional LLM narrative)")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--week-start", help="ISO date; movements counted since this date (default: all)")
+    p.add_argument("--artifact-root", default=DEFAULT_ARTIFACT_ROOT)
+    p.add_argument("--narrate-live", action="store_true", help="Write the LLM narrative (gated; needs ANTHROPIC_API_KEY)")
+
     p = sub.add_parser("run-cohort-day", help="Run the full daily cohort pass: intake -> enrich+snapshot -> clusters -> report")
     p.add_argument("--cohort-id", required=True)
     p.add_argument("--date", required=True)
@@ -297,6 +303,15 @@ def main(argv: list[str] | None = None) -> int:
 
                 narrator = default_narrator()
             out = store.build_end_cohort_report(args.cohort_id, narrator=narrator, artifact_root=args.artifact_root)
+        elif args.cmd == "weekly-digest":
+            narrator = None
+            if args.narrate_live:
+                from pmf_os.weekly_digest import default_narrator
+
+                narrator = default_narrator()
+            out = store.build_weekly_digest_report(
+                args.cohort_id, narrator=narrator, week_start=args.week_start, artifact_root=args.artifact_root,
+            )
         elif args.cmd == "run-cohort-day":
             from pmf_os.orchestrator import run_cohort_day
 

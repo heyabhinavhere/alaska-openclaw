@@ -14,7 +14,7 @@ import json
 import os
 from typing import Any, Callable
 
-from .model import FUNNEL_STAGES, PMF_SUCCESS_METRICS, STAGE_RANK, minimize_secrets, now_utc
+from .model import FUNNEL_STAGES, STAGE_RANK, minimize_secrets, now_utc, rollup_pmf_metrics
 
 # (facts dict) -> raw narrative dict
 NarratorFn = Callable[[dict[str, Any]], dict[str, Any]]
@@ -156,16 +156,7 @@ def build_end_cohort_facts(
         "outcomes": outcome_totals,
     }
 
-    metric_rollup = {metric: {"confirmed": 0, "candidate": 0} for metric in PMF_SUCCESS_METRICS}
-    for record in metric_records or []:
-        if not isinstance(record, dict):
-            continue
-        for metric in PMF_SUCCESS_METRICS:
-            value = record.get(metric)
-            if value == "confirmed" or value is True:
-                metric_rollup[metric]["confirmed"] += 1
-            elif value == "candidate":
-                metric_rollup[metric]["candidate"] += 1
+    metric_rollup = rollup_pmf_metrics(metric_records)
 
     return {
         "schema_version": "pmf_end_cohort.v1",
