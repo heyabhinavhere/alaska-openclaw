@@ -68,6 +68,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("refresh-credgpt-clusters", help="Cluster recurring CredGPT quality issues")
     p.add_argument("--cohort-id", required=True)
 
+    p = sub.add_parser("judge-credgpt-reviews", help="Run the LLM quality/safety judge on flagged CredGPT turns (gated; needs ANTHROPIC_API_KEY)")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--limit", type=int, help="Max number of pending reviews to judge in this run")
+
     p = sub.add_parser("render-report", help="Render PMF report artifacts")
     p.add_argument("--cohort-id", required=True)
     p.add_argument("--report-id", required=True)
@@ -162,6 +166,8 @@ def main(argv: list[str] | None = None) -> int:
             out = store.record_credgpt_turn(args.cohort_id, args.user_key, _load_json_arg(args.turn_json))
         elif args.cmd == "refresh-credgpt-clusters":
             out = {"clusters": store.refresh_credgpt_clusters(args.cohort_id)}
+        elif args.cmd == "judge-credgpt-reviews":
+            out = store.judge_pending_credgpt_reviews(args.cohort_id, limit=args.limit)
         elif args.cmd == "render-report":
             out = store.render_report_artifacts(
                 args.cohort_id,
