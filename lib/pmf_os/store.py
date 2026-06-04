@@ -30,6 +30,7 @@ from .credgpt_quality import (
 )
 from .customerio_guard import CUSTOMERIO_MUTATION_CHANNELS, validate_customerio_action
 from .docflow import build_docflow_spec
+from .end_cohort import build_end_cohort_facts, generate_end_cohort_memo
 from .funnel import evaluate_funnel
 from .model import Evidence, higher_stage, minimize_secrets, now_utc
 
@@ -883,6 +884,64 @@ class PmfStore:
             report_type=report_type,
             snapshot_date=snapshot_date,
         )
+
+    def build_end_cohort_report(
+        self,
+        cohort_id: str,
+        *,
+        narrator: Any = None,
+        artifact_root: str | None = None,
+    ) -> dict[str, Any]:
+        """Aggregate the full end-of-cohort story + (optionally) narrate it.
+
+        Narration is explicit: pass a narrator (e.g. end_cohort.default_narrator())
+        to write the memo; otherwise narrative_status is 'skipped'. Writes a JSON
+        artifact when artifact_root is given. Aggregate-only — no per-user PII."""
+        cohort = self.get_cohort(cohort_id)
+        users = self.list_users(cohort_id)
+        interventions = self.list_interventions(cohort_id)
+        with self.connect() as conn:
+            quality_rows = conn.execute(
+                "SELECT review_id, user_key, quality_state, pmf_usefulness_score, needs_llm_review, "
+                "llm_review_status, llm_review_json FROM credgpt_quality_reviews WHERE cohort_id=?",
+                (cohort_id,),
+            ).fetchall()
+            cluster_rows = conn.execute(
+                "SELECT cluster_type, title, severity, status FROM credgpt_quality_clusters WHERE cohort_id=?",
+                (cohort_id,),
+            ).fetchall()
+            metric_rows = conn.execute(
+                """
+                SELECT s.pmf_metrics_json AS pmf_metrics_json
+                FROM pmf_user_daily_snapshots s
+                JOIN (
+                  SELECT user_key, MAX(snapshot_date) AS md
+                  FROM pmf_user_daily_snapshots WHERE cohort_id=? GROUP BY user_key
+                ) m ON s.user_key = m.user_key AND s.snapshot_date = m.md
+                WHERE s.cohort_id=?
+                """,
+                (cohort_id, cohort_id),
+            ).fetchall()
+        quality_reviews = []
+        for row in quality_rows:
+            item = dict(row)
+            item["llm_review"] = loads(item.pop("llm_review_json"), None)
+            quality_reviews.append(item)
+        metric_records = [loads(dict(row).get("pmf_metrics_json"), {}) for row in metric_rows]
+        facts = build_end_cohort_facts(
+            cohort=cohort,
+            users=users,
+            quality_reviews=quality_reviews,
+            clusters=[dict(row) for row in cluster_rows],
+            interventions=interventions,
+            metric_records=metric_records,
+        )
+        memo = generate_end_cohort_memo(facts, narrator=narrator)
+        if artifact_root:
+            path = Path(artifact_root) / f"end-cohort-{cohort_id}.json"
+            write_snapshot_json(memo, path)
+            memo["artifact_path"] = str(path)
+        return memo
 
     def render_report_artifacts(
         self,

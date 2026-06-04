@@ -12,10 +12,8 @@ the selected LLM/human review path.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
-import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -202,12 +200,10 @@ def cluster_reviews(reviews: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # The deterministic layer SELECTS turns (needs_llm_review=1). This judge makes the
 # real call: a rubric score + an unsafe-advice decision per selected turn. It is
 # injectable (JudgeFn) so it's fixture-tested with no live LLM; the live adapter
-# calls the Anthropic Messages API via urllib (no SDK in the image) and is gated on
-# ANTHROPIC_API_KEY — an absent key means reviews are marked 'skipped', never a
+# calls the shared llm.anthropic_complete (Anthropic via urllib, no SDK) and is gated
+# on ANTHROPIC_API_KEY — an absent key means reviews are marked 'skipped', never a
 # false 'completed'.
 
-ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_JUDGE_MODEL = "claude-sonnet-4-6"
 
 JUDGE_RUBRIC_KEYS = [
@@ -228,10 +224,6 @@ _QUALITY_SEVERITY = {"unknown": 0, "unavailable": 0, "ok": 0, "weak": 1, "halluc
 
 # (review_row dict) -> raw verdict dict
 JudgeFn = Callable[[dict[str, Any]], dict[str, Any]]
-
-
-class CredgptJudgeUnavailable(RuntimeError):
-    """Raised when the live LLM judge can't run (e.g. ANTHROPIC_API_KEY missing)."""
 
 
 def build_judge_prompt(row: dict[str, Any]) -> str:
@@ -286,53 +278,21 @@ def escalated_quality_state(current: str | None, verdict_state: str | None) -> s
     return current
 
 
-def _extract_json(text: str) -> dict[str, Any]:
-    text = (text or "").strip()
-    if not text:
-        return {}
-    try:
-        return json.loads(text)
-    except (json.JSONDecodeError, ValueError):
-        pass
-    start, end = text.find("{"), text.rfind("}")
-    if 0 <= start < end:
-        try:
-            return json.loads(text[start : end + 1])
-        except (json.JSONDecodeError, ValueError):
-            return {}
-    return {}
-
-
 def _live_judge(row: dict[str, Any], *, model: str | None = None, timeout: float = 60.0) -> dict[str, Any]:
-    """Thin live adapter: call the Anthropic Messages API via urllib (no SDK).
+    """Thin live adapter over the shared LLM client (`llm.anthropic_complete`).
 
-    Requires ANTHROPIC_API_KEY. Raises on missing key / transport / parse error so
-    the caller records the review as 'failed' rather than a false 'completed'.
+    Requires ANTHROPIC_API_KEY (raises `llm.LLMUnavailable` otherwise) so the caller
+    records the review as 'failed'/'skipped' rather than a false 'completed'.
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise CredgptJudgeUnavailable("ANTHROPIC_API_KEY not set")
-    body = json.dumps(
-        {
-            "model": model or os.environ.get("PMF_JUDGE_MODEL") or DEFAULT_JUDGE_MODEL,
-            "max_tokens": 1024,
-            "messages": [{"role": "user", "content": build_judge_prompt(row)}],
-        }
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        ANTHROPIC_MESSAGES_URL,
-        data=body,
-        method="POST",
-        headers={"x-api-key": api_key, "anthropic-version": ANTHROPIC_VERSION, "content-type": "application/json"},
+    from .llm import anthropic_complete, extract_json
+
+    text = anthropic_complete(
+        build_judge_prompt(row),
+        model=model or os.environ.get("PMF_JUDGE_MODEL") or DEFAULT_JUDGE_MODEL,
+        max_tokens=1024,
+        timeout=timeout,
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 (trusted host)
-        payload = json.loads(response.read())
-    text = "".join(
-        block.get("text", "")
-        for block in (payload.get("content") or [])
-        if isinstance(block, dict) and block.get("type") == "text"
-    )
-    return normalize_verdict(_extract_json(text))
+    return normalize_verdict(extract_json(text))
 
 
 def default_judge_fn() -> JudgeFn | None:
