@@ -92,6 +92,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("cohort-membership", help="Cross-aware pointer: is a BON user in the ACTIVE PMF cohort? (returns stage, or null)")
     p.add_argument("--bon-user-id", required=True)
 
+    p = sub.add_parser("case-file", help="Read one cohort user's case file (the /pmf user query); --cohort-id defaults to the active cohort")
+    p.add_argument("--cohort-id")
+    p.add_argument("--user-key")
+    p.add_argument("--bon-user-id")
+
     p = sub.add_parser("validate-customerio-action", help="Validate a PMF Customer.io action JSON")
     p.add_argument("--action-json", required=True)
 
@@ -234,6 +239,22 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.cmd == "cohort-membership":
             out = {"membership": store.get_active_cohort_membership(args.bon_user_id)}
+        elif args.cmd == "case-file":
+            cohort_id = args.cohort_id
+            if not cohort_id:
+                active = store.active_cohort()
+                cohort_id = active["cohort_id"] if active else None
+            user_key = args.user_key
+            if not user_key and args.bon_user_id and cohort_id:
+                user_key = store.user_key_for_bon_id(cohort_id, args.bon_user_id) or f"user:{args.bon_user_id}"
+            if not cohort_id:
+                out = {"case_file": None, "note": "no active cohort"}
+            elif not user_key:
+                out = {"case_file": None, "note": "provide --user-key or --bon-user-id"}
+            else:
+                cf = store.get_case_file(cohort_id, user_key)
+                out = {"cohort_id": cohort_id, "user_key": user_key, "case_file": cf,
+                       "note": None if cf else "no case file — user not in this cohort, or no daily run has populated it yet"}
         elif args.cmd == "validate-customerio-action":
             action = _load_json_arg(args.action_json)
             out = {
