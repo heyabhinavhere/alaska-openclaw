@@ -1,0 +1,132 @@
+{
+  "audit_meta": {
+    "audit_date": "2026-06-05",
+    "user_id": "1414",
+    "data_available": "CR + Card + Bank",
+    "skill_version": "1.0"
+  },
+  "user": {
+    "first_name": "Albert",
+    "credit_score": 642,
+    "score_band": "Fair",
+    "persona_pattern": "Single-card crisis"
+  },
+  "accounts": [
+    {
+      "name": "Citi Executive",
+      "type": "CC",
+      "balance": 11937.63,
+      "limit": 12000,
+      "utilization_pct": 99.48,
+      "status": "Open",
+      "apr_pct": 24.99,
+      "apr_source": "exact_plaid",
+      "est_monthly_interest": 248.6,
+      "confidence": "EXACT",
+      "notes": "Plaid exact balance and APR"
+    },
+    {
+      "name": "Capital One Quicksilver",
+      "type": "CC",
+      "balance": 1240.0,
+      "limit": 6000,
+      "utilization_pct": 20.67,
+      "status": "Open",
+      "apr_pct": 24.0,
+      "apr_source": "estimated_score_band",
+      "est_monthly_interest": 24.8,
+      "confidence": "COMPUTED",
+      "notes": "APR estimated from score band 620-659"
+    },
+    {
+      "name": "Wells Fargo Auto",
+      "type": "Auto",
+      "balance": 14200.0,
+      "limit": null,
+      "utilization_pct": null,
+      "status": "Open",
+      "apr_pct": null,
+      "apr_source": "estimated_score_band",
+      "est_monthly_interest": 0,
+      "confidence": "EXACT",
+      "notes": "Installment loan, not revolving"
+    }
+  ],
+  "calculations": {
+    "apr_estimation_basis": "Citi exact from Plaid (24.99%); Capital One estimated from score band 620-659 (24.0%)",
+    "total_monthly_interest_est": 273.4,
+    "total_yearly_interest_est": 3280.8,
+    "overall_utilization_pct": 72.65,
+    "utilization_on_cards_with_balance_pct": 72.65,
+    "collections_total": 0,
+    "collections_count": 0,
+    "collections_score_cost_est": "None. No active collections."
+  },
+  "opportunities": [
+    {
+      "rank": 1,
+      "type": "Bank fee elimination",
+      "yearly_savings": 360,
+      "monthly_savings": 30,
+      "confidence_multiplier": 1.0,
+      "effort_score": 1,
+      "priority_score": 360.0,
+      "evidence": "Plaid BANK_FEES shows 30 dollars per month in monthly maintenance and one NSF fee. Exact-dollar, in-app fix.",
+      "data_source": "Plaid"
+    },
+    {
+      "rank": 2,
+      "type": "CC interest reduction (Citi paydown)",
+      "yearly_savings": 894,
+      "monthly_savings": 74.5,
+      "confidence_multiplier": 1.0,
+      "effort_score": 3,
+      "priority_score": 298.0,
+      "evidence": "Citi Executive at 99.5 percent utilization, 24.99 percent APR (Plaid exact). Paying it down is the single biggest interest saver.",
+      "data_source": "Plaid"
+    },
+    {
+      "rank": 3,
+      "type": "Utilization rebalancing",
+      "yearly_savings": 240,
+      "monthly_savings": 20,
+      "confidence_multiplier": 0.7,
+      "effort_score": 2,
+      "priority_score": 84.0,
+      "evidence": "Approximately 240 dollars per year of estimated score-driven APR relief by moving the maxed Citi balance below 90 percent. Likely an estimate until rates confirm.",
+      "data_source": "Credit Report"
+    }
+  ],
+  "flowchart": {
+    "step_1_data_ingestion": "Citi Executive 11,937.63 of 12,000 (99.5 percent, Plaid exact, 24.99 percent APR). Capital One Quicksilver 1,240 of 6,000. Auto loan 14,200. Score 642. No collections. Bank fees 30 per month from Plaid.",
+    "step_2_calculations": "Total monthly card interest approximately 273 dollars. Overall utilization 72.65 percent. Citi alone is 99.5 percent and is dragging the score.",
+    "step_3_rank_and_decide": "Lead with the bank fee fix: exact dollars, one tap, confidence 1.0. It earns the right to talk about the bigger Citi paydown next.",
+    "step_4_opening_message": "Hey Albert. You are paying about 30 dollars a month in bank fees you can kill today. Want me to show you which ones?",
+    "step_5_buttons": ["Show me the fees", "What about my cards?", "How do you know this?"],
+    "step_6_button_1_response": "Two charges: a 25 dollar monthly maintenance fee and a 5 dollar paper-statement fee. Both waive with a quick call or an in-app toggle. Want the script?",
+    "step_7_button_2_response": "Your Citi card is the real story: 99.5 percent full at about 25 percent APR. Clear the small fees first, then we attack that. One thing at a time.",
+    "step_8_button_3_response": "I read it straight from your linked bank feed, so these are exact, not estimates. Your card numbers come from Plaid too.",
+    "step_9_not_interested": "No problem. The fees will still be here when you want them. Want me to flag the bigger Citi interest instead, or leave it for now?",
+    "step_10_off_script": "Got it. Whatever is on your mind, I can help. When you are ready, the fastest win is still those 30 dollars in monthly fees.",
+    "step_11_task": {"title": "Waive the 30 per month in bank fees", "dollar_value": "360 dollars per year"},
+    "step_12_detection": "auto_plaid",
+    "step_13_followup": {"day_7": "Quick check: did the maintenance fee drop off this statement?", "day_14": "Last nudge on the fees, then I will pivot to your Citi card. Want to switch focus?"},
+    "step_14_link_pitch_trigger": null,
+    "step_15_link_pitch_text": null
+  },
+  "notes_edge_cases": [
+    "Maxed signature card hiding behind moderate overall utilization: overall is 72.65 percent but Citi alone is 99.5 percent and is what the score model is punishing. Lead with the card, not the blended number.",
+    "Minimum payment trap risk on Citi: balance is nearly flat. Agent should watch for interest-only payments.",
+    "Plaid is linked, so the card and bank link pitch is skipped."
+  ],
+  "open_questions": [
+    "Confirm whether the Capital One APR is truly 24 percent or promotional; it is estimated from the score band.",
+    "Template ranks by yearly dollars; this audit ranks by priority score per the skill. Logged for template revision."
+  ],
+  "confidence_audit": {
+    "exact_claims_count": 6,
+    "computed_claims_count": 4,
+    "inference_claims_count": 2,
+    "assumption_claims_count": 0
+  }
+}
