@@ -318,6 +318,8 @@ Return a single JSON object. When no tasks match, return an empty `stale_tasks` 
 
 8. **Never write in Query Mode.** `action: query_stale` is strictly read-only — no INSERT/UPDATE/DELETE, not even a `task_events` audit row. If a query returns zero stale tasks, return the empty `stale_tasks` array with `count: 0`; never invent tasks to satisfy the watcher.
 
+9. **Never store an ungrounded directed-task recipient.** For a *directed* task ("share / send / give X **to / for** <person>"), the recipient named inside `extraction` must already be resolved by **role** against the MEMORY.md roster by the *caller* (Meeting Intelligence Step 5d; slack-commands) — never the nearest transcript name. This skill stores `extraction` verbatim as the task title and has **no recipient column**, so it cannot correct a wrong recipient after the fact — a bad "to <name>" is permanent. The recipient is a third, distinct role: it is **NOT** the `owner_slack_id` and **NOT** the `assigner_slack_id`, so it must not be written to either field and must not open a `pending_acceptance` handshake. (Owner = who does the work; assigner = who delegated it; recipient = who the deliverable is *for*.)
+
 ## Frequency and cost
 
 The default match-or-create write path is invoked on every TASK_CREATE / TASK_UPDATE / TASK_BLOCKER classification from intent-classifier, AND on every commitment Meeting Intelligence extracts from a transcript. Estimated call rate at BON Credit's volume: ~30-50/day.
