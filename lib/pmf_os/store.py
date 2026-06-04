@@ -1006,6 +1006,24 @@ class PmfStore:
             snapshot_date=snapshot_date,
         )
 
+    def _latest_metric_records(self, cohort_id: str) -> list[dict[str, Any]]:
+        """The latest snapshot's pmf_success_metrics per user — shared by the
+        end-cohort memo (P7) and the weekly digest (P11)."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT s.pmf_metrics_json AS pmf_metrics_json
+                FROM pmf_user_daily_snapshots s
+                JOIN (
+                  SELECT user_key, MAX(snapshot_date) AS md
+                  FROM pmf_user_daily_snapshots WHERE cohort_id=? GROUP BY user_key
+                ) m ON s.user_key = m.user_key AND s.snapshot_date = m.md
+                WHERE s.cohort_id=?
+                """,
+                (cohort_id, cohort_id),
+            ).fetchall()
+        return [loads(dict(row).get("pmf_metrics_json"), {}) for row in rows]
+
     def build_end_cohort_report(
         self,
         cohort_id: str,
@@ -1031,24 +1049,12 @@ class PmfStore:
                 "SELECT cluster_type, title, severity, status FROM credgpt_quality_clusters WHERE cohort_id=?",
                 (cohort_id,),
             ).fetchall()
-            metric_rows = conn.execute(
-                """
-                SELECT s.pmf_metrics_json AS pmf_metrics_json
-                FROM pmf_user_daily_snapshots s
-                JOIN (
-                  SELECT user_key, MAX(snapshot_date) AS md
-                  FROM pmf_user_daily_snapshots WHERE cohort_id=? GROUP BY user_key
-                ) m ON s.user_key = m.user_key AND s.snapshot_date = m.md
-                WHERE s.cohort_id=?
-                """,
-                (cohort_id, cohort_id),
-            ).fetchall()
         quality_reviews = []
         for row in quality_rows:
             item = dict(row)
             item["llm_review"] = loads(item.pop("llm_review_json"), None)
             quality_reviews.append(item)
-        metric_records = [loads(dict(row).get("pmf_metrics_json"), {}) for row in metric_rows]
+        metric_records = self._latest_metric_records(cohort_id)
         facts = build_end_cohort_facts(
             cohort=cohort,
             users=users,
@@ -1063,6 +1069,45 @@ class PmfStore:
             write_snapshot_json(memo, path)
             memo["artifact_path"] = str(path)
         return memo
+
+    def build_weekly_digest_report(
+        self,
+        cohort_id: str,
+        *,
+        narrator: Any = None,
+        week_start: str | None = None,
+        artifact_root: str | None = None,
+    ) -> dict[str, Any]:
+        """Aggregate the weekly PMF digest + (optionally) narrate it. Narration is explicit
+        (narrator=None -> 'skipped'). Reuses the shared rollups + reads; writes a JSON
+        artifact when artifact_root is given. Aggregate-only — no per-user PII."""
+        from .weekly_digest import build_weekly_facts, generate_weekly_digest
+
+        cohort = self.get_cohort(cohort_id)
+        summary = self.generate_report_snapshot(
+            cohort_id, report_type="weekly_pmf", privacy_tier="founder"
+        ).get("summary", {})
+        with self.connect() as conn:
+            cluster_rows = conn.execute(
+                "SELECT cluster_type, title, severity, status FROM credgpt_quality_clusters WHERE cohort_id=?",
+                (cohort_id,),
+            ).fetchall()
+        facts = build_weekly_facts(
+            cohort=cohort,
+            summary=summary,
+            week_movements=self.recent_funnel_transitions(cohort_id, since_date=week_start),
+            open_queues=self.open_queue_items(cohort_id),
+            clusters=[dict(row) for row in cluster_rows],
+            interventions=self.list_interventions(cohort_id),
+            metric_records=self._latest_metric_records(cohort_id),
+            week_start=week_start,
+        )
+        digest = generate_weekly_digest(facts, narrator=narrator)
+        if artifact_root:
+            path = Path(artifact_root) / f"weekly-{cohort_id}-{week_start or 'latest'}.json"
+            write_snapshot_json(digest, path)
+            digest["artifact_path"] = str(path)
+        return digest
 
     def render_report_artifacts(
         self,
