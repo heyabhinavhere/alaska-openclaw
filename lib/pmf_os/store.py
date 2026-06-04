@@ -152,6 +152,32 @@ class PmfStore:
             ).fetchone()
         return dict(row) if row else None
 
+    def recent_funnel_transitions(
+        self,
+        cohort_id: str,
+        *,
+        since_date: str | None = None,
+        transition_types: "tuple[str, ...]" = ("promotion", "demotion"),
+    ) -> list[dict[str, Any]]:
+        """The day's stage movements (drives the briefing's 'what changed').
+
+        `pmf_funnel_transitions` is written on every snapshot but was never read.
+        Returns {user_key, from_stage, to_stage, transition_type, activated_saver_state,
+        triggered_at}, newest first."""
+        sql = ("SELECT user_key, from_stage, to_stage, transition_type, activated_saver_state, triggered_at "
+               "FROM pmf_funnel_transitions WHERE cohort_id=?")
+        params: list[Any] = [cohort_id]
+        if transition_types:
+            sql += f" AND transition_type IN ({','.join('?' for _ in transition_types)})"
+            params.extend(transition_types)
+        if since_date:
+            sql += " AND triggered_at >= ?"
+            params.append(since_date)
+        sql += " ORDER BY triggered_at DESC LIMIT 500"
+        with self.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
     # ------------------------------------------------------------------
     # Registry and signal spine
     # ------------------------------------------------------------------

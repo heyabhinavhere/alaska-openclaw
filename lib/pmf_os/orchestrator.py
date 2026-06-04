@@ -42,6 +42,7 @@ def run_cohort_day(
     segmentation_fetcher: Callable | None = None,
     slack_sender: Callable | None = None,
     slack_channel: str | None = None,
+    daily_narrator: Callable | None = None,
 ) -> dict[str, Any]:
     """Run one full cohort day. Returns a structured run record (never raises for
     per-user/per-step failures — they're captured in `errors`)."""
@@ -55,6 +56,7 @@ def run_cohort_day(
         "amplitude_fallback_used": 0,
         "report": None,
         "delivery": None,
+        "briefing": None,
         "summary": {},
         "errors": [],
     }
@@ -139,6 +141,24 @@ def run_cohort_day(
     except Exception as exc:  # noqa: BLE001
         run["errors"].append({"step": "summary", "error": str(exc)})
 
+    # 4.5 Founder briefing (the interpretation layer) — Alaska's read over the day's
+    #     facts: what changed, who needs you, what I'd do. Best-effort + explicit:
+    #     daily_narrator=None -> 'skipped' (no tokens spent), unchanged from before.
+    try:
+        from .daily_briefing import build_briefing_facts, generate_daily_briefing
+
+        facts = build_briefing_facts(
+            snapshot_date=snapshot_date,
+            summary=run["summary"],
+            movements=store.recent_funnel_transitions(cohort_id),
+            open_queues=store.open_queue_items(cohort_id),
+            quality={"weak_credgpt_reviews": (run["summary"] or {}).get("weak_credgpt_reviews", 0)},
+            users=users,
+        )
+        run["briefing"] = generate_daily_briefing(facts, narrator=daily_narrator)
+    except Exception as exc:  # noqa: BLE001 - best-effort, never sinks the run
+        run["errors"].append({"step": "briefing", "error": str(exc)})
+
     # 5. Render the team cockpit (HTML; DOCX/PDF deferred per plan).
     if render:
         try:
@@ -168,6 +188,9 @@ def run_cohort_day(
         try:
             html_path = (run.get("report") or {}).get("html_path")
             run["delivery"] = slack_sender(slack_channel, run["slack_summary"], html_path)
+            briefing_text = _briefing_text(run)
+            if briefing_text:
+                run["briefing_delivery"] = slack_sender(slack_channel, briefing_text, None)
         except Exception as exc:  # noqa: BLE001 - delivery is best-effort
             run["delivery"] = {"ok": False, "error": str(exc)}
             run["errors"].append({"step": "deliver", "error": str(exc)})
@@ -201,4 +224,26 @@ def _slack_summary(run: dict[str, Any]) -> str:
     ]
     if run["errors"]:
         lines.append(f"⚠️ {len(run['errors'])} step/user errors captured (see run record).")
+    return "\n".join(lines)
+
+
+def _briefing_text(run: dict[str, Any]) -> str | None:
+    """Render the founder briefing narrative to a Slack message, or None when there's
+    no completed narrative (skipped/failed -> nothing extra is posted)."""
+    briefing = run.get("briefing") or {}
+    if briefing.get("narrative_status") != "completed":
+        return None
+    n = briefing.get("narrative") or {}
+    lines = [f"*PMF briefing · {run['snapshot_date']}*"]
+    if n.get("headline"):
+        lines.append(n["headline"])
+    if n.get("what_changed"):
+        lines.append("\n*What changed:*\n" + "\n".join(f"• {x}" for x in n["what_changed"]))
+    if n.get("who_needs_you"):
+        lines.append("\n*Who needs you:*\n" + "\n".join(
+            f"• {w.get('user')}: {w.get('why')} → {w.get('suggested_action')}" for w in n["who_needs_you"]))
+    if n.get("recommendations"):
+        lines.append("\n*Recommend today:*\n" + "\n".join(f"• {x}" for x in n["recommendations"]))
+    if n.get("watch"):
+        lines.append("\n*Watch:*\n" + "\n".join(f"• {x}" for x in n["watch"]))
     return "\n".join(lines)

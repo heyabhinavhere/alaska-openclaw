@@ -137,6 +137,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-render", action="store_true", help="Skip artifact rendering")
     p.add_argument("--deliver", action="store_true", help="Post the daily summary + cockpit to Slack (needs SLACK_BOT_TOKEN)")
     p.add_argument("--slack-channel", help="Slack channel id for --deliver (e.g. C0APP7V6H8C)")
+    p.add_argument("--briefing-live", action="store_true", help="Write the LLM founder briefing (gated; needs ANTHROPIC_API_KEY)")
 
     args = parser.parse_args(argv)
     store = PmfStore(args.db)
@@ -270,6 +271,11 @@ def main(argv: list[str] | None = None) -> int:
                 from pmf_os.slack_delivery import make_live_sender
 
                 slack_sender = make_live_sender()
+            daily_narrator = None
+            if args.briefing_live:
+                from pmf_os.daily_briefing import default_narrator
+
+                daily_narrator = default_narrator()
             out = run_cohort_day(
                 store,
                 args.cohort_id,
@@ -278,6 +284,7 @@ def main(argv: list[str] | None = None) -> int:
                 render=not args.no_render,
                 slack_sender=slack_sender,
                 slack_channel=args.slack_channel,
+                daily_narrator=daily_narrator,
             )
         else:
             parser.error(f"unknown command {args.cmd}")
