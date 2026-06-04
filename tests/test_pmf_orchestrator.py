@@ -145,6 +145,44 @@ def test_partial_failure_one_user_does_not_sink_run():
     assert run["report"] is not None  # run completed and still rendered
 
 
+def _fake_profile_no_turns(uid: int) -> "tuple[int, bytes]":
+    return 200, json.dumps(_profile(uid, real_turns=0)).encode()
+
+
+def _fake_segmentation(definition: str, start: str, end: str) -> dict:
+    return {"data": {"series": [[4]]}}  # 4 messages → fallback supplies activation
+
+
+def test_latency_record_structure_and_counts():
+    store = _store()
+    run = _run(store)
+    lat = run["latency"]
+    assert set(lat) == {"resolve", "profile", "amplitude_fallback", "per_user_enrich"}
+    for phase in lat.values():
+        assert set(phase) == {"count", "total_s", "mean_s", "p50_s", "p95_s"}
+    assert lat["resolve"]["count"] == 2
+    assert lat["profile"]["count"] == 2
+    assert lat["per_user_enrich"]["count"] == 2
+    assert lat["amplitude_fallback"]["count"] == 0  # 3 real turns each → no fallback
+    # partial failure: profile is timed for both (before the status check); only 1 fully enriched
+    run2 = _run(_store(), profile_fetcher=_fake_profile_b_fails)
+    assert run2["latency"]["profile"]["count"] == 2
+    assert run2["latency"]["per_user_enrich"]["count"] == 1
+
+
+def test_latency_captures_amplitude_fallback():
+    store = _store()
+    run = run_cohort_day(
+        store, "pmf-orch", DATE,
+        artifact_root=str(Path(tempfile.mkdtemp(prefix="pmf_orch_art_"))),
+        export_fetcher=_fake_export, search_fetcher=_fake_search,
+        profile_fetcher=_fake_profile_no_turns, segmentation_fetcher=_fake_segmentation,
+    )
+    assert run["amplitude_fallback_used"] == 2  # both users had no 360 chat → fell back
+    assert run["latency"]["amplitude_fallback"]["count"] == 2  # both fallback calls timed
+    assert run["latency"]["per_user_enrich"]["count"] == 2
+
+
 def test_rerun_is_idempotent():
     store = _store()
     _run(store)

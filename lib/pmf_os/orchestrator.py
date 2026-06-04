@@ -21,11 +21,32 @@ users are counted as "unresolved" for the run rather than failed.
 
 from __future__ import annotations
 
+import time
 from typing import Any, Callable
 
 from .collectors import amplitude, user360
 from .store import DEFAULT_ARTIFACT_ROOT
 from .thresholds import resolve_thresholds
+
+
+def _latency_stats(samples: list[float]) -> dict[str, Any]:
+    """count + total/mean/p50/p95 (seconds) over a list of per-call durations.
+    Nearest-rank percentiles, stdlib-only. Empty -> all zeros."""
+    n = len(samples)
+    if not n:
+        return {"count": 0, "total_s": 0.0, "mean_s": 0.0, "p50_s": 0.0, "p95_s": 0.0}
+    s = sorted(samples)
+
+    def _pct(q: float) -> float:
+        return s[min(n - 1, max(0, int(round(q * (n - 1)))))]
+
+    return {
+        "count": n,
+        "total_s": round(sum(samples), 3),
+        "mean_s": round(sum(samples) / n, 4),
+        "p50_s": round(_pct(0.50), 4),
+        "p95_s": round(_pct(0.95), 4),
+    }
 
 
 def run_cohort_day(
@@ -59,6 +80,7 @@ def run_cohort_day(
         "delivery": None,
         "briefing": None,
         "summary": {},
+        "latency": {},
         "errors": [],
     }
     cohort = store.get_cohort(cohort_id)
@@ -80,16 +102,25 @@ def run_cohort_day(
             run["errors"].append({"step": "intake", "error": str(exc)})
 
     # 2. Enrich + snapshot each registry user (one bad user never sinks the run).
+    #    Per-call latency is sampled so the run record can decompose enrich cost
+    #    (resolve / profile-fetch / Amplitude-fallback) — used to size the daily
+    #    enrichment budget. Purely observational; no behavior change.
     users = store.list_users(cohort_id)
     run["users"]["total"] = len(users)
+    lat: dict[str, list[float]] = {"resolve": [], "profile": [], "amplitude_fallback": [], "per_user_enrich": []}
     for row in users:
         key = row.get("user_key")
+        t_user = time.perf_counter()
         try:
+            t0 = time.perf_counter()
             resolved = user360.resolve_bon_user_id(row, search_fetcher=search_fetcher)
+            lat["resolve"].append(time.perf_counter() - t0)
             if resolved["status"] != "resolved":
                 run["users"]["unresolved"] += 1
                 continue
+            t0 = time.perf_counter()
             fetched = user360.fetch_profile(resolved["user_id"], profile_fetcher=profile_fetcher)
+            lat["profile"].append(time.perf_counter() - t0)
             if fetched["status"] != "ok":
                 run["users"]["failed"] += 1
                 run["errors"].append({"user_key": key, "step": "fetch_profile", "error": fetched["status"]})
@@ -101,10 +132,12 @@ def run_cohort_day(
             # correctly. Validated need — User 360 chat can be incomplete.
             if not facts.get("meaningful_credgpt_messages"):
                 try:
+                    t0 = time.perf_counter()
                     count = amplitude.fetch_message_count(
                         resolved["user_id"], cohort["signup_window_start"], snapshot_date,
                         segmentation_fetcher=segmentation_fetcher,
                     )
+                    lat["amplitude_fallback"].append(time.perf_counter() - t0)
                     if count:
                         facts["meaningful_credgpt_messages"] = count
                         run["amplitude_fallback_used"] += 1
@@ -126,9 +159,12 @@ def run_cohort_day(
                     run["turns_ingested"] += 1
                 except Exception as exc:  # noqa: BLE001 - one turn never sinks the user
                     run["errors"].append({"user_key": key, "step": "ingest_turn", "error": str(exc)})
+            lat["per_user_enrich"].append(time.perf_counter() - t_user)
         except Exception as exc:  # noqa: BLE001
             run["users"]["failed"] += 1
             run["errors"].append({"user_key": key, "step": "enrich", "error": str(exc)})
+
+    run["latency"] = {phase: _latency_stats(samples) for phase, samples in lat.items()}
 
     # 3. Refresh CredGPT quality clusters from the turns ingested above. (The LLM
     #    quality judge on flagged turns is the P4.1 follow-up.)
