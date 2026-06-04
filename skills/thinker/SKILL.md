@@ -38,8 +38,32 @@ You process in **60-minute batches**, not real-time. Collect messages hourly, an
 
 ## Step 1: Collect Inputs (Every 60 Minutes)
 
-### 1a. Slack Messages
-Read recent messages from team Slack channels. **Filter ruthlessly:**
+### 1a. Slack Messages — discover ALL conversations, then fetch
+
+Enumerate every conversation Alaska is a member of via `users.conversations` (NOT a fixed channel list — this is how the Thinker observes all 12 channels + DMs), then fetch from each. Run the discovery first, every run:
+
+```bash
+curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+  "https://slack.com/api/users.conversations?types=public_channel,private_channel,mpim,im&limit=200&exclude_archived=true" \
+| python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data.get('ok'):
+    print(f'ERR: {data.get(\"error\")}', file=sys.stderr); sys.exit(0)
+NOISE = ['general','random','social','lunch','fun','memes','off-topic','coffee','birthday','welcome','bot-test','claude-test','sandbox']
+for c in data.get('channels', []):
+    name = c.get('name','') or c.get('user','')
+    is_dm = c.get('is_im', False)
+    if c.get('is_archived'): continue
+    if not is_dm and any(p in name.lower() for p in NOISE): continue
+    ctype = 'dm' if is_dm else 'mpim' if c.get('is_mpim') else 'channel'
+    print(f'{c[\"id\"]}\\t{ctype}\\t{name}')
+" > /tmp/thinker-conversations.tsv
+```
+
+For each row in `/tmp/thinker-conversations.tsv`: **channel** → `conversations.history` limit=15; **DM / mpim** → limit=5; for any message with a `thread_ts`, also fetch `conversations.replies`.
+
+**Filter ruthlessly** for which messages to ANALYZE in later Thinker steps (the ingestion below still writes EVERYTHING to `intent_inbox` for the classifier — the filter only governs Thinker's own analysis):
 
 **PROCESS these (work-related):**
 - Tasks, deadlines, blockers, features, bugs
