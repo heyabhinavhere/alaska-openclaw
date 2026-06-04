@@ -227,6 +227,26 @@ python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db validate-custom
 
 Only execute with `customerio-ops` if `decision.allowed=true`.
 
+### Intervention state machine (P6 — persisted, gated, outcome-tracked)
+
+Interventions live in `pmf_interventions`; nothing is sent autonomously:
+
+```bash
+# 1. Draft (never sends). Mutation channels (email/push) start 'needs_approval'.
+python3 /opt/lib/pmf_cohort_os.py ... draft-intervention --cohort-id <id> \
+  --intervention-json '{"user_key":"user:1001","channel":"email","action_type":"nudge_link_card","draft":{...},"dry_run":{...},"audience_preview":{"count":1},"suppression_check":{...}}'
+# 2. Human approval gate (sets approved_by/at).
+python3 /opt/lib/pmf_cohort_os.py ... approve-intervention --cohort-id <id> --intervention-id <iid> --approved-by <slack_user>
+# 3. Execute — re-validates via the guard; sends only an APPROVED + valid action.
+#    Default sends NOTHING (records 'no_executor'); --execute-live sends via Customer.io
+#    (needs CUSTOMERIO_APP_API_KEY); or pass --customerio-ref to record a human/skill send.
+python3 /opt/lib/pmf_cohort_os.py ... execute-intervention --cohort-id <id> --intervention-id <iid> [--execute-live | --customerio-ref <ref>]
+# 4. Record delivery/open/click/conversion as outcomes arrive.
+python3 /opt/lib/pmf_cohort_os.py ... record-intervention-outcome --cohort-id <id> --intervention-id <iid> --outcome-json '{"delivered":true,"opened":true}'
+```
+
+`execute-intervention` refuses anything not `approved` or not passing the guard, and a live-send failure records `failed` (never raises). SMS is blocked at every layer.
+
 ## Slack Response Shape
 
 Slack should receive a concise summary plus artifact file/link, not giant tables:
