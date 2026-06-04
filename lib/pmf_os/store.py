@@ -32,6 +32,7 @@ from .customerio_guard import CUSTOMERIO_MUTATION_CHANNELS, validate_customerio_
 from .docflow import build_docflow_spec
 from .end_cohort import build_end_cohort_facts, generate_end_cohort_memo
 from .funnel import evaluate_funnel
+from .thresholds import resolve_thresholds
 from .model import Evidence, higher_stage, minimize_secrets, now_utc
 
 
@@ -399,7 +400,11 @@ class PmfStore:
         user_key: str,
         snapshot_date: str | date,
         facts: dict[str, Any],
+        *,
+        thresholds: dict[str, int] | None = None,
     ) -> dict[str, Any]:
+        if thresholds is None:
+            thresholds = resolve_thresholds(self.get_cohort(cohort_id).get("config_json"))
         user = self.get_user(cohort_id, user_key)
         facts = dict(facts)
         previous_facts = self.latest_snapshot_facts(cohort_id, user_key)
@@ -408,7 +413,7 @@ class PmfStore:
             facts["onboarding_complete"] = user.get("onboarding_status") == "complete" or bool(user.get("is_real_user"))
         if "credit_score" not in facts:
             facts["credit_score"] = user.get("credit_score")
-        result = evaluate_funnel(facts, previous_highest_stage=user.get("highest_stage"))
+        result = evaluate_funnel(facts, previous_highest_stage=user.get("highest_stage"), thresholds=thresholds)
         snapshot_date_s = snapshot_date.isoformat() if isinstance(snapshot_date, date) else str(snapshot_date)
         with self.connect() as conn:
             old_stage = user.get("current_stage")
