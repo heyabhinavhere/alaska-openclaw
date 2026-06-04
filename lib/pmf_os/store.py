@@ -178,6 +178,38 @@ class PmfStore:
             rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
 
+    def get_case_file(self, cohort_id: str, user_key: str) -> dict[str, Any] | None:
+        """Read one user's stored case file — the on-demand `/pmf` user query. Case
+        files are written every snapshot by `build_case_file` (already minimize_secrets'd);
+        this is the read path that did not exist. Returns the parsed file + funnel_stage /
+        activated_saver_state / timestamps, or None (no run yet / not a cohort member)."""
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM pmf_user_case_files WHERE cohort_id=? AND user_key=?",
+                (cohort_id, user_key),
+            ).fetchone()
+        if not row:
+            return None
+        item = dict(row)
+        for json_col in ("case_file_json", "flags_json", "evidence_json"):
+            if json_col in item:
+                item[json_col[: -len("_json")]] = loads(item.pop(json_col), None)
+        if "product_learning_tags" in item:
+            item["product_learning_tags"] = loads(item["product_learning_tags"], [])
+        return item
+
+    def user_key_for_bon_id(self, cohort_id: str, bon_user_id: str | int) -> str | None:
+        """Resolve a BON user_id to its registry user_key within a cohort (for the
+        `/pmf ... user <id>` lookup), or None if not a member."""
+        if bon_user_id in (None, ""):
+            return None
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT user_key FROM pmf_cohort_users WHERE cohort_id=? AND bon_user_id=? LIMIT 1",
+                (cohort_id, str(bon_user_id)),
+            ).fetchone()
+        return row["user_key"] if row else None
+
     # ------------------------------------------------------------------
     # Registry and signal spine
     # ------------------------------------------------------------------
