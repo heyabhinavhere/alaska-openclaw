@@ -183,6 +183,30 @@ def test_latency_captures_amplitude_fallback():
     assert run["latency"]["per_user_enrich"]["count"] == 2
 
 
+def test_default_enrichment_mode_is_full_and_selects_everyone():
+    store = _store()
+    run = _run(store)
+    assert run["enrichment"]["mode"] == "full"  # default — unchanged behavior
+    assert run["enrichment"]["selected"] == run["enrichment"]["registry_total"] == 2
+    assert run["enrichment"]["skipped_not_due"] == 0
+
+
+def test_incremental_mode_wires_through_first_run_selects_all_new():
+    store = _store()
+    # Reconfigure the cohort to incremental with cap=0 (upsert via create_cohort).
+    store.create_cohort(
+        cohort_id="pmf-orch", name="Orch",
+        signup_window_start=WINDOW_START, signup_window_end=WINDOW_END, activate=True,
+        config={"enrichment": {"mode": "incremental", "slow_refresh_cap": 0}},
+    )
+    run = _run(store)
+    assert run["enrichment"]["mode"] == "incremental"
+    assert run["enrichment"]["registry_total"] == 2
+    # Both users are NEW (no prior snapshot) → enriched even with slow_refresh_cap=0.
+    assert run["enrichment"]["selected"] == 2
+    assert run["users"]["enriched"] == 2
+
+
 def test_rerun_is_idempotent():
     store = _store()
     _run(store)
