@@ -211,6 +211,19 @@ reply text passed to task-handler (which extracts the actual due hint from it):
 
 **`on leave` handling (Phase B):** there is no scheduled_actions write yet (those land in Phase C). For now, post a one-line ack: `Got it — noted you're on leave today. I'll skip your tasks in tomorrow's brief.` and INSERT a `task_events` row with `event_type='comment'` and `context='on_leave:<YYYY-MM-DD>'` against ANY of the person's active tasks (pick the most recent) so the audit log carries the signal. Phase C will replace this with a proper recurring_routine row.
 
+### Resolving bare numbered replies (the common case — nobody uses `T-N`)
+
+In practice the team almost never types `T-N`. They reply with **bare item numbers** keyed to their *own* pre-call sheet — e.g. *"1 currently working, 2 all bugs fixed, 3 working on it, 4 this is done"* or *"1. Done 2. Done"*. A bare number has no text to fuzzy-match, so resolve it **positionally against the sheet the reply is threaded under** (NOT by guessing):
+
+1. **Fetch the parent sheet** — the bot pre-call post this reply threads under (the person's own sheet). Enumerate its **task-bearing lines** (`• T-N [Title]` under `ACTIVE`, then `BLOCKED`, then `NEW SINCE YESTERDAY`, in the order shown — skip section headings and the reply-format footer) as item 1, 2, 3, …
+2. **Map the reply's number → that item → its `T-N`,** then apply the stated action (`done`→mark_done · `working`/`in progress`/`active`→confirm_active, log only · `blocked by X`→mark_blocked · a free phrase→log_mention).
+3. **Corroborate with any free text.** If the reply carries a phrase (*"1 currently working — streaming validation"*), check it against the mapped item's title: **position + text agree → high confidence.** Only one signal, or they disagree → **lower confidence.**
+4. **Hard rails (never close the wrong task):**
+   - Parent sheet unfetchable, number > item count, or two readings plausible → **do NOT guess.** Log the reply and DM Abhinav one line: *"[Name] said '[N] done' but I couldn't pin it to a task — which one?"*
+   - **Marking a task `done` (closing it) requires an unambiguous mapping** (clean single sheet, N in range, action explicit). On any doubt → **propose, don't auto-close.** Affirming or creating is recoverable; a wrongly-closed task is not.
+
+*(Forward note: once the Pre-Call cron is thinned (#88 applied) and the sheet is generated from this SKILL, number the sheet lines `1. … 2. …` to make this round-trip unambiguous by design. Until then, enumerate the existing `•` bullets by position.)*
+
 For each matched reply (other than `on leave`):
 
 1. Route to `/data/skills/task-handler/SKILL.md` with the appropriate inputs:
