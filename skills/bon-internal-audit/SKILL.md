@@ -47,19 +47,21 @@ prefix bypass) recognizes the `/audit` prefix and hands control here.
 ## How Alaska runs this (orchestration)
 
 All deterministic work is in `audit_agent.py` (co-located here). You do the analysis;
-the CLI does the fetch, validation, rendering, logging, and delivery. Run from this
-skill directory.
+the CLI does the fetch, validation, rendering, logging, and delivery. Always invoke it
+by its absolute path `python3 /data/skills/bon-internal-audit/audit_agent.py ...` (as
+shown below). The current working directory does not matter: sibling imports resolve
+from the script's own directory, and default DB/artifact/template paths are absolute.
 
 **Step 0 - Parse.** Confirm the command and extract the user_id:
 ```
-python3 audit_agent.py parse "<the full slack message>"
+python3 /data/skills/bon-internal-audit/audit_agent.py parse "<the full slack message>"
 ```
 If `ok` is false, reply to the invoker with the error (e.g. "Usage: /audit <user_id>")
 and stop.
 
 **Step 1 - Fetch the profile (live, gated).** Only with the env vars set:
 ```
-python3 audit_agent.py fetch-profile --user-id <id> --live
+python3 /data/skills/bon-internal-audit/audit_agent.py fetch-profile --user-id <id> --live
 ```
 This returns `{status, summary, profile}` where `profile` is already redacted (SSN,
 DOB, street address, full account numbers removed/masked). If `status` is `not_found`,
@@ -75,14 +77,14 @@ looks like" bar.
 
 **Step 3 - Validate (gate).** Write the audit JSON to a file and run:
 ```
-python3 audit_agent.py validate --audit-json /tmp/audit_<id>.json
+python3 /data/skills/bon-internal-audit/audit_agent.py validate --audit-json /tmp/audit_<id>.json
 ```
 If it exits non-zero, fix the listed rule failures and re-validate. Do NOT proceed to
 render until it passes. (Render re-validates and will refuse a bad audit anyway.)
 
 **Step 4 - Render + log.** 
 ```
-python3 audit_agent.py run --audit-json /tmp/audit_<id>.json --invoked-by <slack_id>
+python3 /data/skills/bon-internal-audit/audit_agent.py run --audit-json /tmp/audit_<id>.json --invoked-by <slack_id>
 ```
 This validates, fills `Internal_Report_Template.docx`, writes the DOCX under
 `/data/workspace/audit_artifacts/<user_id>/<audit_id>.docx` (chmod 600, never
@@ -93,15 +95,15 @@ run is already logged with the reason.
 
 **Step 5 - Deliver to the invoker.**
 ```
-python3 audit_agent.py deliver --audit-json /tmp/audit_<id>.json \
+python3 /data/skills/bon-internal-audit/audit_agent.py deliver --audit-json /tmp/audit_<id>.json \
   --docx <artifact_path> --channel <invocation channel/DM> --thread-ts <ts> --live
 ```
 This posts the concise summary and uploads the DOCX to the same DM/thread. If the
 upload fails, the artifact is preserved on disk and the path is in the run log; tell
 the invoker the report is saved and can be re-sent.
 
-> Dry run (no creds, fixtures): `python3 audit_agent.py run --audit-json
-> references/fixtures/golden_audit.json --dry-run --db /tmp/a.db --artifact-root /tmp/art`.
+> Dry run (no creds, fixtures): `python3 /data/skills/bon-internal-audit/audit_agent.py run --audit-json
+> /data/skills/bon-internal-audit/references/fixtures/golden_audit.json --dry-run --db /tmp/a.db --artifact-root /tmp/art`.
 
 ## Precedence: skill beats template
 
