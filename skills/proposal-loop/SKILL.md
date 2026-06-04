@@ -1,8 +1,9 @@
 ---
 name: proposal-loop
-description: Agent 2 — Post meeting proposals to Slack, collect team feedback, confirm before sprint entry
+description: "DEPRECATED (2026-06-05) — superseded by the direct task-graph path (Meeting Intelligence + the gated intent-classifier feed task-handler); the Sprint Board it fed was retired 2026-05-23. Originally posted meeting proposals to Slack for confirm-before-sprint-entry."
 version: 1.0.0
 metadata:
+  deprecated: true
   openclaw:
     requires:
       bins: [sqlite3]
@@ -10,6 +11,8 @@ metadata:
 ---
 
 # Proposal Loop (Agent 2)
+
+> **Status as of 2026-06-05: DEPRECATED.** No cron invokes this skill. Proposals now flow directly into the SQLite task graph (Meeting Intelligence + the gated intent-classifier → task-handler); the Notion Sprint Board this fed was retired 2026-05-23. Retained for reference, not maintained — do not re-enable without rethinking where confirmed proposals would land.
 
 Also read `/data/skills/shared-toolkit/SKILL.md` for communication standards, queue-first patterns, error handling, and token budget tracking.
 
