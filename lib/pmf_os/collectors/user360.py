@@ -26,6 +26,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import date
 from pathlib import Path
 from typing import Any, Callable
 
@@ -265,7 +266,38 @@ def _financial_actions(payload: dict[str, Any]) -> list[dict[str, str]]:
     return actions
 
 
-def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = None, thresholds: dict[str, int] | None = None) -> dict[str, Any]:
+# A fresh signup still inside the onboarding window: if they haven't onboarded
+# within this many days of signup they're "stuck in intake" (drives stuck_onboarding).
+INTAKE_PERIOD_DAYS = 7
+
+
+def _intake_period(summary: dict[str, Any], onboarding_complete: bool) -> bool:
+    """True when a recent signup hasn't completed onboarding (→ stuck_onboarding)."""
+    days = (summary.get("identity") or {}).get("days_since_signup")
+    return bool(
+        isinstance(days, (int, float))
+        and 0 <= days <= INTAKE_PERIOD_DAYS
+        and not onboarding_complete
+    )
+
+
+def _inactive_days(active_days: list[str], as_of_date: str | None) -> int | None:
+    """Days since the user's last CredGPT-active day relative to as_of_date — a
+    chat-activity proxy for disengagement (→ at_risk). None when there's no activity
+    or no reference date, so at_risk only flags users who engaged then went quiet.
+    (The 360 profile exposes no app-wide last-active timestamp; chat is the reliable
+    engagement signal for a CredGPT cohort.)"""
+    if not active_days or not as_of_date:
+        return None
+    try:
+        ref = date.fromisoformat(str(as_of_date)[:10])
+        last = date.fromisoformat(str(active_days[-1])[:10])
+    except (ValueError, TypeError):
+        return None
+    return max(0, (ref - last).days)
+
+
+def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = None, thresholds: dict[str, int] | None = None, as_of_date: str | None = None) -> dict[str, Any]:
     """Map a raw /profile payload into PMF profile_facts + daily_facts.
 
     Reuses the skill summarizer for derivation; applies minimize_secrets to the
@@ -326,6 +358,14 @@ def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = 
         "financial_context": financial_context,
         "profile_summary": {"identity": summary.get("identity"), "linking": linking},
     }
+    # Friction signals → operating queues. intake_period (recent signup + not onboarded)
+    # drives stuck_onboarding; inactive_days (chat-activity proxy) drives at_risk.
+    # failed_link_attempts (→ high_intent) is intentionally NOT set here: the 360
+    # profile carries no link-failure signal — see the PR for the deferred data source.
+    daily_facts["intake_period"] = _intake_period(summary, onboarding_complete)
+    _inactive = _inactive_days(active_days, as_of_date)
+    if _inactive is not None:
+        daily_facts["inactive_days"] = _inactive
     # Compute the six PMF success metrics from raw signals only (qualitative_positive_
     # signal + retained_value are intentionally deferred — see compute_pmf_success_metrics).
     daily_facts["pmf_success_metrics"] = compute_pmf_success_metrics(daily_facts, thresholds=thresholds)
