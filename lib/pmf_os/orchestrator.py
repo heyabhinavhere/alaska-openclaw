@@ -21,7 +21,10 @@ users are counted as "unresolved" for the run rather than failed.
 
 from __future__ import annotations
 
+import os
 import time
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from typing import Any, Callable
 
 from .collectors import amplitude, user360
@@ -50,6 +53,92 @@ def _latency_stats(samples: list[float]) -> dict[str, Any]:
     }
 
 
+# A hard per-user wall-clock deadline. The HTTP fetchers have their own socket
+# timeouts, but a hung/trickling server can outlast a socket read timeout — so each
+# user's enrich runs under this deadline in a worker thread; exceeding it marks the
+# user failed and moves on (incremental selection + idempotent snapshots re-try it
+# next run). Env-overridable for ops.
+ENRICH_USER_TIMEOUT_SECONDS = float(os.environ.get("PMF_ENRICH_USER_TIMEOUT_SECONDS", "120"))
+
+
+def _enrich_one_user(
+    store: Any,
+    cohort_id: str,
+    cohort: dict[str, Any],
+    snapshot_date: str,
+    row: dict[str, Any],
+    *,
+    thresholds: dict[str, int],
+    search_fetcher: Callable | None,
+    profile_fetcher: Callable | None,
+    summarize_fn: Callable | None,
+    segmentation_fetcher: Callable | None,
+) -> dict[str, Any]:
+    """Enrich + snapshot ONE user. Returns its own counters/latency/errors and never
+    mutates shared run state, so it can run under a per-user deadline in a worker
+    thread. Every store write opens its own connection (thread-safe under WAL)."""
+    key = row.get("user_key")
+    out: dict[str, Any] = {
+        "status": "failed",
+        "samples": {"resolve": [], "profile": [], "amplitude_fallback": [], "per_user_enrich": []},
+        "fallback_used": 0,
+        "turns_ingested": 0,
+        "errors": [],
+    }
+    t_user = time.perf_counter()
+    try:
+        t0 = time.perf_counter()
+        resolved = user360.resolve_bon_user_id(row, search_fetcher=search_fetcher)
+        out["samples"]["resolve"].append(time.perf_counter() - t0)
+        if resolved["status"] != "resolved":
+            out["status"] = "unresolved"
+            return out
+        t0 = time.perf_counter()
+        fetched = user360.fetch_profile(resolved["user_id"], profile_fetcher=profile_fetcher)
+        out["samples"]["profile"].append(time.perf_counter() - t0)
+        if fetched["status"] != "ok":
+            out["errors"].append({"user_key": key, "step": "fetch_profile", "error": fetched["status"]})
+            return out
+        enriched = user360.enrich_facts(fetched["payload"], summarize_fn=summarize_fn, thresholds=thresholds)
+        facts = enriched["daily_facts"]
+        # Activation fallback: if User 360 chat is thin/empty, use Amplitude's message
+        # count (the canonical engagement metric) so the funnel stages correctly.
+        if not facts.get("meaningful_credgpt_messages"):
+            try:
+                t0 = time.perf_counter()
+                count = amplitude.fetch_message_count(
+                    resolved["user_id"], cohort["signup_window_start"], snapshot_date,
+                    segmentation_fetcher=segmentation_fetcher,
+                )
+                out["samples"]["amplitude_fallback"].append(time.perf_counter() - t0)
+                if count:
+                    facts["meaningful_credgpt_messages"] = count
+                    out["fallback_used"] = 1
+            except Exception as exc:  # noqa: BLE001 - fallback is best-effort
+                out["errors"].append({"user_key": key, "step": "amplitude_fallback", "error": str(exc)})
+        store.update_user_profile(cohort_id, key, enriched["profile_facts"])
+        store.apply_daily_snapshot(cohort_id, key, snapshot_date, facts, thresholds=thresholds)
+        out["status"] = "enriched"
+        # Ingest the user's real chat turns into the CredGPT quality observatory.
+        for idx, turn in enumerate(enriched.get("chat_turns") or []):
+            try:
+                store.record_credgpt_turn(cohort_id, key, {
+                    "thread_id": turn.get("thread_id"),
+                    "turn_id": turn.get("turn_id") or f"{turn.get('thread_id')}:{idx}",
+                    "event_time": turn.get("created_at"),
+                    "question": turn.get("question"),
+                    "answer": turn.get("answer"),
+                })
+                out["turns_ingested"] += 1
+            except Exception as exc:  # noqa: BLE001 - one turn never sinks the user
+                out["errors"].append({"user_key": key, "step": "ingest_turn", "error": str(exc)})
+        out["samples"]["per_user_enrich"].append(time.perf_counter() - t_user)
+        return out
+    except Exception as exc:  # noqa: BLE001
+        out["errors"].append({"user_key": key, "step": "enrich", "error": str(exc)})
+        return out
+
+
 def run_cohort_day(
     store: Any,
     cohort_id: str,
@@ -66,6 +155,7 @@ def run_cohort_day(
     slack_sender: Callable | None = None,
     slack_channel: str | None = None,
     daily_narrator: Callable | None = None,
+    enrich_user_timeout: float | None = None,
 ) -> dict[str, Any]:
     """Run one full cohort day. Returns a structured run record (never raises for
     per-user/per-step failures — they're captured in `errors`)."""
@@ -121,61 +211,33 @@ def run_cohort_day(
         "skipped_not_due": len(all_users) - len(users),
     }
     lat: dict[str, list[float]] = {"resolve": [], "profile": [], "amplitude_fallback": [], "per_user_enrich": []}
+    deadline = enrich_user_timeout if enrich_user_timeout is not None else ENRICH_USER_TIMEOUT_SECONDS
     for row in users:
         key = row.get("user_key")
-        t_user = time.perf_counter()
+        # Run each user under a hard wall-clock deadline so a hung User-360/Amplitude
+        # call can't stall the whole run. A timed-out user is recorded failed and
+        # re-tried next run (incremental selection + idempotent snapshots make it safe).
+        pool = ThreadPoolExecutor(max_workers=1)
         try:
-            t0 = time.perf_counter()
-            resolved = user360.resolve_bon_user_id(row, search_fetcher=search_fetcher)
-            lat["resolve"].append(time.perf_counter() - t0)
-            if resolved["status"] != "resolved":
-                run["users"]["unresolved"] += 1
-                continue
-            t0 = time.perf_counter()
-            fetched = user360.fetch_profile(resolved["user_id"], profile_fetcher=profile_fetcher)
-            lat["profile"].append(time.perf_counter() - t0)
-            if fetched["status"] != "ok":
-                run["users"]["failed"] += 1
-                run["errors"].append({"user_key": key, "step": "fetch_profile", "error": fetched["status"]})
-                continue
-            enriched = user360.enrich_facts(fetched["payload"], summarize_fn=summarize_fn, thresholds=thresholds)
-            facts = enriched["daily_facts"]
-            # Activation fallback: if User 360 chat is thin/empty, use Amplitude's
-            # message count (the canonical engagement metric) so the funnel stages
-            # correctly. Validated need — User 360 chat can be incomplete.
-            if not facts.get("meaningful_credgpt_messages"):
-                try:
-                    t0 = time.perf_counter()
-                    count = amplitude.fetch_message_count(
-                        resolved["user_id"], cohort["signup_window_start"], snapshot_date,
-                        segmentation_fetcher=segmentation_fetcher,
-                    )
-                    lat["amplitude_fallback"].append(time.perf_counter() - t0)
-                    if count:
-                        facts["meaningful_credgpt_messages"] = count
-                        run["amplitude_fallback_used"] += 1
-                except Exception as exc:  # noqa: BLE001 - fallback is best-effort
-                    run["errors"].append({"user_key": key, "step": "amplitude_fallback", "error": str(exc)})
-            store.update_user_profile(cohort_id, key, enriched["profile_facts"])
-            store.apply_daily_snapshot(cohort_id, key, snapshot_date, facts, thresholds=thresholds)
-            run["users"]["enriched"] += 1
-            # Ingest the user's real chat turns into the CredGPT quality observatory.
-            for idx, turn in enumerate(enriched.get("chat_turns") or []):
-                try:
-                    store.record_credgpt_turn(cohort_id, key, {
-                        "thread_id": turn.get("thread_id"),
-                        "turn_id": turn.get("turn_id") or f"{turn.get('thread_id')}:{idx}",
-                        "event_time": turn.get("created_at"),
-                        "question": turn.get("question"),
-                        "answer": turn.get("answer"),
-                    })
-                    run["turns_ingested"] += 1
-                except Exception as exc:  # noqa: BLE001 - one turn never sinks the user
-                    run["errors"].append({"user_key": key, "step": "ingest_turn", "error": str(exc)})
-            lat["per_user_enrich"].append(time.perf_counter() - t_user)
-        except Exception as exc:  # noqa: BLE001
+            res = pool.submit(
+                _enrich_one_user, store, cohort_id, cohort, snapshot_date, row,
+                thresholds=thresholds, search_fetcher=search_fetcher,
+                profile_fetcher=profile_fetcher, summarize_fn=summarize_fn,
+                segmentation_fetcher=segmentation_fetcher,
+            ).result(timeout=deadline)
+        except FuturesTimeoutError:
             run["users"]["failed"] += 1
-            run["errors"].append({"user_key": key, "step": "enrich", "error": str(exc)})
+            run["errors"].append({"user_key": key, "step": "enrich_timeout",
+                                  "error": f"exceeded {deadline}s per-user deadline"})
+            continue
+        finally:
+            pool.shutdown(wait=False)  # never block on an abandoned hung worker
+        run["users"][res["status"]] += 1  # 'enriched' | 'unresolved' | 'failed'
+        run["amplitude_fallback_used"] += res["fallback_used"]
+        run["turns_ingested"] += res["turns_ingested"]
+        run["errors"].extend(res["errors"])
+        for phase, samples in res["samples"].items():
+            lat[phase].extend(samples)
 
     run["latency"] = {phase: _latency_stats(samples) for phase, samples in lat.items()}
 

@@ -14,6 +14,7 @@ import json
 import sqlite3
 import sys
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -205,6 +206,30 @@ def test_incremental_mode_wires_through_first_run_selects_all_new():
     # Both users are NEW (no prior snapshot) → enriched even with slow_refresh_cap=0.
     assert run["enrichment"]["selected"] == 2
     assert run["users"]["enriched"] == 2
+
+
+def _slow_then_fail_for_1002(uid: int) -> "tuple[int, bytes]":
+    # Simulate a hung User-360 profile call: block past the deadline, then error
+    # (so the abandoned worker does no late DB write — race-free).
+    if uid == 1002:
+        time.sleep(1.0)
+        return 500, b""
+    return 200, json.dumps(_profile(uid)).encode()
+
+
+def test_per_user_deadline_skips_hung_user_without_sinking_run():
+    store = _store()
+    run = run_cohort_day(
+        store, "pmf-orch", DATE,
+        artifact_root=str(Path(tempfile.mkdtemp(prefix="pmf_orch_art_"))),
+        export_fetcher=_fake_export, search_fetcher=_fake_search,
+        profile_fetcher=_slow_then_fail_for_1002,
+        enrich_user_timeout=0.3,  # < the 1s hang → the stuck user is abandoned, not blocking
+    )
+    assert run["users"]["enriched"] == 1  # the fast user still completes
+    assert run["users"]["failed"] == 1    # the hung user is skipped by the watchdog
+    assert any(e.get("step") == "enrich_timeout" for e in run["errors"])
+    assert run["report"] is not None       # the run completed end-to-end
 
 
 def test_rerun_is_idempotent():
