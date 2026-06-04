@@ -232,6 +232,33 @@ def test_per_user_deadline_skips_hung_user_without_sinking_run():
     assert run["report"] is not None       # the run completed end-to-end
 
 
+def _unlinked_onboarded_profile(uid: int) -> "tuple[int, bytes]":
+    p = _profile(uid)
+    p["profile"]["is_card_added"] = False  # onboarded but neither channel linked
+    p["profile"]["is_bank_added"] = False
+    return 200, json.dumps(p).encode()
+
+
+def _seg_card_failed(e_json: str, start: str, end: str) -> dict:
+    ev = json.loads(e_json)["event_type"]
+    return {"data": {"series": [[1 if ev == "add_card_unsuccessful" else 0]]}}
+
+
+def test_failed_link_amplitude_fallback_opens_high_intent():
+    store = _store()
+    run = run_cohort_day(
+        store, "pmf-orch", DATE,
+        artifact_root=str(Path(tempfile.mkdtemp(prefix="pmf_orch_art_"))),
+        export_fetcher=_fake_export, search_fetcher=_fake_search,
+        profile_fetcher=_unlinked_onboarded_profile, segmentation_fetcher=_seg_card_failed,
+    )
+    assert run["users"]["enriched"] == 2
+    # onboarded + unlinked + a card-link failure (from Amplitude) → high_intent opens
+    qtypes = {q["queue_type"] for q in store.open_queue_items("pmf-orch")}
+    assert "high_intent" in qtypes
+    assert "plaid_failed" in qtypes
+
+
 def test_rerun_is_idempotent():
     store = _store()
     _run(store)
