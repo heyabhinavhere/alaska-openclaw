@@ -21,7 +21,13 @@ from .artifacts import (
     write_docflow_spec,
     write_snapshot_json,
 )
-from .credgpt_quality import cluster_reviews, review_turn
+from .credgpt_quality import (
+    cluster_reviews,
+    default_judge_fn,
+    escalated_quality_state,
+    normalize_verdict,
+    review_turn,
+)
 from .docflow import build_docflow_spec
 from .funnel import evaluate_funnel
 from .model import Evidence, higher_stage, minimize_secrets, now_utc
@@ -603,6 +609,84 @@ class PmfStore:
                         status="dismissed" if cluster_status == "ignored" else "resolved",
                     )
         return clusters
+
+    def judge_pending_credgpt_reviews(
+        self,
+        cohort_id: str,
+        *,
+        judge_fn: Any = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """Run the LLM quality/safety judge on deterministically-flagged turns.
+
+        Selects reviews WHERE needs_llm_review=1 AND llm_review_status='pending' and
+        runs `judge_fn` (injectable; defaults to the live Anthropic adapter when
+        ANTHROPIC_API_KEY is set, else None). With no judge available every pending
+        review is marked 'skipped' — never a false 'completed'. The verdict is stored
+        in llm_review_json; quality_state is only ever ESCALATED, never cleared.
+        """
+        result = {"pending": 0, "completed": 0, "skipped": 0, "failed": 0}
+        resolved = judge_fn if judge_fn is not None else default_judge_fn()
+        with self.connect() as conn:
+            sql = (
+                "SELECT review_id, question, answer, deterministic_flags_json, "
+                "rubric_scores_json, quality_state FROM credgpt_quality_reviews "
+                "WHERE cohort_id=? AND needs_llm_review=1 AND llm_review_status='pending' "
+                "ORDER BY event_time"
+            )
+            params: tuple = (cohort_id,)
+            if limit:
+                sql += " LIMIT ?"
+                params = (cohort_id, int(limit))
+            rows = [dict(row) for row in conn.execute(sql, params).fetchall()]
+            result["pending"] = len(rows)
+            for row in rows:
+                review_id = row["review_id"]
+                if resolved is None:
+                    self._write_llm_review(conn, review_id, "skipped", {"reason": "no_judge_available"})
+                    result["skipped"] += 1
+                    continue
+                payload = {
+                    "review_id": review_id,
+                    "question": row.get("question"),
+                    "answer": row.get("answer"),
+                    "deterministic_flags": loads(row.get("deterministic_flags_json"), []),
+                    "rubric_scores": loads(row.get("rubric_scores_json"), {}),
+                }
+                try:
+                    verdict = normalize_verdict(resolved(payload))
+                except Exception as exc:  # noqa: BLE001 - one turn never sinks the batch
+                    self._write_llm_review(conn, review_id, "failed", {"error": str(exc)})
+                    result["failed"] += 1
+                    continue
+                new_state = escalated_quality_state(row.get("quality_state"), verdict.get("quality_state"))
+                self._write_llm_review(
+                    conn, review_id, "completed", verdict,
+                    quality_state=new_state, pmf_usefulness=verdict.get("pmf_usefulness_score"),
+                )
+                result["completed"] += 1
+        return result
+
+    def _write_llm_review(
+        self,
+        conn: sqlite3.Connection,
+        review_id: str,
+        status: str,
+        verdict: dict[str, Any],
+        *,
+        quality_state: str | None = None,
+        pmf_usefulness: float | None = None,
+    ) -> None:
+        sets = ["llm_review_status=?", "llm_review_json=?"]
+        params: list[Any] = [status, dumps(verdict)]
+        if quality_state:
+            sets.append("quality_state=?")
+            params.append(quality_state)
+        if pmf_usefulness is not None:
+            sets.append("pmf_usefulness_score=?")
+            params.append(pmf_usefulness)
+        params.append(review_id)
+        conn.execute(f"UPDATE credgpt_quality_reviews SET {', '.join(sets)} WHERE review_id=?", params)
 
     # ------------------------------------------------------------------
     # Reports and artifacts

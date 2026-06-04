@@ -6,7 +6,7 @@ metadata:
   openclaw:
     requires:
       bins: [sqlite3, python3]
-      env: [AMPLITUDE_API_KEY, AMPLITUDE_SECRET_KEY, BON_ADMIN_API_KEY, BON_API_BASE_URL, CUSTOMERIO_APP_API_KEY]
+      env: [AMPLITUDE_API_KEY, AMPLITUDE_SECRET_KEY, BON_ADMIN_API_KEY, BON_API_BASE_URL, CUSTOMERIO_APP_API_KEY, ANTHROPIC_API_KEY]
     emoji: "🧭"
 ---
 
@@ -165,7 +165,13 @@ python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db review-credgpt-
   --turn-json '{"thread_id":"t1","turn_id":"t1-1","event_time":"2026-06-12T18:00:00Z","question":"How should I pay down my cards?","answer":"...","feedback":null,"chat_stopped_by_user":false,"dropoff_adjacent":false,"user_context_present":true}'
 ```
 
-The deterministic layer flags weak, unsafe, ungrounded, interrupted, bad-feedback, and dropoff-adjacent turns. LLM review is selected but not run automatically here; a future workflow can fill `llm_review_json`.
+The deterministic layer flags weak, unsafe, ungrounded, interrupted, bad-feedback, and dropoff-adjacent turns and SELECTS them for review (`needs_llm_review=1`, `llm_review_status='pending'`). Run the LLM quality/safety judge on those turns explicitly — it costs tokens, so it is a gated step, not part of the daily run:
+
+```bash
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db judge-credgpt-reviews --cohort-id <id> [--limit N]
+```
+
+The judge scores the rubric + decides `unsafe_advice` per turn and writes the verdict to `llm_review_json` (`llm_review_status='completed'`). It is safety-forward: it only ESCALATES `quality_state`, never clears a deterministic flag. Needs `ANTHROPIC_API_KEY`; without it, pending reviews are marked `'skipped'` (never a false `'completed'`).
 
 ## Reports
 
