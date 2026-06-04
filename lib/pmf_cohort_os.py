@@ -125,6 +125,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--cohort-id", required=True)
     p.add_argument("--status", help="Filter by approval_status")
 
+    p = sub.add_parser("draft-queue-interventions", help="Propose (never send) interventions for actionable open queues; lands in needs_approval, idempotent")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--draft-copy-live", action="store_true", help="Use the LLM to draft the message body (gated; needs ANTHROPIC_API_KEY)")
+
     p = sub.add_parser("end-cohort-memo", help="Build the end-of-cohort intelligence memo (aggregate facts + optional LLM narrative)")
     p.add_argument("--cohort-id", required=True)
     p.add_argument("--artifact-root", default=DEFAULT_ARTIFACT_ROOT)
@@ -252,10 +256,19 @@ def main(argv: list[str] | None = None) -> int:
                 args.cohort_id, args.intervention_id,
                 cio_executor=cio_executor, customerio_ref=args.customerio_ref,
             )
+            if isinstance(out, dict) and out.get("status") == "executed":
+                out["queue_resolution"] = store.resolve_queue_for_intervention(args.cohort_id, args.intervention_id)
         elif args.cmd == "record-intervention-outcome":
             out = store.record_intervention_outcome(args.cohort_id, args.intervention_id, _load_json_arg(args.outcome_json))
         elif args.cmd == "list-interventions":
             out = {"interventions": store.list_interventions(args.cohort_id, approval_status=args.status)}
+        elif args.cmd == "draft-queue-interventions":
+            copy_drafter = None
+            if args.draft_copy_live:
+                from pmf_os.queue_actions import default_copy_drafter
+
+                copy_drafter = default_copy_drafter()
+            out = {"drafted": store.draft_interventions_for_open_queues(args.cohort_id, copy_drafter=copy_drafter)}
         elif args.cmd == "end-cohort-memo":
             narrator = None
             if args.narrate_live:

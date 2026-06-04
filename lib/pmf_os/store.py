@@ -893,6 +893,48 @@ class PmfStore:
             "frequency_cap_checked": draft.get("frequency_cap_checked"),
         }
 
+    def draft_interventions_for_open_queues(self, cohort_id: str, *, copy_drafter: Any = None) -> list[dict[str, Any]]:
+        """Propose (never send) interventions for actionable open queues. Idempotent —
+        skips a queue that already has a non-'failed' linked intervention (so re-running
+        never double-drafts, and a human's rejection is respected). Drafts land in
+        'needs_approval' (mutation channels) or 'draft' (internal_task), each carrying
+        its originating queue_id. Returns the drafted intervention rows."""
+        from .queue_actions import plan_interventions_for_queues
+
+        already = self._queue_ids_with_active_intervention(cohort_id)
+        fresh = [q for q in self.open_queue_items(cohort_id) if q.get("id") not in already]
+        specs = plan_interventions_for_queues(fresh, copy_drafter=copy_drafter)
+        return [self.draft_intervention(cohort_id, spec) for spec in specs]
+
+    def _queue_ids_with_active_intervention(self, cohort_id: str) -> set:
+        """queue_ids that already have a non-'failed' intervention — the idempotency
+        guard. Only a failed send is re-draftable; a rejection/approval/execution blocks
+        re-drafting the same queue."""
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT queue_id FROM pmf_interventions "
+                "WHERE cohort_id=? AND queue_id IS NOT NULL AND approval_status != 'failed'",
+                (cohort_id,),
+            ).fetchall()
+        return {row["queue_id"] for row in rows}
+
+    def resolve_queue_for_intervention(self, cohort_id: str, intervention_id: str) -> dict[str, Any] | None:
+        """Closed loop: resolve the operating queue an executed intervention came from.
+        No-op (returns None) if the intervention has no linked queue or the queue is gone."""
+        intervention = self.get_intervention(cohort_id, intervention_id)
+        queue_id = intervention.get("queue_id")
+        if not queue_id:
+            return None
+        with self.connect() as conn:
+            qrow = conn.execute(
+                "SELECT user_key, queue_type FROM pmf_operating_queues WHERE id=? AND cohort_id=?",
+                (queue_id, cohort_id),
+            ).fetchone()
+            if not qrow:
+                return None
+            self._resolve_queue_if_open(conn, cohort_id, qrow["user_key"], qrow["queue_type"])
+        return {"queue_id": queue_id, "queue_type": qrow["queue_type"], "resolved": True}
+
     # ------------------------------------------------------------------
     # Reports and artifacts
     # ------------------------------------------------------------------

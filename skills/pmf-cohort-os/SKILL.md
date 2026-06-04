@@ -255,6 +255,16 @@ python3 /opt/lib/pmf_cohort_os.py ... record-intervention-outcome --cohort-id <i
 
 `execute-intervention` refuses anything not `approved` or not passing the guard, and a live-send failure records `failed` (never raises). SMS is blocked at every layer.
 
+### Queue → intervention (P9 — propose from open queues, human-gated)
+
+Turn actionable open queues into *proposed* interventions in one step (never sends; idempotent — won't re-draft a queue that already has a non-`failed` intervention):
+
+```bash
+python3 /opt/lib/pmf_cohort_os.py ... draft-queue-interventions --cohort-id <id> [--draft-copy-live]
+```
+
+The deterministic map (`queue_actions.QUEUE_INTERVENTION_MAP`) decides which queues warrant which nudge: `high_intent` / `stuck_onboarding` → email, `at_risk` → push, `potential_lover` → an **internal founder-outreach task (not an automated send)**. Review/quality queues get no draft. Drafts land in `needs_approval` linked via `queue_id`; on a successful `execute-intervention` the originating queue is **resolved automatically** (the closed loop). The draft's `suppression_check` is honestly **unverified** — the real suppression + frequency check is the **live executor's** job before it actually sends (`customerio_exec`); never send a draft without it.
+
 ## Slack Response Shape
 
 Slack should receive a concise summary plus artifact file/link, not giant tables:
