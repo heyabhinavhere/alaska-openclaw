@@ -97,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--date", required=True)
     p.add_argument("--no-intake", action="store_true", help="Skip Amplitude intake (use when already ingested)")
     p.add_argument("--no-render", action="store_true", help="Skip artifact rendering")
+    p.add_argument("--deliver", action="store_true", help="Post the daily summary + cockpit to Slack (needs SLACK_BOT_TOKEN)")
+    p.add_argument("--slack-channel", help="Slack channel id for --deliver (e.g. C0APP7V6H8C)")
 
     args = parser.parse_args(argv)
     store = PmfStore(args.db)
@@ -196,12 +198,19 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "run-cohort-day":
             from pmf_os.orchestrator import run_cohort_day
 
+            slack_sender = None
+            if args.deliver:
+                from pmf_os.slack_delivery import make_live_sender
+
+                slack_sender = make_live_sender()
             out = run_cohort_day(
                 store,
                 args.cohort_id,
                 args.date,
                 do_intake=not args.no_intake,
                 render=not args.no_render,
+                slack_sender=slack_sender,
+                slack_channel=args.slack_channel,
             )
         else:
             parser.error(f"unknown command {args.cmd}")
