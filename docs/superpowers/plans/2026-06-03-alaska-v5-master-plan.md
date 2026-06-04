@@ -9,9 +9,9 @@
 
 ---
 
-## Progress log (updated 2026-06-03)
+## Progress log (updated 2026-06-04)
 
-**Done + merged:** P0 privacy→**data-minimization** + dogfood (#66) · P1 Amplitude intake (#70) · P2 User 360 enrichment + identity (#71) · P3 daily orchestrator (#72) · **P4** CredGPT turn ingestion + Amplitude message-count fallback + greeting-filtered meaningful count (#75). **6-metric computation** (the four deterministic PMF metrics + chat over-count fix) in PR.
+**Done + merged:** P0 data-minimization + dogfood (#66) · P1 Amplitude intake (#70) · P2 User 360 enrichment + identity (#71) · P3 daily orchestrator (#72) · **P4** CredGPT turn ingestion + Amplitude fallback + greeting-filtered meaningful count (#75) · **6-metric computation** (4 deterministic PMF metrics + chat over-count fix) (#81) · **P5** Slack delivery + cockpit + slim image (#83) · **P4.1** CredGPT LLM quality/safety judge (#84). **P6** Customer.io intervention execution (gated state machine) in PR.
 
 **Privacy policy changed (supersedes the tier framing in §7 below):** not aggregate-vs-detail tiers — the whole team sees full per-user detail (name/email/phone/credit/financials). We *minimize at the source*: drop SSN / routing numbers / home address, reduce account numbers to last-4 (`lib/pmf_os/model.py: minimize_secrets`).
 
@@ -23,11 +23,13 @@
 - **Deferred (with clear unlocks):** `qualitative_positive_signal` — no API source (chat thumbs effectively dead, ~1 across hundreds of turns; no sentiment field anywhere) → P4.1 LLM judge on turn text. `retained_value` — time-gated (weekly cadence, needs ≥2 snapshots) → computed later from Alaska's *own* raw credit/savings snapshots over the cohort, not BON's precomputed deltas.
 - **Fix shipped:** the chat real-turn heuristic over-counted on null-answer mega-threads (user 2762: 92 "real" turns from 2 null-answer threads) — the meaningful count is now gated on a non-null answer; `_real_chat_turns` stays broad for observatory ingestion.
 
+**P5 / P4.1 / P6 — operate + judge + deliver (merged #83 / #84; P6 in PR):** Slack delivery wired into `run-cohort-day` (`--deliver`; injectable, best-effort) + image slimmed (LibreOffice/poppler dropped, DOCX/PDF deferred). The CredGPT **LLM judge** runs on deterministically-flagged turns as a gated CLI step (`judge-credgpt-reviews`) — injectable + key-gated (no in-repo LLM SDK; thin urllib adapter; `ANTHROPIC_API_KEY` is deploy-time). **P6** adds the gated Customer.io intervention state machine (draft → human approve → guard-validated execute → outcome) in `pmf_interventions`; nothing sends autonomously, SMS blocked, live send only on explicit `--execute-live`.
+
 **Open items (tracked):**
-- **6 PMF success-metrics: 4 of 6 defined + computed (see above)** → funnel now reaches Activated Saver / Lover. Remaining 2 (`qualitative_positive_signal`, `retained_value`) deferred with clear unlocks (LLM judge / raw time-series).
-- **Cron activation** — orchestrator built, not scheduled (gated, explicit go).
-- **Cohort window** date not finalized; **User 360 prod** migration ~week of Jun 9.
-- **LLM quality judge (P4.1)**, Slack delivery (P5), Customer.io execution (P6), end-cohort intelligence (P7). DOCX/PDF + LibreOffice still deferred.
+- **6 PMF success-metrics: 4 of 6 computed** → funnel reaches Activated Saver / Lover. Remaining 2 (`qualitative_positive_signal`, `retained_value`) deferred with clear unlocks (LLM judge already built — wire it in; raw time-series).
+- **P7 end-cohort intelligence** is the last build phase. The **E2E dogfood run** (synthetic CI-covered; real historical-backfill calibration via Alaska still to do) and **cron activation** (gated, explicit go) remain.
+- **Deploy-time keys**: `SLACK_BOT_TOKEN` (P5), `ANTHROPIC_API_KEY` (P4.1), `CUSTOMERIO_APP_API_KEY` (P6) must be set + validated on Railway; **User 360 prod** cutover ~week of Jun 9.
+- **Cohort window** date not finalized. DOCX/PDF + LibreOffice still deferred.
 
 ---
 

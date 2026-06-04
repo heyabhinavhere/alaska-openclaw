@@ -28,6 +28,7 @@ from .credgpt_quality import (
     normalize_verdict,
     review_turn,
 )
+from .customerio_guard import CUSTOMERIO_MUTATION_CHANNELS, validate_customerio_action
 from .docflow import build_docflow_spec
 from .funnel import evaluate_funnel
 from .model import Evidence, higher_stage, minimize_secrets, now_utc
@@ -687,6 +688,162 @@ class PmfStore:
             params.append(pmf_usefulness)
         params.append(review_id)
         conn.execute(f"UPDATE credgpt_quality_reviews SET {', '.join(sets)} WHERE review_id=?", params)
+
+    # ----- Customer.io interventions (P6: gated, human-approved, outcome-tracked) -----
+
+    def draft_intervention(self, cohort_id: str, intervention: dict[str, Any]) -> dict[str, Any]:
+        """Persist a drafted intervention (never sends). Mutation channels
+        (email/push/customerio_attribute) start in 'needs_approval'; others 'draft'.
+        Stores the dry-run/audience/suppression previews the guard requires later."""
+        self.get_cohort(cohort_id)  # validates the cohort exists
+        channel = intervention.get("channel")
+        if channel == "sms":
+            raise ValueError("SMS interventions are blocked (A2P not approved).")
+        intervention_id = intervention.get("intervention_id") or stable_id(
+            "pmfint", cohort_id, str(intervention.get("user_key") or ""),
+            str(intervention.get("action_type") or ""), now_utc(), os.urandom(6).hex(),
+        )
+        status = "needs_approval" if channel in CUSTOMERIO_MUTATION_CHANNELS else "draft"
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO pmf_interventions (
+                  intervention_id, cohort_id, user_key, queue_id, channel, action_type,
+                  draft_json, approval_status, dry_run_json, audience_preview_json, suppression_check_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(intervention_id) DO UPDATE SET
+                  draft_json=excluded.draft_json,
+                  dry_run_json=excluded.dry_run_json,
+                  audience_preview_json=excluded.audience_preview_json,
+                  suppression_check_json=excluded.suppression_check_json
+                """,
+                (
+                    intervention_id, cohort_id, _string_or_none(intervention.get("user_key")),
+                    intervention.get("queue_id"), channel, str(intervention.get("action_type") or "intervention"),
+                    dumps(intervention.get("draft") or intervention.get("draft_json") or {}),
+                    status,
+                    dumps(intervention.get("dry_run")) if intervention.get("dry_run") is not None else None,
+                    dumps(intervention.get("audience_preview")) if intervention.get("audience_preview") is not None else None,
+                    dumps(intervention.get("suppression_check")) if intervention.get("suppression_check") is not None else None,
+                ),
+            )
+        return self.get_intervention(cohort_id, intervention_id)
+
+    def get_intervention(self, cohort_id: str, intervention_id: str) -> dict[str, Any]:
+        with self.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM pmf_interventions WHERE cohort_id=? AND intervention_id=?",
+                (cohort_id, intervention_id),
+            ).fetchone()
+        if not row:
+            raise KeyError(f"intervention {intervention_id} not found in cohort {cohort_id}")
+        return self._intervention_row(row)
+
+    def approve_intervention(self, cohort_id: str, intervention_id: str, approved_by: str) -> dict[str, Any]:
+        """Human approval gate — sets approved_by/approved_at and status='approved'."""
+        if not approved_by:
+            raise ValueError("approved_by is required to approve an intervention.")
+        current = self.get_intervention(cohort_id, intervention_id)
+        if current["approval_status"] in {"executed", "cancelled"}:
+            raise ValueError(f"cannot approve an intervention in state {current['approval_status']}")
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE pmf_interventions SET approval_status='approved', approved_by=?, approved_at=? "
+                "WHERE cohort_id=? AND intervention_id=?",
+                (approved_by, now_utc(), cohort_id, intervention_id),
+            )
+        return self.get_intervention(cohort_id, intervention_id)
+
+    def reject_intervention(self, cohort_id: str, intervention_id: str, approved_by: str, reason: str | None = None) -> dict[str, Any]:
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE pmf_interventions SET approval_status='rejected', approved_by=?, approved_at=?, outcome_json=? "
+                "WHERE cohort_id=? AND intervention_id=?",
+                (approved_by, now_utc(), dumps({"rejected_reason": reason}), cohort_id, intervention_id),
+            )
+        return self.get_intervention(cohort_id, intervention_id)
+
+    def execute_intervention(
+        self,
+        cohort_id: str,
+        intervention_id: str,
+        *,
+        cio_executor: Any = None,
+        customerio_ref: str | None = None,
+    ) -> dict[str, Any]:
+        """Execute an APPROVED intervention. Re-validates via the safety guard and
+        refuses anything not approved or not passing it. Sends only through the
+        injected `cio_executor` (or records a human/skill-provided `customerio_ref`).
+        With neither, nothing is sent — returns {'status': 'no_executor'}."""
+        current = self.get_intervention(cohort_id, intervention_id)
+        if current["approval_status"] != "approved":
+            return {"status": "blocked", "reason": f"not_approved (state={current['approval_status']})", "intervention": current}
+        decision = validate_customerio_action(self._intervention_action(current))
+        if not decision.allowed:
+            return {"status": "blocked", "reason": "guard_rejected", "decision": decision.as_dict(), "intervention": current}
+        if cio_executor is not None:
+            try:
+                result = cio_executor(self._intervention_action(current)) or {}
+                customerio_ref = result.get("customerio_ref") or result.get("delivery_id") or customerio_ref
+            except Exception as exc:  # noqa: BLE001 - a send failure is recorded, not raised
+                with self.connect() as conn:
+                    conn.execute(
+                        "UPDATE pmf_interventions SET approval_status='failed', outcome_json=? "
+                        "WHERE cohort_id=? AND intervention_id=?",
+                        (dumps({"error": str(exc)}), cohort_id, intervention_id),
+                    )
+                return {"status": "failed", "error": str(exc), "intervention": self.get_intervention(cohort_id, intervention_id)}
+        elif customerio_ref is None:
+            return {"status": "no_executor", "reason": "no cio_executor and no customerio_ref; nothing sent", "intervention": current}
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE pmf_interventions SET approval_status='executed', executed_at=?, customerio_ref=? "
+                "WHERE cohort_id=? AND intervention_id=?",
+                (now_utc(), _string_or_none(customerio_ref), cohort_id, intervention_id),
+            )
+        return {"status": "executed", "customerio_ref": customerio_ref, "intervention": self.get_intervention(cohort_id, intervention_id)}
+
+    def record_intervention_outcome(self, cohort_id: str, intervention_id: str, outcome: dict[str, Any]) -> dict[str, Any]:
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE pmf_interventions SET outcome_json=? WHERE cohort_id=? AND intervention_id=?",
+                (dumps(outcome), cohort_id, intervention_id),
+            )
+        return self.get_intervention(cohort_id, intervention_id)
+
+    def list_interventions(self, cohort_id: str, *, approval_status: str | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM pmf_interventions WHERE cohort_id=?"
+        params: list[Any] = [cohort_id]
+        if approval_status:
+            sql += " AND approval_status=?"
+            params.append(approval_status)
+        sql += " ORDER BY created_at"
+        with self.connect() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [self._intervention_row(row) for row in rows]
+
+    def _intervention_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        item = dict(row)
+        for key in ("draft_json", "dry_run_json", "audience_preview_json", "suppression_check_json", "outcome_json"):
+            if key in item:
+                item[key[: -len("_json")]] = loads(item.pop(key), None)
+        return item
+
+    def _intervention_action(self, row: dict[str, Any]) -> dict[str, Any]:
+        """Build the customerio_guard action dict from a stored intervention row."""
+        draft = row.get("draft") if isinstance(row.get("draft"), dict) else {}
+        return {
+            "channel": row.get("channel"),
+            "action_type": row.get("action_type"),
+            "cohort_id": row.get("cohort_id"),
+            "approved_by": row.get("approved_by"),
+            "draft": row.get("draft"),
+            "dry_run": row.get("dry_run"),
+            "audience_preview": row.get("audience_preview"),
+            "suppression_check": row.get("suppression_check"),
+            "frequency_cap_checked": draft.get("frequency_cap_checked"),
+        }
 
     # ------------------------------------------------------------------
     # Reports and artifacts

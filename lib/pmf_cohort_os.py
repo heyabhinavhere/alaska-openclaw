@@ -92,6 +92,36 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("validate-customerio-action", help="Validate a PMF Customer.io action JSON")
     p.add_argument("--action-json", required=True)
 
+    p = sub.add_parser("draft-intervention", help="Draft a Customer.io intervention (never sends; mutation channels start needs_approval)")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--intervention-json", required=True)
+
+    p = sub.add_parser("approve-intervention", help="Human approval gate for a drafted intervention")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--intervention-id", required=True)
+    p.add_argument("--approved-by", required=True)
+
+    p = sub.add_parser("reject-intervention", help="Reject a drafted intervention")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--intervention-id", required=True)
+    p.add_argument("--approved-by", required=True)
+    p.add_argument("--reason")
+
+    p = sub.add_parser("execute-intervention", help="Execute an APPROVED intervention (gated; --execute-live actually sends via Customer.io)")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--intervention-id", required=True)
+    p.add_argument("--customerio-ref", help="Record a ref for a send a human/skill already performed")
+    p.add_argument("--execute-live", action="store_true", help="Send via the live Customer.io API (needs CUSTOMERIO_APP_API_KEY)")
+
+    p = sub.add_parser("record-intervention-outcome", help="Record delivery/open/click/conversion outcome JSON")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--intervention-id", required=True)
+    p.add_argument("--outcome-json", required=True)
+
+    p = sub.add_parser("list-interventions", help="List interventions for a cohort")
+    p.add_argument("--cohort-id", required=True)
+    p.add_argument("--status", help="Filter by approval_status")
+
     p = sub.add_parser("run-cohort-day", help="Run the full daily cohort pass: intake -> enrich+snapshot -> clusters -> report")
     p.add_argument("--cohort-id", required=True)
     p.add_argument("--date", required=True)
@@ -195,6 +225,26 @@ def main(argv: list[str] | None = None) -> int:
                 "decision": validate_customerio_action(action).as_dict(),
                 "approval_pack": build_approval_pack(action),
             }
+        elif args.cmd == "draft-intervention":
+            out = store.draft_intervention(args.cohort_id, _load_json_arg(args.intervention_json))
+        elif args.cmd == "approve-intervention":
+            out = store.approve_intervention(args.cohort_id, args.intervention_id, args.approved_by)
+        elif args.cmd == "reject-intervention":
+            out = store.reject_intervention(args.cohort_id, args.intervention_id, args.approved_by, args.reason)
+        elif args.cmd == "execute-intervention":
+            cio_executor = None
+            if args.execute_live:
+                from pmf_os.customerio_exec import make_live_executor
+
+                cio_executor = make_live_executor()
+            out = store.execute_intervention(
+                args.cohort_id, args.intervention_id,
+                cio_executor=cio_executor, customerio_ref=args.customerio_ref,
+            )
+        elif args.cmd == "record-intervention-outcome":
+            out = store.record_intervention_outcome(args.cohort_id, args.intervention_id, _load_json_arg(args.outcome_json))
+        elif args.cmd == "list-interventions":
+            out = {"interventions": store.list_interventions(args.cohort_id, approval_status=args.status)}
         elif args.cmd == "run-cohort-day":
             from pmf_os.orchestrator import run_cohort_day
 
