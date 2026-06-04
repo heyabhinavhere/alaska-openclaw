@@ -25,6 +25,7 @@ import time
 from typing import Any, Callable
 
 from .collectors import amplitude, user360
+from .enrichment import resolve_enrichment_config, select_users_to_enrich
 from .store import DEFAULT_ARTIFACT_ROOT
 from .thresholds import resolve_thresholds
 
@@ -81,6 +82,7 @@ def run_cohort_day(
         "briefing": None,
         "summary": {},
         "latency": {},
+        "enrichment": {},
         "errors": [],
     }
     cohort = store.get_cohort(cohort_id)
@@ -105,8 +107,19 @@ def run_cohort_day(
     #    Per-call latency is sampled so the run record can decompose enrich cost
     #    (resolve / profile-fetch / Amplitude-fallback) — used to size the daily
     #    enrichment budget. Purely observational; no behavior change.
-    users = store.list_users(cohort_id)
+    # Incremental enrichment: in 'incremental' mode enrich only NEW + recently-moved
+    # + a capped slow-refresh slice instead of the whole cohort (bounds daily load).
+    # 'full' (default) enriches everyone — unchanged behavior.
+    enrichment = resolve_enrichment_config(cohort.get("config_json"))
+    all_users = store.list_users(cohort_id)
+    users = select_users_to_enrich(all_users, snapshot_date, config=enrichment)
     run["users"]["total"] = len(users)
+    run["enrichment"] = {
+        "mode": enrichment["mode"],
+        "registry_total": len(all_users),
+        "selected": len(users),
+        "skipped_not_due": len(all_users) - len(users),
+    }
     lat: dict[str, list[float]] = {"resolve": [], "profile": [], "amplitude_fallback": [], "per_user_enrich": []}
     for row in users:
         key = row.get("user_key")
