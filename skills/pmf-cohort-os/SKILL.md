@@ -23,6 +23,14 @@ Use this skill when:
 
 Do **not** use this skill for ordinary Alaska task tracking. `task-handler` remains the sole writer of team task tables.
 
+## /pmf — the PMF query mode
+
+This skill owns the explicit **`/pmf`** command — the user-facing signal for a PMF-cohort question (e.g. `/pmf what's up with user 2903`, `/pmf who are the likely lovers`, `/pmf show the cockpit`). Answer **only** from the PMF source set, grounded, and never blend in the default 360/Amplitude user-intel read (that is a different lens):
+
+- **Source set:** the PMF store (`alaska_pmf.db` — registry, daily snapshots, **case files**, funnel, operating queues, interventions), end-of-cohort survey responses, PMF Watchers, and `workspace/knowledge/definitions/pmf-cohort-os.md`.
+- **If no cohort is active** (or the user isn't a cohort member), say so plainly — do NOT invent a funnel stage or case file. You may still give their raw 360 read separately if asked, but label it as such.
+- Per-user PMF detail (the case file) is founder-grade operational info the whole team may see; the aggregate daily Slack line stays aggregate.
+
 ## Operating Truth
 
 - Alaska owns PMF operating truth in SQLite.
