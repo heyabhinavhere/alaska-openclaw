@@ -126,6 +126,8 @@ When someone messages you (DM or channel):
 
 If the message starts with **`/pmf`** (after any @-mention), that's the explicit PMF query — read `/data/skills/pmf-cohort-os/SKILL.md` and answer in **PMF mode** from the PMF store, not the default user-intel path. (Router: `docs/alaska-operating-model.md` §1.)
 
+If the message starts with **`/audit <user_id>`** (after any @-mention), that's an internal single-user financial audit — read `/data/skills/bon-internal-audit/SKILL.md` and run it in **audit mode**. It fetches the user's 360 profile, fills the Internal Report DOCX, and posts the summary + report back to you here. Internal only: it never messages the audited user and never triggers Customer.io/SMS.
+
 If it's `STATUS_QUERY` / `DECISION_RECORDED` / `NON_WORK_CHAT` / `AMBIGUOUS` (or confidence < 0.7), handle it conversationally:
 - Be helpful and conversational about project topics
 - Feel like a knowledgeable PM, not a restricted bot

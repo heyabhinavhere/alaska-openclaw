@@ -49,6 +49,7 @@ For each message:
    - **Trivially short messages:** Skip if `message_text` is < 5 characters AND doesn't contain `@`-mention, T-N reference, or any task verb (fix, ship, build, merge, deploy, blocked, done, working, finished, started, assigned, review, approve, reject). Mark as `NON_WORK_CHAT` directly without LLM call.
    - **Emoji-only or punctuation-only messages:** Skip if message strips to empty after removing emojis and punctuation. Mark as `NON_WORK_CHAT`.
    - **Explicit `/pmf` command (route, don't classify):** if `message_text` (after any leading @-mention) starts with `/pmf`, it is an explicit PMF-cohort query — skip the 10-intent classification and route to the `pmf-cohort-os` skill with the rest of the message as the PMF question. This is Alaska's one user-facing slash-command; it disambiguates PMF mode from the default user-intel path (see `docs/alaska-operating-model.md` §1).
+   - **Explicit `/audit <user_id>` command (route, don't classify):** if `message_text` (after any leading @-mention) starts with `/audit`, it is an internal single-user financial audit request — skip the 10-intent classification and route to the `bon-internal-audit` skill with the `user_id` that follows. Internal only: the audit posts its summary and report back to the invoker and never messages the audited user (see `skills/bon-internal-audit/SKILL.md`).
 
 2. **Classify with LLM:** for the rest, call Claude Sonnet 4.6 with this exact prompt structure:
 
