@@ -360,8 +360,9 @@ def enrich_facts(payload: dict[str, Any], *, summarize_fn: SummarizeFn | None = 
     }
     # Friction signals → operating queues. intake_period (recent signup + not onboarded)
     # drives stuck_onboarding; inactive_days (chat-activity proxy) drives at_risk.
-    # failed_link_attempts (→ high_intent) is intentionally NOT set here: the 360
-    # profile carries no link-failure signal — see the PR for the deferred data source.
+    # failed_link_attempts (→ high_intent) is NOT derived here — the 360 profile has no
+    # link-failure signal; the orchestrator sets it from an Amplitude fallback
+    # (add_card_unsuccessful / add_bank_unsuccessful) for unlinked channels.
     daily_facts["intake_period"] = _intake_period(summary, onboarding_complete)
     _inactive = _inactive_days(active_days, as_of_date)
     if _inactive is not None:

@@ -116,6 +116,22 @@ def _enrich_one_user(
                     out["fallback_used"] = 1
             except Exception as exc:  # noqa: BLE001 - fallback is best-effort
                 out["errors"].append({"user_key": key, "step": "amplitude_fallback", "error": str(exc)})
+        # Failed-link attempts aren't in the 360 profile — query Amplitude
+        # (add_card_unsuccessful / add_bank_unsuccessful) for channels the user has
+        # NOT linked, so the high_intent ("tried to link, failed, still unlinked")
+        # queue fires. Gated to onboarded users (link attempts are post-onboarding)
+        # to bound the extra segmentation calls.
+        unlinked = [ch for ch in ("card", "bank") if not facts.get(f"{ch}_linked")]
+        if unlinked and facts.get("onboarding_complete") and (segmentation_fetcher or amplitude.is_configured()):
+            try:
+                failed = amplitude.fetch_failed_link_attempts(
+                    resolved["user_id"], cohort["signup_window_start"], snapshot_date,
+                    channels=tuple(unlinked), segmentation_fetcher=segmentation_fetcher,
+                )
+                if failed:
+                    facts["failed_link_attempts"] = [f"{ch}:link_failed" for ch in failed]
+            except Exception as exc:  # noqa: BLE001 - best-effort
+                out["errors"].append({"user_key": key, "step": "failed_link_fallback", "error": str(exc)})
         store.update_user_profile(cohort_id, key, enriched["profile_facts"])
         store.apply_daily_snapshot(cohort_id, key, snapshot_date, facts, thresholds=thresholds)
         out["status"] = "enriched"

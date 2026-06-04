@@ -48,12 +48,22 @@ ExportFetcher = Callable[[str, str], bytes]
 # activation-signal fallback when User 360 chat comes back thin/empty.
 AMPLITUDE_SEGMENTATION_URL = "https://amplitude.com/api/2/events/segmentation"
 CREDGPT_MESSAGE_EVENT = "credgpt_message_sent"
+# Plaid link-FAILURE events: the high-intent-but-stuck signal the 360 profile does
+# NOT carry (see workspace/knowledge/integrations/amplitude.md § lifecycle events).
+LINK_FAILURE_EVENTS = {"card": "add_card_unsuccessful", "bank": "add_bank_unsuccessful"}
 # (e_json, start_YYYYMMDD, end_YYYYMMDD) -> parsed segmentation response dict.
 SegmentationFetcher = Callable[[str, str, str], "dict[str, Any]"]
 
 
 class AmplitudeAuthError(RuntimeError):
     """Raised when Amplitude credentials are missing."""
+
+
+def is_configured() -> bool:
+    """True when Amplitude credentials are present (so a live segmentation query is
+    possible). Lets the orchestrator skip the failed-link fallback cleanly when
+    there's neither an injected fetcher nor credentials."""
+    return bool(os.environ.get("AMPLITUDE_API_KEY") and os.environ.get("AMPLITUDE_SECRET_KEY"))
 
 
 def _auth_header() -> str:
@@ -96,6 +106,28 @@ def _live_segmentation_fetch(e_json: str, start: str, end: str, *, timeout: floa
         return json.loads(response.read())
 
 
+def _segment_user_total(event_type: str, user_id: str | int, start: str, end: str, fetcher: SegmentationFetcher) -> int:
+    """Total count of ONE event for ONE user in [start, end] (YYYYMMDD), via Event
+    Segmentation (gp:user_id filter, m=totals). Shared by the activation + failed-
+    link fallbacks."""
+    definition = {
+        "event_type": event_type,
+        "filters": [
+            {
+                "subprop_key": "gp:user_id",
+                "subprop_op": "is",
+                "subprop_type": "user",
+                "subprop_value": [str(user_id)],
+            }
+        ],
+    }
+    data = fetcher(json.dumps(definition), start, end)
+    series = ((data or {}).get("data") or {}).get("series") or []
+    if not series:
+        return 0
+    return int(sum(v for v in series[0] if isinstance(v, (int, float))))
+
+
 def fetch_message_count(
     user_id: str | int,
     window_start: str,
@@ -111,22 +143,32 @@ def fetch_message_count(
     greeting-filtered "meaningful" count we get from User 360 turn text.
     """
     fetcher = segmentation_fetcher or _live_segmentation_fetch
-    definition = {
-        "event_type": CREDGPT_MESSAGE_EVENT,
-        "filters": [
-            {
-                "subprop_key": "gp:user_id",
-                "subprop_op": "is",
-                "subprop_type": "user",
-                "subprop_value": [str(user_id)],
-            }
-        ],
-    }
-    data = fetcher(json.dumps(definition), _to_segmentation_date(window_start), _to_segmentation_date(window_end))
-    series = ((data or {}).get("data") or {}).get("series") or []
-    if not series:
-        return 0
-    return int(sum(v for v in series[0] if isinstance(v, (int, float))))
+    return _segment_user_total(
+        CREDGPT_MESSAGE_EVENT, user_id,
+        _to_segmentation_date(window_start), _to_segmentation_date(window_end), fetcher,
+    )
+
+
+def fetch_failed_link_attempts(
+    user_id: str | int,
+    window_start: str,
+    window_end: str,
+    *,
+    channels: "tuple[str, ...]" = ("card", "bank"),
+    segmentation_fetcher: SegmentationFetcher | None = None,
+) -> list[str]:
+    """Channels where the user hit a Plaid link FAILURE in the window
+    (add_card_unsuccessful / add_bank_unsuccessful) — the high-intent-but-stuck
+    signal the 360 profile doesn't carry. One segmentation count per requested
+    channel; channels with >0 failure events are returned (e.g. ["card"])."""
+    fetcher = segmentation_fetcher or _live_segmentation_fetch
+    start, end = _to_segmentation_date(window_start), _to_segmentation_date(window_end)
+    failed: list[str] = []
+    for channel in channels:
+        event = LINK_FAILURE_EVENTS.get(channel)
+        if event and _segment_user_total(event, user_id, start, end, fetcher) > 0:
+            failed.append(channel)
+    return failed
 
 
 def _live_export_fetch(start_t: str, end_t: str, *, timeout: float = 420.0) -> bytes:

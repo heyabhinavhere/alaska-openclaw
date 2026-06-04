@@ -179,6 +179,37 @@ def test_auth_header_requires_credentials():
                 os.environ[key] = value
 
 
+def test_fetch_failed_link_attempts():
+    # The fake segmentation fetcher returns a per-event count based on the queried
+    # event_type, so we can assert which channels are flagged as failed.
+    def seg(counts):
+        def _fetch(e_json, start, end):
+            ev = json.loads(e_json)["event_type"]
+            return {"data": {"series": [[counts.get(ev, 0)]]}}
+        return _fetch
+
+    # card failed (1 event), bank clean
+    failed = amplitude.fetch_failed_link_attempts(
+        2404, "2026-03-20", "2026-04-01",
+        segmentation_fetcher=seg({"add_card_unsuccessful": 1, "add_bank_unsuccessful": 0}),
+    )
+    assert failed == ["card"]
+    # both channels failed
+    assert amplitude.fetch_failed_link_attempts(
+        2404, "2026-03-20", "2026-04-01",
+        segmentation_fetcher=seg({"add_card_unsuccessful": 2, "add_bank_unsuccessful": 3}),
+    ) == ["card", "bank"]
+    # none
+    assert amplitude.fetch_failed_link_attempts(
+        2404, "2026-03-20", "2026-04-01", segmentation_fetcher=seg({}),
+    ) == []
+    # channels filter: only check bank
+    assert amplitude.fetch_failed_link_attempts(
+        2404, "2026-03-20", "2026-04-01", channels=("bank",),
+        segmentation_fetcher=seg({"add_card_unsuccessful": 5, "add_bank_unsuccessful": 1}),
+    ) == ["bank"]
+
+
 if __name__ == "__main__":
     import subprocess
 
