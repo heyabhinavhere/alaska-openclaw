@@ -297,10 +297,12 @@ policy: SSN / routing / address are never present and account numbers are last-4
 ## Weekly digest (`weekly-digest`)
 
 ```bash
-python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db weekly-digest --cohort-id <id> [--week-start YYYY-MM-DD] [--narrate-live]
+python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db weekly-digest --cohort-id <id> [--week-start YYYY-MM-DD] [--narrate-live] [--deliver --slack-channel <id>]
 ```
 
 Deterministic facts (this-week stage movements, the current funnel + 6-metric rollup, product-friction themes from friction queues + CredGPT clusters, intervention outcomes) plus — with `--narrate-live` — Alaska's trajectory read (`toward_pmf` / `flat` / `away_from_pmf` / `too_early` + what's working / what's blocking / do-this-week). This is the *PMF-signal* + *product-friction* report. Aggregate-only.
+
+With `--deliver --slack-channel <id>` it posts the digest as a Slack **message** to the dedicated **#pmf-cohort** channel — text only (mrkdwn), *no HTML file* (unlike the daily cockpit); falls back to a facts-only line when the narrative isn't written. Delivery is best-effort and recorded in the report's `delivery` field — a Slack/token failure is captured, it never sinks the build. The end-of-cohort memo (`end-cohort-memo`) takes the same `--deliver --slack-channel` pair and posts the verdict the same way.
 
 ## Cron activation (GATED — do not enable until the dry run passes + Abhinav's go)
 
@@ -313,7 +315,7 @@ Once activated, the PMF OS runs on a schedule. These are the specs to add **in t
 | Daily ~9:00 AM | `run-cohort-day --cohort-id <id> --date <today> --deliver --slack-channel <c> --briefing-live` | daily pass + cockpit + founder briefing |
 | 2nd pass during the 3-day signup window (~3 PM) | `run-cohort-day ...` | catch intake-only queues (stuck onboarding) fast |
 | Daily, after the main run | `judge-credgpt-reviews --cohort-id <id>` | LLM quality/safety pass on flagged turns |
-| Weekly (Mon ~9 AM) | `weekly-digest --cohort-id <id> --week-start <mon> --narrate-live` | the trajectory step-back |
-| Once, after the window closes | `end-cohort-memo --cohort-id <id> --narrate-live` | the PMF verdict |
+| Weekly (Mon ~9 AM) | `weekly-digest --cohort-id <id> --week-start <mon> --narrate-live --deliver --slack-channel <c>` | the trajectory step-back → #pmf-cohort |
+| Once, after the window closes | `end-cohort-memo --cohort-id <id> --narrate-live --deliver --slack-channel <c>` | the PMF verdict → #pmf-cohort |
 
 **Gate:** enable these only after a real-data dry run looks right (calibration) and Abhinav explicitly says go — see the go/no-go scorecard in `docs/v5-pmf-launch-readiness.md`. The daily run is hardened: a per-user wall-clock timeout (a hung User-360 call can't stall it), incremental enrichment (bounded daily load), and the friction queues (stuck_onboarding / at_risk / high_intent) now fire from derived + Amplitude signals. Customer.io sends stay human-approved regardless of any cron, and live `--execute-live` is blocked until the suppression-check lands.

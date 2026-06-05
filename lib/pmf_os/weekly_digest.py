@@ -157,3 +157,29 @@ def generate_weekly_digest(facts: dict[str, Any], *, narrator: NarratorFn | None
         return {"facts": facts, "narrative": normalize_weekly(narrator(facts)), "narrative_status": "completed"}
     except Exception as exc:  # noqa: BLE001 - the digest is best-effort over the facts
         return {"facts": facts, "narrative": None, "narrative_status": "failed", "error": str(exc)}
+
+
+def compose_weekly_slack(report: dict[str, Any]) -> str:
+    """Render the weekly digest as a Slack message (mrkdwn) for --deliver. Uses the LLM
+    narrative when present; falls back to a facts-only summary so delivery always posts
+    something meaningful (it's pure text — no HTML file)."""
+    facts = report.get("facts") or {}
+    week = " – ".join(p for p in (facts.get("week_start"), facts.get("week_end")) if p)
+    funnel = facts.get("funnel_now") or {}
+    nar = report.get("narrative") if report.get("narrative_status") == "completed" else None
+    if nar:
+        traj = nar.get("trajectory") or {}
+        lines = [
+            f"📈 *Weekly PMF digest{(' · ' + week) if week else ''}*",
+            nar.get("headline") or "",
+            f"*Trajectory:* {traj.get('rating', '?')} — {traj.get('reason', '')}",
+        ]
+        for label, key in (("What's working", "whats_working"), ("What's blocking", "whats_blocking"), ("Do this week", "do_this_week")):
+            items = nar.get(key) or []
+            if items:
+                lines.append(f"*{label}:*\n" + "\n".join(f"• {x}" for x in items[:8]))
+        return "\n".join(x for x in lines if x)
+    return (
+        f"📈 *Weekly PMF digest{(' · ' + week) if week else ''}* (facts only — run with --narrate-live for the trajectory)\n"
+        f"Real users: {funnel.get('real_users', 0)} · stages: {funnel.get('stage_counts', {})}"
+    )
