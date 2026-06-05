@@ -1,11 +1,13 @@
 # Command Gateway — `/alaska`
 
-One native Slack command with subcommands routed internally. This document is the
-integration reference: architecture, the (deferred) live wiring options, required
-Slack app settings, env vars, security, and how to extend it.
+> **Status (2026-06-05):** the **live command surface is `!`-mention/DM commands** (`@alaska !case 2762`, `!help`, …), not native `/alaska` slash commands. Native slash is **deferred** — see [the post-mortem](../superpowers/research/2026-06-05-slack-native-command-postmortem.md) and the command-layer spec in [`alaska-operating-model.md` §1.5](../alaska-operating-model.md). The deterministic dispatch engine below (`lib/alaska_command_gateway/`) is unchanged and powers both paths; the sections on native slash / the HTTP receiver describe the deferred architecture.
+
+One command namespace with subcommands routed internally. This document is the
+integration reference: the dispatch engine, reliability & observability, the
+(deferred) native-slash wiring options, env vars, security, and how to extend it.
 
 Code: `lib/alaska_command_gateway/` · Skill: `skills/command-gateway/SKILL.md`
-Tests: `tests/test_command_gateway.py`
+Tests: `tests/test_command_gateway.py` · `tests/test_command_execute.py`
 
 ## Architecture
 
@@ -162,3 +164,49 @@ to produce the audit JSON, renders the report via the **Artifact Service**
 (`validate_docx`), stores it (`store_artifact`), and uploads it
 (`upload_artifact_to_slack`) to the channel/thread. Only after Audit Agent v1 is
 merged and stable, and with explicit approval.
+
+## Reliability & observability (the `!`-command layer)
+
+`!`-command routing is **model-mediated** at the recognition step (the model decides
+to dispatch), then **deterministic** in `execute.route()`. We can't unit-test the
+model's decision, so reliability is **measured**.
+
+**`command_audit` table** (`alaska.db`, migration `0007`; append-only; inert on
+`alaska_pmf.db`). One row per routing decision:
+
+| column | meaning |
+|---|---|
+| `created_at` | UTC timestamp |
+| `raw_text` | the command text only (e.g. `case 2762`) — no PII, no whole DMs |
+| `verb` | the matched/attempted verb |
+| `matched` | `route` (dispatched) · `unknown` (`!`+non-whitelisted) · `fallthrough` (looked command-like, answered as chat) |
+| `routed_target` | the skill/executor that ran |
+| `ok` / `status` | the executor result |
+| `invoker` / `channel` / `channel_type` | Slack context (best-effort) |
+| `gateway_version` | for cross-deploy comparison |
+
+Write-points: a **deterministic** insert inside `execute.route()` (swallow-on-error — it
+can never crash a command); a **best-effort** SKILL-emitted row for `unknown`/`fallthrough`
+(the dangerous direction — a false route — is captured deterministically regardless).
+
+**Measuring (read `command_audit`):** hit-rate = `route` / commands-sent; false-route =
+`route` rows whose `raw_text` is obvious prose; per-verb health = `WHERE verb=… GROUP BY status`.
+Surface a weekly one-liner on the nightly cost-report DM; alert `#alaska-alerts` only on
+`status='handler_error'` spikes.
+
+**The 4-part promotion bar — a verb goes live only when ALL hold** (false positives are
+worse than misses): known commands **≥95%** routed · plain chat **0** false-routes ·
+task/reminder/decision **0** regressions · unknown `!thing` → **helpful error**, not random chat.
+Below bar → fix the SKILL prompt + redeploy + re-measure (never a code change). Recorded in
+[`command-routing-eval.md`](../superpowers/research/2026-06-05-command-routing-eval.md).
+
+**Definition of done, per verb:** (1) a `ROUTES`/router row; (2) a per-verb row in
+`tests/test_command_execute.py` (happy path with injected generator, bad-arg, not-found,
+handler-exception → friendly `ok:false`); (3) eval-corpus rows in `tests/fixtures/routing_eval.jsonl`
+(the command + a look-alike that must NOT route); (4) read-only or a confirm-before-write
+handshake; (5) the measured numbers recorded in the eval doc.
+
+**Rollout discipline:** every PR branches from `origin/main` and is rebased on `origin/main`
+immediately before merge — **never stacked** on another open PR's branch (a stacked merge once
+stranded a change off `main`). And **ADD before REMOVE**: add the new authoritative router and
+prove it against the bar *before* deleting any of the old scattered prefix rules.

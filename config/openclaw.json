@@ -31,11 +31,7 @@
       "dmPolicy": "open",
       "allowFrom": ["*"],
       "groupPolicy": "open",
-      "streaming": { "mode": "off" },
-      "commands": {
-        "native": true,
-        "nativeSkills": true
-      }
+      "streaming": { "mode": "off" }
     }
   },
   "tools": {

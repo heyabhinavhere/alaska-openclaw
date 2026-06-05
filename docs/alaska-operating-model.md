@@ -36,6 +36,27 @@ Alaska is **internally aware of every mode** and pattern-matches the question to
 
 ---
 
+## 1.5 The command layer — `!verb` (OM-4)
+
+> **Status:** rolling out (OM-4, from 2026-06-05). `!case`/`!help`/`!ping` land first; `!pmf`/`!audit` follow, one verb per PR. This is the **human reference**; the runtime authority is `SOUL.md` → "STEP 0 — Command Router" + the concise rule in `skills/alaska-core/SKILL.md`, and the deterministic verb dispatch in `lib/alaska_command_gateway/execute.py` (`ROUTES`). This doc is **not** read by the live agent (see §0 note: `docs/` is not shipped to the container).
+
+§1 is the **source-router** — for a *free-form question* it picks which data source to trust. §1.5 is the **command layer** — for an *explicit command* it routes deterministically, *before* §1 runs. They are complementary: a message is either a command (`!verb`) or it falls through to the source-router.
+
+**The grammar — `!` + a CLOSED whitelist.** A leading `!` alone is **not** a command. The trigger is: the first meaningful token (after any @mention, or at DM start) is `!<verb>` **and** `<verb>` is whitelisted. Otherwise → normal chat (or, for a non-whitelisted `!token`, a one-line *"unknown command — try `!help`"*, never an improvised answer). This kills the collision that made `audit 1453` read as a question.
+
+| Command | Routes to | How |
+|---|---|---|
+| `!case <user_id>` | `command-gateway` → `alaska_command_gateway.execute "case <id>"` | deterministic Python (relay `text`); posts the case-file DOCX in the channel it was run in |
+| `!audit <user_id>` | `bon-internal-audit` skill → `audit_agent.py` | model reads the skill, runs its CLI |
+| `!pmf <sub> <args>` | `pmf-cohort-os` skill (owns its own sub-dispatch) | model reads the skill, runs its CLI |
+| `!help` / `!ping` | `command-gateway` executor | deterministic |
+
+`/pmf` and `/audit` continue to work as **aliases** during migration. The whitelist is the source of truth — a verb may only join it if it is **read-only or carries its own confirm-before-write handshake** (no destructive verb in the command layer). Reliability is measured, not assumed: every dispatch is logged to `command_audit`, and a verb only goes live once it clears the 4-part bar (known commands ≥95% routed · plain chat 0 false-routes · task/reminder/decision 0 regressions · unknown `!thing` → helpful error). See `docs/platform/command-gateway.md` → "Reliability & observability".
+
+**Native `/alaska` Slack slash commands are deferred** (not dead) — see `docs/superpowers/research/2026-06-05-slack-native-command-postmortem.md`.
+
+---
+
 ## 2. The write path — one writer, many feeders
 
 Alaska's task graph lives in SQLite at `/data/queue/alaska.db` (`tasks`, `task_events`, `task_mentions`, `task_categories`, `blockers`; plus `scheduled_actions` for Phase C reminders). **Exactly one skill writes to it — `task-handler`.** Everything else *feeds* task-handler a structured intent; task-handler does match-or-create dedup and is the sole writer. One writer means every task mutation lands in one auditable place.
