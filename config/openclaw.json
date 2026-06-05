@@ -19,6 +19,12 @@
       }
     }
   },
+  "plugins": {
+    "entries": {
+      "anthropic": { "enabled": true },
+      "slack": { "enabled": true }
+    }
+  },
   "channels": {
     "slack": {
       "enabled": true,
