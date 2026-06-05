@@ -100,7 +100,7 @@ def test_user_happy_path_threads_channel_and_authority():
 
     res = E.route("user 2762", _ctx(generate_fn=fake_generate))
     assert res["ok"] is True and res["delivered"] is True
-    assert "posted above" in res["text"] and "#2762" in res["text"]
+    assert "posted to" in res["text"] and "#2762" in res["text"]
     # The generator was called with THIS channel + the invoker's mapped authority.
     assert captured["user_id"] == "2762" and captured["invoker"] == "U07GKLVA9FE"
     assert captured["kw"]["channel_id"] == "C0ANKDD664A"
@@ -117,6 +117,21 @@ def test_user_threads_thread_ts_when_present():
         return {"ok": True, "status": "ok", "user_id": 2762, "delivered": True}
     E.route("user 2762", _ctx(thread_ts="1779042600.001200", generate_fn=fake))
     assert captured["thread_ts"] == "1779042600.001200"
+
+
+def test_user_channel_label_and_slash_default_invoker():
+    seen = {}
+
+    def fake(user_id, invoker, **kw):
+        seen["invoker"] = invoker
+        return {"ok": True, "status": "ok", "user_id": 2762, "delivered": True}
+    # Native slash dispatch: no real sender; channel hardcoded to #user-audit.
+    ctx = E.build_context(invoker=None, channel="C0B1W3LUZ4G",
+                          channel_label="#user-audit", generate_fn=fake)
+    res = E.route("user 2762", ctx)
+    assert res["ok"] is True
+    assert "#user-audit" in res["text"]               # label surfaces in the reply
+    assert seen["invoker"] == "slash-command"          # graceful default, never None
 
 
 def test_user_stale_cache_is_flagged_in_reply():
