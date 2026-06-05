@@ -38,7 +38,14 @@ whole platform is **stdlib-only**.
 no public Slack request URL. Inbound DMs/@mentions are classified by
 `skills/intent-classifier` and `skills/alaska-core`. `/pmf` is **not** a native
 slash command — it is a text prefix matched inside the classifier. There are **no**
-native Slack slash commands.
+native Slack slash commands today.
+
+> **Verified 2026-06-05:** OpenClaw *does* natively support Slack slash commands (Socket
+> Mode — no public URL, no signing secret), but only on a version **newer than our pinned
+> `v2026.3.13`** (GitHub #66194, resolved ~2026-04). Going live therefore needs the
+> `v2026.3.13 → v2026.5.26` upgrade (which also requires fixing the `streaming` /
+> `nativeStreaming` config keys). Details + the two live architectures in
+> [command-gateway.md](command-gateway.md).
 
 **The `/hooks` system.** `config/openclaw.json` enables a built-in `/hooks`
 receiver, but it authenticates with a **static Bearer token** and its only

@@ -40,33 +40,45 @@ dry-run use and end-to-end tests. **The reference server is NOT started by
 | `/alaska audit <user_id>` | parse + enqueue async job; **dry-run** (posts "would run"); no live audit |
 | `/alaska pmf|user|brief` | documented as coming later (registered when wired) |
 
-## The live-wiring decision (deferred, needs approval)
+## The live-wiring decision — VERIFIED 2026-06-05
 
-A *true* native `/alaska` needs a way for Slack to reach the gateway. The repo's
-single public port belongs to the OpenClaw process, Slack runs in Socket Mode,
-and the built-in `/hooks` receiver uses a static Bearer token + a slow
-`action:agent` turn (see [README research memo](README.md)). So the transport
-must be chosen with the owner **after verifying OpenClaw's capabilities** — never
-guessed. Three candidates:
+Verified against `docs.openclaw.ai` + the OpenClaw GitHub tracker:
 
-1. **Socket Mode `slash_commands`** *(cleanest if supported)* — when Socket Mode
-   is on, Slack delivers slash commands over the existing websocket. No public
-   URL, no signing secret. **Verify:** does OpenClaw's Slack plugin surface
-   `slash_commands` envelopes to a handler? If yes, bridge them into
-   `handle_slash_command()` (with `enforce_signature=False`, since the app token
-   already authenticates the socket).
-2. **OpenClaw `/hooks` mapping** — point a Slack slash command request URL at the
-   gateway's public `/hooks/alaska`. **Verify:** do hooks support a fast,
-   non-`agent` action that returns a handler's output within 3s, and per-mapping
-   verification compatible with `X-Slack-Signature`? If yes, add a `hooks`
-   mapping in `config/openclaw.json` (a shared-file change → separate approved PR).
-3. **HTTP Events API receiver** — switch Slack to Events API and expose
-   `handle_slash_command()` on a public route. On Railway this means either an
-   OpenClaw-native Events receiver or a second service (the single-port
-   constraint makes a sidecar non-trivial). Largest change.
+**OpenClaw natively supports Slack slash commands** in both transports, with feature
+parity (messaging, slash commands, App Home, interactivity):
+- **Socket Mode** (Alaska's mode): the slash command is delivered *over the existing
+  websocket*; `slash_commands[].url` is ignored → **no public URL, no signing secret**
+  (the app-level token authenticates the socket). Config: `channels.slack.commands.native: true`
+  (off by default), `slashCommand.enabled`/`name`, map the command → a skill/agent.
+- **HTTP mode**: `channels.slack.mode: http` + `webhookPath` + `signingSecret`; Slack POSTs
+  to the request URL.
 
-Whichever is chosen, the gateway **core does not change** — only a thin adapter
-that feeds it `(raw_body, headers)` and returns `body`.
+**Version caveat (decisive):** GitHub issue **#66194** ("OpenClaw does not currently
+handle incoming slash command payloads from Slack Socket Mode … command fails silently")
+was a feature request **closed 2026-04-13** — *after* our pinned **`v2026.3.13`
+(2026-03-14)**. So the **live gateway almost certainly cannot receive a native Socket-Mode
+slash command today** (it would time out) — which is exactly why `/pmf` and `/audit` use
+the instruction-routed workaround. Native `/alaska` therefore requires the OpenClaw upgrade
+**`v2026.3.13 → v2026.5.26`** (in-repo research: SAFE — but it crashes on boot unless
+`config/openclaw.json` drops `nativeStreaming` and makes `streaming` an object, and adds an
+`openclaw doctor --fix` preflight in `entrypoint.sh`).
+
+### Two live architectures
+
+- **A — OpenClaw-native routing (recommended).** Slack `/alaska` → OpenClaw (Socket Mode,
+  post-upgrade) → a `command-gateway` **skill** that calls this lib's `parse_command` +
+  handler registry: `help`/`ping` answered deterministically, `audit` enqueued. OpenClaw owns
+  the 3s ack + async. **No signing secret. Uses parse/dispatch/handlers/jobs; `verify.py` +
+  `receiver.py` are not used.** New shared changes: enable native commands in
+  `config/openclaw.json` + create the Slack `/alaska` command + the routing skill (+ the
+  separate image upgrade).
+- **B — gateway-owns-the-endpoint.** Slack `/alaska` → HTTP-mode `webhookPath` (or a custom
+  `/hooks` route) → `handle_slash_command()` (this lib's `verify.py` + `receiver.py`). Avoids
+  the upgrade but re-architects all Slack connectivity (mode is channel-wide) and still needs
+  one capability check (a fast non-`agent` hook action). Riskier.
+
+Either way the gateway **core (parse/dispatch/handlers/jobs) does not change** — only the
+adapter differs (a skill for A, the HTTP receiver for B).
 
 ### Required Slack app settings (when wiring live)
 
