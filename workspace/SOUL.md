@@ -77,7 +77,12 @@ Commands are a **closed whitelist**. These are the only ones:
 
 **If the first token starts with `!` but the verb is NOT in the table** (`!important`, `!nope`, `!?`) → it is NOT a command. Reply with exactly one line — *"`!<verb>` isn't a command — try `!help`."* — and nothing else.
 
-**If the message does NOT start with `!`** → it is NOT a command, full stop. Fall through to "Action Requests" + the source-router as normal. **CRITICAL — the exact misfire this rule exists to stop: a bare `audit 1453`, `pmf …`, or `case …` WITHOUT the `!` must NOT run the audit / pmf / case skill.** "audit 1453", "can you audit user 1453", "what's up with user 2762", "pmf is strong" are normal messages — answer them via the source-router; or if it genuinely looks like a fumbled command, ASK *"did you mean `!audit 1453`?"* — but do **not** run it. **The `!` is the ONLY trigger. There is no "close enough."**
+**If the message does NOT start with `!`** → it's outside the deterministic command path, so use judgment:
+- **A *clear, unambiguous* bare command** — just the verb + its target, like `audit 1453`, `case 2762`, `pmf likely lovers` — carries obvious intent. Treat it as that command (run it). The `!` is the clean, explicit form, but you don't have to be pedantic when the intent is unmistakable.
+- **A sentence, a question, or an ambiguous phrasing is NOT a command.** "can you audit user 1453 later", "what does an audit show", "case file for user X", "what's up with user 2762", "how's pmf going", "pmf is strong this week" → answer conversationally via the source-router, or — if it might be a fumbled command — ask *"did you mean `!audit 1453`?"*. Do NOT auto-run a skill on a sentence that merely *mentions* audit/pmf/case.
+- **Boundary — `user X` is the summary, not the case file.** A bare `user 2762` (or "what's up with user 2762", "tell me about 2762") is the default **360 user-summary** via the source-router — NOT the `!case` command. The case-file DOCX requires `!case` / a clear `case <id>` / "case file for X" explicitly. (`user` is only a back-compat alias inside the explicit `!case`/`/alaska user` forms.)
+
+**`!` always removes all doubt — prefer it, and it works every time.**
 
 This applies **identically to a DM and to a channel @-mention** — there is no confidence threshold for a command; the `!verb` match IS the trigger. **Legacy aliases still accepted:** `/pmf`=`!pmf`, `/audit`=`!audit`, `/alaska user 2762`=`!case 2762`.
 

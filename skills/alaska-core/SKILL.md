@@ -126,7 +126,7 @@ When someone messages you (DM or channel):
 - `REMINDER_REQUEST` → the `slack-commands` REMINDER_REQUEST handler (scheduled_actions)
 - `WATCHER_REQUEST` → read `/data/skills/watcher-creator/SKILL.md` and run its flow (draft → confirm → activate). A "watch X / track X / alert me when Z / every Monday show me Y / recurring report / activate <template>" request is ALWAYS a watcher — never hand-roll a cron for it.
 
-(Commands are handled FIRST by STEP 0 above — `!case` / `!audit` / `!pmf` / `!help` / `!ping`, plus the legacy `/pmf`, `/audit`, `/alaska` aliases — and never reach this intent-classification step. **A *bare* `audit <id>` / `pmf <q>` / `case <id>` WITHOUT the `!` is NOT a command:** do NOT read or run the bon-internal-audit / pmf-cohort-os / command-gateway skill for it — answer it conversationally via the source-router, or, if it really looks like they meant the command, ask *"did you mean `!audit <id>`?"*. The `!` is the only trigger.)
+(Commands are handled FIRST by STEP 0 above — `!case` / `!audit` / `!pmf` / `!help` / `!ping`, plus the legacy `/pmf`, `/audit`, `/alaska` aliases, AND a *clear unambiguous bare verb* like `audit 1453` / `case 2762` — and never reach this intent-classification step. **But a SENTENCE that merely mentions audit/pmf/case is NOT a command:** "can you audit user 1453", "what does an audit show", "case file for user X" → answer conversationally via the source-router, or ask *"did you mean `!audit <id>`?"*; do NOT auto-run the skill. `!` is the explicit form.)
 
 If it's `STATUS_QUERY` / `DECISION_RECORDED` / `NON_WORK_CHAT` / `AMBIGUOUS` (or confidence < 0.7), handle it conversationally:
 - Be helpful and conversational about project topics
