@@ -18,7 +18,8 @@
       "dmPolicy": "open",
       "allowFrom": ["*"],
       "groupPolicy": "open",
-      "streaming": { "mode": "off" }
+      "streaming": false,
+      "nativeStreaming": false
     }
   },
   "tools": {
