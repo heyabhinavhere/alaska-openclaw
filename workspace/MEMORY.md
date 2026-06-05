@@ -155,26 +155,7 @@ AI + DevOps (Bonlife — all Sandeep):
 
 ## Cron Jobs (as of 2026-06; live state = OpenClaw dashboard via `cron.list`)
 
-### Active (~14 scheduled + per-watcher crons)
-| Job | Schedule (UTC) | IST | Model |
-|-----|---------------|-----|-------|
-| Meeting Intelligence | `*/30 15-20` | 8:30 PM–1:30 AM | Opus |
-| Pre-Call Brief | `0 15` (weekdays) | 8:30 PM | Sonnet |
-| Thinker | `30 3-15` hourly | 9 AM–9 PM | Opus |
-| Daily Pulse | `30 3` | 9 AM | Opus |
-| Follow-Through 9AM IST | `35 3` (offset from Daily Pulse on 2026-05-23) | 9:05 AM | Opus |
-| Follow-Through 6PM IST | `30 12` | 6 PM | Opus |
-| Risk Radar | `0 4` | 9:30 AM | Opus |
-| Doc Keeper Events | `0 4,6,8,10,12` | 5×/day | Sonnet |
-| Doc Keeper Weekly | `30 12 Fri` | 6 PM Fri | Sonnet |
-| Sprint Operator (Mon) | `0 5 Mon` | 10:30 AM Mon — planning helper, no Notion writes | Sonnet |
-| Daily Cost Report | `0 18` | 11:30 PM | Sonnet |
-| Intent Classifier (batch) | `*/5 * * * *` | every 5 min | Sonnet |
-| Reminder Dispatcher | `*/15 * * * *` | every 15 min | Sonnet |
-| Routine Proposal Watch | `0 6` | 11:30 AM | Sonnet |
-| Watchers (W-N, user-created) | per-watcher cron | varies | — |
-
-(Live cron state lives in the OpenClaw dashboard; `config/cron-jobs-backup.json` is a snapshot. Removed/changed jobs history → `memory/system-evolution.md`.)
+**Live cron state = the OpenClaw dashboard (`cron.list`) — that is the source of truth.** `config/cron-jobs-backup.json` is a periodically-regenerated snapshot. A hand-maintained cron list here only drifts (it did — stale schedules), so it is intentionally not kept. Removed/changed-job history → `memory/system-evolution.md`.
 
 ### Key Pipeline
 Fireflies → Meeting Intelligence → **DAILY_STATE.md + the SQLite task graph** (via task-handler) → Pre-Call Brief sheets → #daily-standup. Channel/DM messages → intent-classifier → task-handler (gated, ≥0.85 on channels). Readers (Daily Pulse / Follow-Through / Risk Radar / slack-commands NL queries) read the graph with a DAILY_STATE fallback.
@@ -215,11 +196,4 @@ All agents read AGENT_RULES.md first. **DAILY_STATE.md is still the single sourc
 
 ## Recent System Evolution
 
-Full version-by-version history (v2.1 → V4 + all fixes) is in `memory/system-evolution.md`. Most recent:
-- **V5 PMF Cohort OS foundation (2026-06-02):** PR #59 merged the durable PMF OS foundation. V5 is PMF OS, inside the larger AI-coworker arc; KB self-maintenance moved to deferred V4 capstone. Artifact generation now uses a DocFlow spec contract and requires a deployed runtime smoke check before DOCX/PDF delivery. Follow-up phases remain: live Amplitude intake, User 360 enrichment, daily cockpit delivery, CredGPT live observability, Customer.io execution, and end-cohort intelligence.
-- **V4 Completion + Activation (2026-06-01→03):** finished V4 (Phases A–E coded), activated the dormant write path (MI cron→task-handler + gated channel→task), un-gated the task-watchers, built the DAILY_STATE generator (Phase E groundwork), and hardened from live-test feedback (channel TASK_ASSIGN; DM action-honesty; cross-session decision memory; read-the-message/thread-before-asking, #67). **Added my own private working memory** — the `agent-memory` skill + `agent_memory` table (migration 0006, #68): my self-tasks + notes/references, separate from the team graph and private by construction. PRs #46–#56, #67, #68. Phase E cutover pending (~Jun 4–5).
-- **Issue G (2026-05-29):** MEMORY.md split — history moved to `memory/system-evolution.md` so the injected core isn't truncated.
-- **Issue H (2026-05-29):** Workspace moved to the persistent /data volume — runtime state now survives deploys.
-- **v2.4 (May 25-26):** v2 task model Phases B/C shipped (PRs #9–#12); Watchers V1 + BON KB designed.
-
-Read `memory/system-evolution.md` when you need the "why" behind a past change.
+Full version-by-version history (v2.1 → V5 + all fixes) lives in `memory/system-evolution.md` — read it for the "why" behind any past change. Most recent: **V5 PMF Cohort OS foundation** (PR #59, 2026-06-02 — not production-complete), **V4 completion + activation** (Phases A–E coded; dormant write path activated; #46–#56), and **the `agent-memory` private working-memory store** (migration 0006, #68). Phase E cutover still pending.
