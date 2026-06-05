@@ -71,11 +71,23 @@ PMF_SUCCESS_METRICS = [
     "retained_value",
 ]
 
+# These two have no live data source during the cohort: qualitative_positive_signal is
+# the post-cohort survey / P4.1 LLM judge; retained_value is time-gated post-cohort.
+# compute_pmf_success_metrics never sets them, so a naive rollup shows them as
+# "0 confirmed" — a FALSE negative in every digest/memo. We mark them deferred so
+# reports + the LLM narrator say "not measured yet", never "0 confirmed".
+DEFERRED_PMF_METRICS = {"qualitative_positive_signal", "retained_value"}
 
-def rollup_pmf_metrics(metric_records: list[Any] | None) -> dict[str, dict[str, int]]:
+
+def rollup_pmf_metrics(metric_records: list[Any] | None) -> dict[str, dict[str, Any]]:
     """Count confirmed/candidate per PMF success metric across per-user metric records.
-    Shared by the end-cohort memo (P7) and the weekly digest (P11) — one source."""
-    rollup = {metric: {"confirmed": 0, "candidate": 0} for metric in PMF_SUCCESS_METRICS}
+    Shared by the end-cohort memo (P7) and the weekly digest (P11) — one source.
+
+    The two DEFERRED_PMF_METRICS carry `deferred: True` + a status ("not measured yet"
+    while they have no data) so reports + the LLM narrator never present them as a
+    "0 confirmed" false negative. They still COUNT if data ever lands (post-cohort
+    survey / retained-value snapshot), in which case status becomes "measured"."""
+    rollup: dict[str, dict[str, Any]] = {metric: {"confirmed": 0, "candidate": 0} for metric in PMF_SUCCESS_METRICS}
     for record in metric_records or []:
         if not isinstance(record, dict):
             continue
@@ -85,6 +97,10 @@ def rollup_pmf_metrics(metric_records: list[Any] | None) -> dict[str, dict[str, 
                 rollup[metric]["confirmed"] += 1
             elif value == "candidate":
                 rollup[metric]["candidate"] += 1
+    for metric in DEFERRED_PMF_METRICS:
+        entry = rollup[metric]
+        entry["deferred"] = True
+        entry["status"] = "not measured yet" if (entry["confirmed"] + entry["candidate"]) == 0 else "measured"
     return rollup
 
 

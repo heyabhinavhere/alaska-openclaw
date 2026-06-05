@@ -85,7 +85,7 @@ def test_build_end_cohort_facts_aggregations():
     m = facts["pmf_metrics"]
     assert m["linked_financial_context"]["confirmed"] == 2
     assert m["activation_depth"]["confirmed"] == 1 and m["repeat_engagement"]["candidate"] == 1
-    assert m["retained_value"] == {"confirmed": 0, "candidate": 0}
+    assert m["retained_value"] == {"confirmed": 0, "candidate": 0, "deferred": True, "status": "not measured yet"}
 
 
 def test_normalize_memo_coerces_and_defaults_verdict():

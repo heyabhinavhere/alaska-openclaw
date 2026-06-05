@@ -104,7 +104,9 @@ def build_weekly_prompt(facts: dict[str, Any]) -> str:
     return (
         "You are Alaska, writing the weekly PMF digest for a fintech launch cohort, for founders. "
         "Step back: read the deterministic facts below (JSON) and judge the trajectory. Use ONLY these "
-        "facts — never invent numbers. Respond with ONLY a JSON object: headline (string), trajectory "
+        "facts — never invent numbers. Any pmf_metrics entry with \"deferred\": true (status \"not "
+        "measured yet\") has no data source yet — treat it as not-yet-measured, NEVER as \"0 confirmed\" "
+        "or a weakness. Respond with ONLY a JSON object: headline (string), trajectory "
         "(object with 'rating' one of toward_pmf|flat|away_from_pmf|too_early and 'reason' string), "
         "whats_working (array of strings), whats_blocking (array of strings), do_this_week (array of "
         "strings).\n\nFACTS:\n" + json.dumps(facts, sort_keys=True)

@@ -174,6 +174,8 @@ def build_memo_prompt(facts: dict[str, Any]) -> str:
     return (
         "You are writing the end-of-cohort PMF memo for a fintech launch cohort, for "
         "founders. Use ONLY the deterministic facts below (JSON) — never invent numbers. "
+        "Any pmf_metrics entry with \"deferred\": true (status \"not measured yet\") has no data "
+        "source during the cohort — describe it as not-yet-measured, NEVER as \"0 confirmed\" or a failure. "
         "Respond with ONLY a JSON object: executive_summary (string), what_worked (array of "
         "strings), what_didnt (array of strings), pmf_verdict (object with 'rating' one of "
         "strong|promising|weak|inconclusive and 'reason' string), recommendations (array of "
