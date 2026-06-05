@@ -42,6 +42,12 @@ DEFAULT_SKILLS_DIR = os.environ.get("ALASKA_SKILLS_DIR", "/data/skills")
 OWNER_SKILL = "user-casefile"
 ACCENT = "1F4E79"
 
+# PMF cross-pointer (best-effort). Same env/default as pmf_os.store.DEFAULT_DB_PATH so
+# `!case` and the PMF workstream read the one cohort DB. Used only by
+# pmf_cohort_pointer(), which imports pmf_os lazily and swallows every fault — an
+# absent/unreadable file here simply means "no pointer".
+PMF_DB_PATH = os.environ.get("PMF_DB_PATH", "/data/queue/alaska_pmf.db")
+
 
 # --------------------------------------------------------------------------
 # value formatting (null-safe; dormant users have many None fields)
@@ -298,6 +304,38 @@ def run_lookup(
 
 
 # --------------------------------------------------------------------------
+# PMF cohort cross-pointer (best-effort, fully isolated)
+# --------------------------------------------------------------------------
+
+def pmf_cohort_pointer(user_id: Any, *, pmf_db_path: Optional[str] = None) -> str:
+    """One-line pointer from the general 360 case file (`!case <id>`) to the PMF
+    cohort case file (`!pmf user <id>`) — returned IFF this BON user is a member of
+    the ACTIVE PMF cohort, else "".
+
+    Best-effort and fully isolated: it never raises and never blends PMF data into
+    the 360. If pmf_os isn't importable, the alaska_pmf.db is absent/unreadable, or
+    anything else goes wrong, it returns "" so the 360 case file is never broken or
+    delayed. pmf_os.store is imported LAZILY (inside the try) so this capabilities
+    module keeps NO import-time dependency on the PMF workstream — see the
+    module-level isolation test in tests/test_user_casefile.py.
+    """
+    try:
+        db_path = pmf_db_path or PMF_DB_PATH
+        if not os.path.exists(db_path):
+            return ""  # PMF not set up here — add nothing.
+        from pmf_os.store import PmfStore  # lazy: no import-time workstream dependency
+        membership = PmfStore(db_path).get_active_cohort_membership(user_id)
+        if not membership:
+            return ""  # not a cohort member, or no active cohort.
+        stage = membership.get("current_stage") or "unknown"
+        return ("→ This user is also in the active PMF cohort (stage: %s). "
+                "For their PMF cohort case file, run `!pmf user %s`." % (stage, user_id))
+    except Exception:
+        # A PMF lookup fault must NEVER break or delay the 360 case file.
+        return ""
+
+
+# --------------------------------------------------------------------------
 # orchestrate: lookup -> docflow -> docx -> store -> upload
 # --------------------------------------------------------------------------
 
@@ -318,6 +356,7 @@ def generate(
     deliver: bool = True,
     run_id: Optional[str] = None,
     now: Optional[str] = None,
+    pmf_db_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Produce (and optionally deliver) the user case file. Never raises; returns
     a structured result. `lookup_result` can be injected to bypass the subprocess
@@ -367,10 +406,20 @@ def generate(
         "message": "User case file generated for #%s." % res.get("user_id", user_id),
     }
     if deliver and channel_id:
+        uid = res.get("user_id", user_id)
+        initial_comment = "Internal user case file (financial PII — do not forward)."
+        # Best-effort cross-pointer to the PMF cohort case file (`!pmf user <id>`) when
+        # this user is in the active PMF cohort. Disambiguates the two case-file surfaces
+        # (`!case` = general 360, `!pmf user` = PMF funnel) without merging funnel data in.
+        # pmf_cohort_pointer() swallows all faults, so it can never break/delay delivery.
+        pointer = pmf_cohort_pointer(uid, pmf_db_path=pmf_db_path)
+        if pointer:
+            initial_comment += "\n" + pointer
+            result["pmf_pointer"] = pointer
         up = upload_artifact_to_slack(
             meta["path"], channel_id, thread_ts=thread_ts,
-            title="User Case File — #%s" % res.get("user_id", user_id),
-            initial_comment="Internal user case file (financial PII — do not forward).",
+            title="User Case File — #%s" % uid,
+            initial_comment=initial_comment,
             token=token, http_request=http_request)
         result["slack"] = up
         result["delivered"] = bool(up.get("ok"))

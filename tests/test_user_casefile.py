@@ -288,12 +288,147 @@ def test_generate_propagates_generator_error_from_lookup():
 
 
 # --------------------------------------------------------------------------
-# isolation — capabilities layer imports no workstream code at runtime
+# PMF cohort cross-pointer — best-effort `!case` -> `!pmf user` disambiguation
+#
+# When the queried user is a member of the ACTIVE PMF cohort, the 360 Slack
+# message gains ONE pointer line to the PMF cohort case file (`!pmf user <id>`).
+# The 360 document itself is unchanged. The lookup is best-effort: an absent /
+# unreadable alaska_pmf.db must never break or delay 360 delivery.
 # --------------------------------------------------------------------------
 
-def test_capabilities_do_not_import_workstream_code():
+import sqlite3  # noqa: E402
+
+from pmf_os.store import PmfStore  # noqa: E402
+
+_PMF_MIGRATION = REPO_ROOT / "migrations" / "0005_pmf_cohort_os.sql"
+_PMF_WS, _PMF_WE = "2026-05-27T00:00:00-07:00", "2026-05-29T23:59:59-07:00"
+
+
+def _seed_pmf_db(*, active=True, member_id="2762", stage="activated_user") -> str:
+    """Build a REAL alaska_pmf.db: one cohort (optionally active) and, when
+    member_id is set, one registry member at `stage`. Returns the db path.
+    Mirrors the seeding in test_pmf_om3_membership so the pointer exercises the
+    real get_active_cohort_membership against a real schema (no method mocking)."""
+    db = str(Path(tempfile.mkdtemp(prefix="casefile_pmf_")) / "alaska_pmf.db")
+    conn = sqlite3.connect(db)
+    conn.executescript(_PMF_MIGRATION.read_text(encoding="utf-8"))
+    conn.commit()
+    conn.close()
+    PmfStore(db).create_cohort(cohort_id="c1", name="C1", signup_window_start=_PMF_WS,
+                               signup_window_end=_PMF_WE, activate=active)
+    if member_id is not None:
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "INSERT INTO pmf_cohort_users (cohort_id, user_key, bon_user_id, "
+            "signup_event_time, current_stage, highest_stage) VALUES (?,?,?,?,?,?)",
+            ("c1", "user:%s" % member_id, member_id, "2026-05-28T10:00:00Z", stage, stage),
+        )
+        conn.commit()
+        conn.close()
+    return db
+
+
+# ----- the pure helper -----
+
+def test_pmf_pointer_present_for_active_cohort_member():
+    db = _seed_pmf_db(active=True, member_id="2762", stage="activated_user")
+    line = uc.pmf_cohort_pointer(2762, pmf_db_path=db)
+    assert "active PMF cohort" in line       # names the surface
+    assert "activated_user" in line          # surfaces the funnel stage
+    assert "!pmf user 2762" in line          # points at the PMF cohort case file
+
+
+def test_pmf_pointer_empty_for_non_member():
+    db = _seed_pmf_db(active=True, member_id="2762", stage="activated_user")
+    assert uc.pmf_cohort_pointer(9999, pmf_db_path=db) == ""   # different id -> not a member
+
+
+def test_pmf_pointer_empty_when_no_active_cohort():
+    db = _seed_pmf_db(active=False, member_id="2762")          # cohort 'planned', not active
+    assert uc.pmf_cohort_pointer(2762, pmf_db_path=db) == ""   # member exists, but no ACTIVE cohort
+
+
+def test_pmf_pointer_empty_and_safe_when_db_absent():
+    missing = str(Path(tempfile.mkdtemp()) / "no_such_alaska_pmf.db")
+    assert uc.pmf_cohort_pointer(2762, pmf_db_path=missing) == ""   # absent DB -> no pointer, no raise
+
+
+# ----- wired through generate() into the Slack initial_comment -----
+
+def test_generate_appends_pmf_pointer_to_initial_comment_for_member():
+    db = _seed_pmf_db(active=True, member_id="2762", stage="activated_user")
+    fake = _slack_ok()
+    res = uc.generate(2762, "U07GKLVA9FE", lookup_result=_ok_lookup(_populated_summary()),
+                      base_dir=tempfile.mkdtemp(), out_dir=tempfile.mkdtemp(),
+                      channel_id="C0ANKDD664A", token="xoxb-test", http_request=fake,
+                      deliver=True, now="2026-06-05", pmf_db_path=db)
+    assert res["ok"] is True and res["delivered"] is True
+    comment = json.loads(fake.calls[2]["body"])["initial_comment"]
+    # The 360 keeps its PII warning AND gains exactly the cross-pointer line.
+    assert "do not forward" in comment
+    assert "active PMF cohort" in comment and "!pmf user 2762" in comment
+    assert "activated_user" in comment
+    assert res.get("pmf_pointer")            # also surfaced on the result
+
+
+def test_generate_no_pmf_pointer_for_non_cohort_member():
+    db = _seed_pmf_db(active=True, member_id="2762", stage="activated_user")
+    fake = _slack_ok()
+    res = uc.generate(9999, "U07GKLVA9FE",
+                      lookup_result=_ok_lookup(_populated_summary(), user_id=9999),
+                      base_dir=tempfile.mkdtemp(), out_dir=tempfile.mkdtemp(),
+                      channel_id="C0ANKDD664A", token="xoxb-test", http_request=fake,
+                      deliver=True, now="2026-06-05", pmf_db_path=db)
+    assert res["ok"] is True and res["delivered"] is True
+    comment = json.loads(fake.calls[2]["body"])["initial_comment"]
+    assert "PMF cohort" not in comment       # no pointer for a non-member
+    assert "pmf_pointer" not in res
+
+
+def test_generate_pmf_lookup_failure_never_breaks_delivery():
+    missing = str(Path(tempfile.mkdtemp()) / "absent.db")
+    fake = _slack_ok()
+    res = uc.generate(2762, "U07GKLVA9FE", lookup_result=_ok_lookup(_populated_summary()),
+                      base_dir=tempfile.mkdtemp(), out_dir=tempfile.mkdtemp(),
+                      channel_id="C0ANKDD664A", token="xoxb-test", http_request=fake,
+                      deliver=True, now="2026-06-05", pmf_db_path=missing)
+    # The 360 still delivers cleanly; the absent PMF DB is silently ignored.
+    assert res["ok"] is True and res["delivered"] is True
+    comment = json.loads(fake.calls[2]["body"])["initial_comment"]
+    assert "do not forward" in comment and "PMF cohort" not in comment
+
+
+# --------------------------------------------------------------------------
+# isolation — the capabilities layer carries NO *import-time* dependency on the
+# workstream packages (pmf_os / audit_* / bon_internal): importing
+# alaska_capabilities must never drag them in. A LAZY import inside a function
+# (e.g. user_casefile.pmf_cohort_pointer's guarded PMF cohort lookup) IS allowed —
+# it only binds when that code path runs, and is wrapped so a missing package/DB
+# can't break the capability. So we forbid only MODULE-LEVEL (column-0) workstream
+# imports, not indented in-function ones.
+# --------------------------------------------------------------------------
+
+_WORKSTREAM_IMPORT = re.compile(r"^(import|from)\s+(lib\.)?(pmf_os|audit_[a-z]+|bon_internal)")
+
+
+def test_capabilities_have_no_module_level_workstream_import():
     pkg = REPO_ROOT / "lib" / "alaska_capabilities"
-    forbidden = re.compile(r"^(import|from)\s+(lib\.)?(pmf_os|audit_[a-z]+|bon_internal)")
     for pyfile in pkg.glob("*.py"):
         for line in pyfile.read_text(encoding="utf-8").splitlines():
-            assert not forbidden.match(line.strip()), "%s imports workstream code: %s" % (pyfile.name, line)
+            # Match the RAW line (NOT stripped): only a column-0 import is an
+            # import-time dependency. An indented lazy import inside a function is fine.
+            assert not _WORKSTREAM_IMPORT.match(line), \
+                "%s has a module-level workstream import: %s" % (pyfile.name, line)
+
+
+def test_pmf_cross_pointer_import_is_lazy_not_module_level():
+    """user_casefile reaches pmf_os ONLY via a lazy, in-function import, so importing
+    the capabilities package never requires the PMF workstream to be installed. This
+    pins that decision: a refactor that hoists the pmf_os import to module level
+    (re-introducing an import-time dependency) must fail here."""
+    src = (REPO_ROOT / "lib" / "alaska_capabilities" / "user_casefile.py").read_text(encoding="utf-8")
+    pmf_imports = [ln for ln in src.splitlines() if re.search(r"\b(from|import)\s+pmf_os\b", ln)]
+    assert pmf_imports, "expected user_casefile to reference pmf_os for the cross-pointer"
+    # Every such import must be indented (inside a function), never at column 0.
+    assert all(ln != ln.lstrip() for ln in pmf_imports), \
+        "pmf_os must be imported lazily (indented, in-function), not at module level: %s" % pmf_imports
