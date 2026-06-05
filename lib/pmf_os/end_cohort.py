@@ -227,3 +227,24 @@ def generate_end_cohort_memo(facts: dict[str, Any], *, narrator: NarratorFn | No
         return {"facts": facts, "narrative": normalize_memo(narrator(facts)), "narrative_status": "completed"}
     except Exception as exc:  # noqa: BLE001 - narration is best-effort over the facts
         return {"facts": facts, "narrative": None, "narrative_status": "failed", "error": str(exc)}
+
+
+def compose_memo_slack(report: dict[str, Any]) -> str:
+    """Render the end-of-cohort memo as a Slack message (mrkdwn) for --deliver. LLM
+    narrative when present; facts-only fallback otherwise (pure text, no HTML file)."""
+    facts = report.get("facts") or {}
+    nar = report.get("narrative") if report.get("narrative_status") == "completed" else None
+    if nar:
+        v = nar.get("pmf_verdict") or {}
+        lines = [
+            "🏁 *End-of-cohort PMF memo*",
+            nar.get("headline") or nar.get("executive_summary") or "",
+            f"*Verdict:* {v.get('rating', '?')} — {v.get('reason', '')}",
+        ]
+        for label, key in (("What worked", "what_worked"), ("What didn't", "what_didnt"), ("Next cohort", "recommendations")):
+            items = nar.get(key) or []
+            if items:
+                lines.append(f"*{label}:*\n" + "\n".join(f"• {x}" for x in items[:8]))
+        return "\n".join(x for x in lines if x)
+    rates = (facts.get("funnel") or {}).get("rates") or {}
+    return f"🏁 *End-of-cohort PMF memo* (facts only — run with --narrate-live for the verdict)\nrates: {rates}"
