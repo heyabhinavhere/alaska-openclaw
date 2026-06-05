@@ -306,6 +306,8 @@ Deterministic facts (this-week stage movements, the current funnel + 6-metric ro
 
 Once activated, the PMF OS runs on a schedule. These are the specs to add **in the OpenClaw dashboard** (the live dashboard is canonical — do NOT hand-edit the cron snapshot, and nothing here is live yet). All times IST; `delivery.mode='none'`; payload = an agent turn that shells the command.
 
+**Create the launch cohort with incremental enrichment** (the daily run then enriches new + recently-moved + a capped slow-refresh slice, not the whole cohort): `create-cohort --cohort-id <id> ... --activate --config-json '{"enrichment": {"mode": "incremental", "active_window_days": 3, "slow_refresh_cap": 150}}'`. Thresholds: defaults (backfill-validated). `slow_refresh_cap` is a conservative floor — raise it from the first live day's `run["latency"]`. Full readiness + go/no-go: `docs/v5-pmf-launch-readiness.md`.
+
 | When | Command | Purpose |
 |---|---|---|
 | Daily ~9:00 AM | `run-cohort-day --cohort-id <id> --date <today> --deliver --slack-channel <c> --briefing-live` | daily pass + cockpit + founder briefing |
@@ -314,4 +316,4 @@ Once activated, the PMF OS runs on a schedule. These are the specs to add **in t
 | Weekly (Mon ~9 AM) | `weekly-digest --cohort-id <id> --week-start <mon> --narrate-live` | the trajectory step-back |
 | Once, after the window closes | `end-cohort-memo --cohort-id <id> --narrate-live` | the PMF verdict |
 
-**Gate:** enable these only after a real-data dry run looks right (calibration) and Abhinav explicitly says go. Customer.io sends stay human-approved regardless of any cron.
+**Gate:** enable these only after a real-data dry run looks right (calibration) and Abhinav explicitly says go — see the go/no-go scorecard in `docs/v5-pmf-launch-readiness.md`. The daily run is hardened: a per-user wall-clock timeout (a hung User-360 call can't stall it), incremental enrichment (bounded daily load), and the friction queues (stuck_onboarding / at_risk / high_intent) now fire from derived + Amplitude signals. Customer.io sends stay human-approved regardless of any cron, and live `--execute-live` is blocked until the suppression-check lands.
