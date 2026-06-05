@@ -111,6 +111,17 @@ def normalize_briefing(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _is_empty_briefing(narrative: dict[str, Any]) -> bool:
+    """True when a narrative has no headline and no items in any section — i.e. the
+    model returned nothing parseable (e.g. the response was truncated past max_tokens
+    so extract_json fell back to {})."""
+    n = narrative or {}
+    return not (
+        n.get("headline") or n.get("what_changed") or n.get("who_needs_you")
+        or n.get("recommendations") or n.get("watch")
+    )
+
+
 def _live_narrator(facts: dict[str, Any], *, model: str | None = None, timeout: float = 75.0) -> dict[str, Any]:
     """Thin live adapter over the shared LLM client. Requires ANTHROPIC_API_KEY."""
     from .llm import anthropic_complete, extract_json
@@ -118,8 +129,8 @@ def _live_narrator(facts: dict[str, Any], *, model: str | None = None, timeout: 
     text = anthropic_complete(
         build_briefing_prompt(facts),
         model=model or os.environ.get("PMF_BRIEFING_MODEL") or DEFAULT_BRIEFING_MODEL,
-        max_tokens=1200,
-        timeout=timeout,
+        max_tokens=2000,  # the briefing output (up to 15 who_needs_you objects + 4 arrays)
+        timeout=timeout,  # is larger than the weekly digest's; 1200 truncated it → invalid JSON
     )
     return normalize_briefing(extract_json(text))
 
@@ -137,6 +148,13 @@ def generate_daily_briefing(facts: dict[str, Any], *, narrator: NarratorFn | Non
     if narrator is None:
         return {"facts": facts, "narrative": None, "narrative_status": "skipped"}
     try:
-        return {"facts": facts, "narrative": normalize_briefing(narrator(facts)), "narrative_status": "completed"}
+        narrative = normalize_briefing(narrator(facts))
     except Exception as exc:  # noqa: BLE001 - briefing is best-effort over the facts
         return {"facts": facts, "narrative": None, "narrative_status": "failed", "error": str(exc)}
+    # An empty narrative (the model returned no parseable JSON — e.g. truncated past
+    # max_tokens) must NOT post as a successful-but-blank briefing. Mark it failed so
+    # the orchestrator skips the Slack post (it only posts on 'completed').
+    if _is_empty_briefing(narrative):
+        return {"facts": facts, "narrative": None, "narrative_status": "failed",
+                "error": "empty narrative (no parseable model output)"}
+    return {"facts": facts, "narrative": narrative, "narrative_status": "completed"}
