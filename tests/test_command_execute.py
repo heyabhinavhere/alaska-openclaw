@@ -47,16 +47,48 @@ def test_build_context_derives_authority():
 # help / ping / unknown
 # --------------------------------------------------------------------------
 
-def test_help_lists_every_route():
-    res = E.route("help", _ctx())
+def test_help_lists_the_whitelist():
+    res = E.route("!help", _ctx())
     assert res["ok"] is True
-    for name in ("help", "ping", "user", "audit", "brief", "pmf"):
-        assert ("/alaska %s" % name) in res["text"]
+    for verb in ("case", "audit", "pmf", "help", "ping"):
+        assert ("!%s" % verb) in res["text"]
+    assert "!user" not in res["text"]  # alias is hidden from help
 
 
 def test_empty_text_defaults_to_help():
     assert E.route("", _ctx())["ok"] is True
-    assert "/alaska user" in E.route(None, _ctx())["text"]
+    assert "!case" in E.route(None, _ctx())["text"]
+
+
+def test_bang_and_alias_normalization():
+    from alaska_command_gateway.core import parse_command as p
+    # All these forms normalize to the same verb (the executor sees one shape).
+    assert p("!case 2762").subcommand == "case" and p("!case 2762").args == ["2762"]
+    assert p("case 2762").subcommand == "case"
+    assert p("/alaska case 2762").subcommand == "case"      # namespace prefix dropped
+    assert p("/alaska user 2762").subcommand == "user"      # legacy /alaska user → user (alias of case)
+    assert p("/pmf likely lovers").subcommand == "pmf"      # legacy slash-verb alias
+    assert p("/audit 1453").subcommand == "audit"
+    assert p("!pmf x").subcommand == "pmf"
+
+
+def test_nonwhitelisted_bang_token_is_unknown_not_a_route():
+    # `!`-prefixed but not a real verb → must NOT route to anything; friendly unknown.
+    for text in ("!important issue", "!nope", "!?", "!"):
+        res = E.route(text, _ctx())
+        assert res["ok"] is False and res["status"] == "unknown_subcommand", text
+
+
+def test_case_is_canonical_and_user_is_a_back_compat_alias():
+    seen = []
+
+    def fake(user_id, invoker, **kw):
+        seen.append(user_id)
+        return {"ok": True, "status": "ok", "user_id": int(user_id), "delivered": True}
+
+    assert E.route("!case 2762", _ctx(generate_fn=fake))["ok"] is True
+    assert E.route("user 2762", _ctx(generate_fn=fake))["ok"] is True   # alias still works
+    assert seen == ["2762", "2762"]
 
 
 def test_ping():

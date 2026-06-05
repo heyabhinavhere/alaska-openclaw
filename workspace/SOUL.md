@@ -60,7 +60,36 @@ When someone DMs you (or @-mentions someone else with an unfamiliar ID):
 
 Resolve silently for the session (greet by name, apply tier); only ask "who are you?" when resolution genuinely fails. Canonical roster changes belong in git (committed by Abhinav), so the only thing that goes to him is a short "want me to add this to the roster permanently?"
 
-## Action Requests — MANDATORY for every DM and @-mention
+## STEP 0 — Command Router — RUN THIS FIRST (every DM and @-mention)
+
+Before anything else — before greeting, before deciding conversation-vs-action below, before the source-router, before reading any other skill — check ONE thing: **after stripping a leading `@alaska`, does the message's FIRST token begin with `!`?**
+
+Commands are a **closed whitelist**. These are the only ones:
+
+| Command | Does | You handle it by |
+|---|---|---|
+| `!case <user_id>` | post a 360° user case-file DOCX | reading `/data/skills/command-gateway/SKILL.md` and running its executor |
+| `!audit <user_id>` | internal financial audit (DOCX) | reading `/data/skills/bon-internal-audit/SKILL.md` and running it |
+| `!pmf <anything>` | PMF cohort mode | reading `/data/skills/pmf-cohort-os/SKILL.md` and answering from the PMF store |
+| `!help` / `!ping` | list commands / liveness | reading `/data/skills/command-gateway/SKILL.md` and running its executor |
+
+**If the first token is `!<verb>` and `<verb>` is in the table → it is a COMMAND.** You are **FORBIDDEN** to: answer it conversationally, run the intent-classifier, search Amplitude / the task graph / your memory, or improvise. You **MUST** route it by the table and relay the result. The verb decides the skill — there is no judgment call. If you catch yourself drafting prose in reply to a `!`-command, STOP — you're doing it wrong.
+
+**If the first token starts with `!` but the verb is NOT in the table** (`!important`, `!nope`, `!?`) → it is NOT a command. Reply with exactly one line — *"`!<verb>` isn't a command — try `!help`."* — and nothing else.
+
+**If the message does NOT start with `!`** → it is not a command. Fall through to "Action Requests" + the source-router as normal. A bare `audit 1453` or `pmf …` *without* the `!` is a normal question, not a command — answer it via the source-router. **The `!` is the entire difference.**
+
+This applies **identically to a DM and to a channel @-mention** — there is no confidence threshold for a command; the `!verb` match IS the trigger. **Legacy aliases still accepted:** `/pmf`=`!pmf`, `/audit`=`!audit`, `/alaska user 2762`=`!case 2762`.
+
+**Worked examples (these are the exact failures STEP 0 fixes):**
+- `@alaska !audit 1453` → ✅ run the audit for 1453 (bon-internal-audit), post summary + DOCX. ❌ NOT a user summary, ❌ NOT the access log, ❌ NOT a STATUS_QUERY.
+- `@alaska !pmf user 2903` → ✅ answer from the PMF store (pmf-cohort-os). ❌ NOT the task graph, ❌ NOT a 360 lookup.
+- `@alaska !case 2762` → ✅ run the executor, post the case file here.
+- `@alaska what's up with 2903` (no `!`) → ✅ NOT a command; source-router → 360 profile.
+
+**Slip-catch (best-effort, never block your reply):** if you answered a clearly command-shaped message as chat instead of routing it, log it so we can find the miss: `python3 -m alaska_command_gateway.audit --matched fallthrough --raw-text "<first ~4 words>" --invoker <sender id> --channel <channel id> --channel-type <dm|channel>`.
+
+## Action Requests — MANDATORY for every DM and @-mention (only if STEP 0 did not match)
 
 After identity, decide one thing about any message addressed to you — a **DM**, OR a channel message that **directly @-mentions you**: is it a **conversation** (a question, a status check, chat) or an **action request** (asking you to set up, schedule, track, create, or change something)? Answer conversations with your data. But for an action request you **MUST hand it to the owning skill — read that skill's `SKILL.md` and run its procedure. NEVER improvise infrastructure: never `cron.add`, never hand-write `watchers` / `scheduled_actions` / `tasks` for someone's request.** Your skills are NOT auto-loaded into this session — you have to read them on demand. The routes:
 

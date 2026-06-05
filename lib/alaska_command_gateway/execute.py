@@ -83,10 +83,17 @@ def build_context(invoker: Optional[str] = None, channel: Optional[str] = None,
 # subcommand executors  (each: (parsed, ctx) -> result dict)
 # --------------------------------------------------------------------------
 
+# The curated, user-facing whitelist (order + `!` syntax for the help reply).
+# Aliases (`user`) and not-yet-shipped verbs are intentionally omitted here.
+HELP_VERBS = ("case", "audit", "pmf", "help", "ping")
+
+
 def _cmd_help(parsed: ParsedCommand, ctx: Dict[str, Any]) -> Dict[str, Any]:
-    lines = ["*Alaska* (`/alaska`) — v%s" % GATEWAY_VERSION]
-    for name in sorted(ROUTES):
-        lines.append("• `/alaska %s` — %s" % (name, ROUTES[name]["help"]))
+    lines = ["*Alaska commands* — v%s" % GATEWAY_VERSION]
+    for name in HELP_VERBS:
+        row = ROUTES.get(name)
+        if row:
+            lines.append("• `!%s` — %s" % (name, row["help"]))
     return _result(True, "\n".join(lines))
 
 
@@ -155,17 +162,21 @@ def _coming_soon(label: str, when: str) -> Callable[[ParsedCommand, Dict[str, An
 # --------------------------------------------------------------------------
 
 ROUTES: Dict[str, Dict[str, Any]] = {
-    "help": {"fn": _cmd_help, "help": "show this help", "target": "command-gateway"},
-    "ping": {"fn": _cmd_ping, "help": "liveness check", "target": "command-gateway"},
-    "user": {"fn": _cmd_user, "help": "post a 360° user case file (e.g. `/alaska user 2762`)",
+    # Deterministic verbs — the executor IS the handler (model just relays `text`).
+    "case": {"fn": _cmd_user, "help": "post a 360° user case file (e.g. `!case 2762`)",
              "target": "user-casefile"},
-    # Wired in later, approved phases (kept as honest stubs so they never 500):
-    "audit": {"fn": _coming_soon("audit", "in P1 (runs via the bon-internal-audit skill)"),
-              "help": "internal audit report — P1", "target": "bon-internal-audit"},
-    "brief": {"fn": _coming_soon("brief", "in P1"), "help": "daily brief / standup sheet — P1",
+    "user": {"fn": _cmd_user, "help": "alias of `!case`", "target": "user-casefile"},  # back-compat
+    "help": {"fn": _cmd_help, "help": "list commands", "target": "command-gateway"},
+    "ping": {"fn": _cmd_ping, "help": "liveness check", "target": "command-gateway"},
+    # Model-routed verbs — the routing skill reads their SKILL.md and runs them; the
+    # executor is NOT their handler. These stubs only fire if the executor is called
+    # for them by mistake, and point back to the right skill.
+    "audit": {"fn": _coming_soon("audit", "via the bon-internal-audit skill — read it directly"),
+              "help": "internal financial audit (`!audit <id>`)", "target": "bon-internal-audit"},
+    "pmf":   {"fn": _coming_soon("pmf", "via the pmf-cohort-os skill — read it directly"),
+              "help": "PMF cohort mode (`!pmf <query>`)", "target": "pmf-cohort-os"},
+    "brief": {"fn": _coming_soon("brief", "soon"), "help": "daily brief — soon",
               "target": "command-gateway"},
-    "pmf":   {"fn": _coming_soon("pmf", "in P2 (routes to pmf-cohort-os)"),
-              "help": "PMF cohort status — P2", "target": "pmf-cohort-os"},
 }
 
 

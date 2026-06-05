@@ -44,22 +44,35 @@ class ParsedCommand:
     raw: str = ""
 
 
-def parse_command(text: Optional[str]) -> ParsedCommand:
-    """Parse the slash-command TEXT into a subcommand + args.
+# A leading namespace word is dropped — the real verb is the NEXT token.
+_NAMESPACE_PREFIXES = {"/alaska", "!alaska"}
+# Single-word slash aliases where the slash-word IS the verb (legacy grammar).
+_VERB_ALIASES = {"/pmf": "pmf", "/audit": "audit"}
 
-    Empty text defaults to the `help` subcommand. A leading slash (if a caller
-    passes the whole '/alaska audit 1414') is tolerated and stripped.
+
+def parse_command(text: Optional[str]) -> ParsedCommand:
+    """Parse a command TEXT into a normalized subcommand + args.
+
+    The canonical grammar is `!<verb> <args>` (OM-4). This normalizer accepts and
+    folds the equivalent forms so the executor sees one shape:
+      - `!case 2762` / `case 2762`            -> subcommand 'case'
+      - `/alaska case 2762` (namespace)        -> subcommand 'case'
+      - `/pmf …` / `/audit …` (legacy aliases) -> subcommand 'pmf' / 'audit'
+    A leading `!` or `/` sigil on the verb is stripped. Empty text -> `help`.
+    The whitelist itself lives in ROUTES (executor) + SOUL.md STEP 0 (the model);
+    this function only normalizes — an unknown verb still parses, then ROUTES.get
+    returns None and the caller answers "unknown command".
     """
     raw = (text or "").strip()
-    cleaned = raw
-    if cleaned.startswith("/"):
-        # tolerate "/alaska audit 1414" or "/audit 1414" being passed as text
-        parts = cleaned.split()
-        cleaned = " ".join(parts[1:]) if parts and parts[0].lower() in ("/alaska", "/audit") else cleaned.lstrip("/")
-    tokens = cleaned.split()
+    tokens = raw.split()
+    # Drop a leading namespace word ("/alaska case 2762" -> "case 2762").
+    if tokens and tokens[0].lower() in _NAMESPACE_PREFIXES:
+        tokens = tokens[1:]
     if not tokens:
         return ParsedCommand(subcommand="help", args=[], raw=raw)
-    return ParsedCommand(subcommand=tokens[0].lower(), args=tokens[1:], raw=raw)
+    head = tokens[0].lower()
+    head = _VERB_ALIASES.get(head, head.lstrip("!/"))  # alias, else strip a leading sigil
+    return ParsedCommand(subcommand=head, args=tokens[1:], raw=raw)
 
 
 def register_handler(name: str, handler: Handler) -> None:
