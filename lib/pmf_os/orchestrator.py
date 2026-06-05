@@ -337,20 +337,24 @@ def _slack_summary(run: dict[str, Any]) -> str:
         for s in ("activated_user", "activated_saver", "likely_lover", "confirmed_lover")
     )
     users = run["users"]
-    queue_total = sum((summary.get("queue_counts") or {}).values())
+    queue_counts = summary.get("queue_counts") or {}
+    queue_total = sum(queue_counts.values())
+    actionable = sum(queue_counts.get(q, 0) for q in ("high_intent", "stuck_onboarding", "at_risk", "potential_lover"))
+    total_reviews = summary.get("credgpt_reviews", 0)
+    weak = summary.get("weak_credgpt_reviews", 0)
     lines = [
-        f"PMF Cohort daily run · {run['snapshot_date']}",
+        f"📊 *PMF Cohort · daily · {run['snapshot_date']}*",
         (
-            f"Signups: {summary.get('total_signup_users', 0)} · "
-            f"Real users: {summary.get('real_users', 0)} · "
-            f"Activated+: {activated} · "
-            f"Likely lovers: {stage.get('likely_lover', 0)}"
+            f"Funnel: {summary.get('total_signup_users', 0)} signups → "
+            f"{summary.get('real_users', 0)} real users → "
+            f"{activated} activated+ → "
+            f"{stage.get('likely_lover', 0)} likely lovers ({stage.get('confirmed_lover', 0)} confirmed)"
         ),
         (
-            f"Enriched: {users['enriched']}/{users['total']} "
-            f"(unresolved {users['unresolved']}, failed {users['failed']}) · "
-            f"Open queues: {queue_total} · "
-            f"Weak CredGPT: {summary.get('weak_credgpt_reviews', 0)}"
+            f"Queues: {queue_total} open · {actionable} to act on, {queue_total - actionable} to review · "
+            f"CredGPT: {weak}/{total_reviews} weak · "
+            f"Enriched: {users['enriched']}/{users['total']}"
+            + (f" (failed {users['failed']})" if users.get("failed") else "")
         ),
     ]
     if run["errors"]:

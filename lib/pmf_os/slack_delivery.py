@@ -114,7 +114,8 @@ def deliver(channel: str, summary_text: str, html_path: str | None = None, *, to
     if html_path:
         result["file"] = upload_file(
             channel, html_path, "PMF cohort cockpit",
-            initial_comment="PMF cohort daily cockpit", token=token, http_request=http_request,
+            initial_comment="📎 PMF daily cockpit (full detail) — download this HTML and open it in a browser to view it; Slack won't render it inline.",
+            token=token, http_request=http_request,
         )
     return result
 
