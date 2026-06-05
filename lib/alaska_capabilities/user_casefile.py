@@ -279,7 +279,7 @@ def run_lookup(
     cmd = [
         sys.executable, script,
         "--query", str(user_id), "--query-type", "user_id",
-        "--intent", "user_summary",
+        "--intent", "case_file",
         "--requester-slack-id", requester_slack_id,
         "--requester-authority", requester_authority,
         "--channel-type", channel_type or "dm",

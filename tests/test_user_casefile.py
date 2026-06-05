@@ -281,6 +281,39 @@ def test_run_lookup_missing_script_returns_generator_error():
     assert "lookup" in res["message"].lower()
 
 
+def test_run_lookup_requests_the_full_case_file_intent(monkeypatch):
+    """Regression for the 'almost-empty case file' root cause: `user_summary`
+    fetches only profile+persona, so every other table rendered as '—'. The case
+    file must request the rich `case_file` intent."""
+    captured = {}
+
+    class _Proc:
+        stdout = '{"status": "not_found"}'
+        stderr = ""
+
+    def fake_run(cmd, **kw):
+        captured["cmd"] = cmd
+        return _Proc()
+
+    monkeypatch.setattr(uc.subprocess, "run", fake_run)
+    uc.run_lookup(1980, "U07GKLVA9FE", skills_dir="/tmp")
+    cmd = captured["cmd"]
+    assert "--intent" in cmd
+    assert cmd[cmd.index("--intent") + 1] == "case_file"  # NOT user_summary
+
+
+def test_case_file_intent_covers_every_summarizer_block():
+    """Guard: the `case_file` intent (in user-profile-360/sections.py) must fetch a
+    source for every block the case file renders — else fields go silently empty."""
+    sections = (REPO_ROOT / "skills" / "user-profile-360" / "sections.py").read_text(encoding="utf-8")
+    block = sections.split('"case_file": [', 1)
+    assert len(block) == 2, "the case_file intent must exist in INTENT_PROFILES"
+    body = block[1].split("],", 1)[0]
+    for needed in ("profile", "credit_report_history", "plaid_profiles", "plaid_income",
+                   "plaid_transactions", "subscriptions", "chat.recent_turns", "chat.feedback_summary"):
+        assert needed in body, "case_file intent is missing the source for: %s" % needed
+
+
 def test_generate_propagates_generator_error_from_lookup():
     empty = tempfile.mkdtemp()
     res = uc.generate(2762, "U07GKLVA9FE", skills_dir=empty, deliver=False)
