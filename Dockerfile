@@ -3,7 +3,14 @@
 # Pinned version — no surprise auto-updates
 
 # 1panel/openclaw mirrors the official OpenClaw with confirmed version tags on Docker Hub
-FROM 1panel/openclaw:2026.3.13
+# Upgraded 2026.3.13 -> 2026.5.28: unlocks native Slack slash commands (for /alaska — GitHub
+# #66194) + cron-delivery/concurrency fixes. 2026.5.28 is the FLOOR the @openclaw/slack plugin
+# requires (a 2026.5.26 attempt crash-looped because the plugin needs >=2026.5.28). 5.x is
+# fixes-only / non-breaking for our setup (research: 3.13->5.26, plus this PR's 5.27/5.28 scan).
+# The channels.slack.streaming object + nativeStreaming removal is fixed in config/openclaw.json
+# below and enforced at boot by entrypoint.sh (active strip + `openclaw doctor --fix` preflight).
+# Rollback = revert this line to 2026.3.13 and redeploy.
+FROM 1panel/openclaw:2026.5.28
 
 USER root
 
@@ -20,9 +27,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dateutil \
     && rm -rf /var/lib/apt/lists/*
 
-# Pre-install the Slack plugin (baked into the image, survives restarts)
+# Pre-install the Slack plugin, PINNED to match the core (baked into the image, survives
+# restarts). The version is pinned (not floating) and the install is STRICT (no `2>/dev/null
+# || true`): @openclaw/slack floats its required OpenClaw floor, and an unpinned `latest` is
+# exactly what broke the 2026.5.26 build (latest needed >=2026.5.28). Pinning to the core's
+# matching version AND failing the build on a bad install means we never ship an image where
+# Alaska's Slack plugin (her whole interface) can't load.
 RUN cd /usr/local/lib/node_modules/openclaw && \
-    npx openclaw plugins install @openclaw/slack 2>/dev/null || true
+    npx openclaw plugins install @openclaw/slack@2026.5.28
 
 # Pre-install the Notion MCP server (no runtime npx download on cold start)
 RUN npm install -g @notionhq/notion-mcp-server 2>/dev/null || true

@@ -145,6 +145,24 @@ if [ -n "$HOOKS_TOKEN" ]; then
   echo "[alaska] Hooks token injected into config"
 fi
 
+# Belt-and-suspenders config migration before boot (the 2026.5.26 attempt crash-looped here).
+# 1) ACTIVELY normalize channels.slack on the persistent /data config: strip the stale NESTED
+#    `nativeStreaming` and coerce a legacy boolean `streaming` to the v2026.5.x object form.
+#    The git->runtime deep-merge only strips unknown TOP-LEVEL keys, so a nested stale key
+#    survives; and we must NOT depend on `doctor --fix` for this (when the slack plugin failed
+#    to load on 2026.5.26, doctor ran best-effort and could not migrate channels.slack).
+node -e "const fs=require('fs');const p='/data/.openclaw/openclaw.json';try{const c=JSON.parse(fs.readFileSync(p,'utf8'));const s=(c.channels&&c.channels.slack)||{};let changed=false;if('nativeStreaming' in s){delete s.nativeStreaming;changed=true;}if(s.streaming===false||s.streaming===true){s.streaming={mode:'off'};changed=true;}if(changed){fs.writeFileSync(p,JSON.stringify(c,null,2));console.log('[alaska] normalized channels.slack (stripped nativeStreaming / streaming->object)');}else{console.log('[alaska] channels.slack already canonical');}}catch(e){console.log('[alaska] channels.slack normalize skipped: '+e.message);}" || echo "[alaska] channels.slack normalize step errored (non-fatal, continuing)"
+
+# 2) Run OpenClaw's own migrator to canonicalize anything else for the running version. The
+#    slack plugin loads on 2026.5.28, so doctor can now migrate channels.slack properly. Non-fatal
+#    under set -e (if-guard) so a doctor hiccup can never crash-loop the boot.
+echo "[alaska] Running openclaw doctor --fix (config schema migration)..."
+if openclaw doctor --fix 2>&1; then
+  echo "[alaska] doctor --fix completed."
+else
+  echo "[alaska] doctor --fix reported issues (non-fatal, continuing to gateway run)."
+fi
+
 echo "[alaska] Starting OpenClaw gateway..."
 
 # exec replaces this shell with the gateway process
