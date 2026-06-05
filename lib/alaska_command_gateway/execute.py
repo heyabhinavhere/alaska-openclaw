@@ -30,6 +30,7 @@ import argparse
 import json
 from typing import Any, Callable, Dict, Optional
 
+from .audit import log_command
 from .core import ParsedCommand, parse_command
 
 GATEWAY_VERSION = "0.1.0"
@@ -154,15 +155,17 @@ def _coming_soon(label: str, when: str) -> Callable[[ParsedCommand, Dict[str, An
 # --------------------------------------------------------------------------
 
 ROUTES: Dict[str, Dict[str, Any]] = {
-    "help": {"fn": _cmd_help, "help": "show this help"},
-    "ping": {"fn": _cmd_ping, "help": "liveness check"},
-    "user": {"fn": _cmd_user, "help": "post a 360° user case file (e.g. `/alaska user 2762`)"},
+    "help": {"fn": _cmd_help, "help": "show this help", "target": "command-gateway"},
+    "ping": {"fn": _cmd_ping, "help": "liveness check", "target": "command-gateway"},
+    "user": {"fn": _cmd_user, "help": "post a 360° user case file (e.g. `/alaska user 2762`)",
+             "target": "user-casefile"},
     # Wired in later, approved phases (kept as honest stubs so they never 500):
     "audit": {"fn": _coming_soon("audit", "in P1 (runs via the bon-internal-audit skill)"),
-              "help": "internal audit report — P1"},
-    "brief": {"fn": _coming_soon("brief", "in P1"), "help": "daily brief / standup sheet — P1"},
+              "help": "internal audit report — P1", "target": "bon-internal-audit"},
+    "brief": {"fn": _coming_soon("brief", "in P1"), "help": "daily brief / standup sheet — P1",
+              "target": "command-gateway"},
     "pmf":   {"fn": _coming_soon("pmf", "in P2 (routes to pmf-cohort-os)"),
-              "help": "PMF cohort status — P2"},
+              "help": "PMF cohort status — P2", "target": "pmf-cohort-os"},
 }
 
 
@@ -176,19 +179,45 @@ def _unknown(parsed: ParsedCommand) -> Dict[str, Any]:
 # entry point
 # --------------------------------------------------------------------------
 
+def _audit(parsed: ParsedCommand, ctx: Dict[str, Any], result: Dict[str, Any],
+           *, matched: str, target: Optional[str]) -> None:
+    """Best-effort routing-decision log (command_audit, migration 0007). Never
+    raises and never affects the command — see alaska_command_gateway.audit."""
+    try:
+        log_command({
+            "raw_text": " ".join([parsed.subcommand] + list(parsed.args)).strip() or None,
+            "verb": parsed.subcommand or None,
+            "matched": matched,
+            "routed_target": target,
+            "ok": 1 if result.get("ok") else 0,
+            "status": result.get("status"),
+            "invoker": ctx.get("invoker"),
+            "channel": ctx.get("channel"),
+            "channel_type": ctx.get("channel_type"),
+            "gateway_version": GATEWAY_VERSION,
+        }, db_path=ctx.get("audit_db_path"))
+    except Exception:  # belt-and-suspenders; log_command already swallows
+        pass
+
+
 def route(text: Optional[str], ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Parse `/alaska` TEXT and run its executor. Never raises — any executor
-    fault is caught and returned as a friendly, non-500 result."""
+    fault is caught and returned as a friendly, non-500 result. Every decision is
+    logged to command_audit (best-effort; never affects the result)."""
     ctx = ctx if ctx is not None else build_context()
     parsed = parse_command(text)
     row = ROUTES.get(parsed.subcommand)
     if row is None:
-        return _unknown(parsed)
+        result = _unknown(parsed)
+        _audit(parsed, ctx, result, matched="unknown", target=None)
+        return result
     try:
-        return row["fn"](parsed, ctx)
+        result = row["fn"](parsed, ctx)
     except Exception as exc:  # a handler bug must not crash the slash command
-        return _result(False, ":x: `/alaska %s` hit an internal error: %s" % (parsed.subcommand, exc),
-                       status="handler_error")
+        result = _result(False, ":x: `/alaska %s` hit an internal error: %s" % (parsed.subcommand, exc),
+                         status="handler_error")
+    _audit(parsed, ctx, result, matched="route", target=row.get("target"))
+    return result
 
 
 def main(argv: Optional[list] = None) -> int:
