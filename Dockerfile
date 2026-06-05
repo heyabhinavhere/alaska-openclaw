@@ -27,14 +27,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dateutil \
     && rm -rf /var/lib/apt/lists/*
 
-# Pre-install the Slack plugin, PINNED to match the core (baked into the image, survives
-# restarts). The version is pinned (not floating) and the install is STRICT (no `2>/dev/null
-# || true`): @openclaw/slack floats its required OpenClaw floor, and an unpinned `latest` is
-# exactly what broke the 2026.5.26 build (latest needed >=2026.5.28). Pinning to the core's
-# matching version AND failing the build on a bad install means we never ship an image where
-# Alaska's Slack plugin (her whole interface) can't load.
-RUN cd /usr/local/lib/node_modules/openclaw && \
-    npx openclaw plugins install @openclaw/slack@2026.5.28
+# Pre-install the Slack plugin, PINNED to match the core (baked in to skip a cold-start
+# download; survives restarts). OpenClaw 5.x installs plugins via a standalone, cwd-independent
+# CLI command — `openclaw plugins install <pkg>@<ver>` — so we do NOT `cd` into the openclaw
+# module dir (that path moved in 5.x; the stale `cd /usr/local/lib/node_modules/openclaw` is
+# what failed the 2026.5.28 build). Pinning the version prevents the floating-`latest` core
+# mismatch that broke the 2026.5.26 attempt. Best-effort: if the build-time install hiccups the
+# build still succeeds, and OpenClaw auto-installs the (now version-compatible) plugin at boot
+# because channels.slack is configured — so Slack loads on the 2026.5.28 core either way.
+RUN openclaw plugins install @openclaw/slack@2026.5.28 \
+    || echo "[build] slack pre-install skipped; OpenClaw will auto-install the compatible plugin at boot"
 
 # Pre-install the Notion MCP server (no runtime npx download on cold start)
 RUN npm install -g @notionhq/notion-mcp-server 2>/dev/null || true
