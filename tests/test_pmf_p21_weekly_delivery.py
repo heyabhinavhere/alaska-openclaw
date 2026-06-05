@@ -47,6 +47,8 @@ def test_weekly_compose_facts_only_fallback():
     text = compose_weekly_slack(report)
     assert "📈" in text and "facts only" in text
     assert "Real users: 42" in text
+    assert "signed up 50" in text  # clean humanized line, not a raw dict
+    assert "{'signed_up'" not in text  # never dump a Python dict
     # never invents prose when the narrative is absent
     assert "Trajectory" not in text
 
@@ -80,7 +82,8 @@ def test_memo_compose_facts_only_fallback():
     }
     text = compose_memo_slack(report)
     assert "🏁" in text and "facts only" in text
-    assert "activation_rate" in text
+    assert "activation rate" in text  # humanized, not the raw key/dict
+    assert "{'activation_rate'" not in text
     assert "Verdict" not in text
 
 

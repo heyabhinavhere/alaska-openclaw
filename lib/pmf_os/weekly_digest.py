@@ -179,7 +179,9 @@ def compose_weekly_slack(report: dict[str, Any]) -> str:
             if items:
                 lines.append(f"*{label}:*\n" + "\n".join(f"• {x}" for x in items[:8]))
         return "\n".join(x for x in lines if x)
+    stages = funnel.get("stage_counts") or {}
+    stage_line = " · ".join(f"{k.replace('_', ' ')} {v}" for k, v in stages.items()) or "no stage data yet"
     return (
         f"📈 *Weekly PMF digest{(' · ' + week) if week else ''}* (facts only — run with --narrate-live for the trajectory)\n"
-        f"Real users: {funnel.get('real_users', 0)} · stages: {funnel.get('stage_counts', {})}"
+        f"Real users: {funnel.get('real_users', 0)} · {stage_line}"
     )

@@ -31,11 +31,13 @@ This skill owns the **`!pmf`** command (legacy `/pmf` alias also works) — the 
 - **If no cohort is active** (or the user isn't a cohort member), say so plainly — do NOT invent a funnel stage or case file. You may still give their raw 360 read separately if asked, but label it as such.
 - Per-user PMF detail (the case file) is founder-grade operational info the whole team may see; the aggregate daily Slack line stays aggregate.
 
-**`!pmf tell me about user <id>`** → fetch their case file and render it with your read:
+**`!pmf user <id>`** (alias **`!pmf case <id>`**; natural phrasing like `!pmf tell me about user <id>` also works) → fetch that cohort member's **PMF case file** and render it with your read:
 ```bash
 python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db case-file --bon-user-id <id>
 ```
-`--cohort-id` defaults to the active cohort; pass `--user-key user:<id>` if you have it. The result is the structured case file (identity, onboarding, linked accounts, financial context, activity, CredGPT, **funnel stage + evidence**, interventions). Compose a tight Slack message from it — lead with the stage + what's notable + what to do; first names, exact numbers, no JSON dump. If `case_file` is null, say so plainly (not in this cohort, or no daily run has populated it yet) — never invent a stage. Grounded in the PMF store; don't blend the default 360/Amplitude read into a `!pmf` answer.
+`--cohort-id` defaults to the active cohort; pass `--user-key user:<id>` if you have it. The result is the structured **PMF cohort case file** — the JSON is self-identifying (`label: "PMF cohort case file"`) and carries identity, onboarding, linked accounts, financial context, activity, CredGPT, **funnel stage + evidence**, interventions. Compose a tight Slack message from it — lead with the stage + what's notable + what to do; first names, exact numbers, no JSON dump. If `case_file` is null, say so plainly (not in this cohort, or no daily run has populated it yet) — never invent a stage. Grounded in the PMF store; don't blend the default 360/Amplitude read into a `!pmf` answer.
+
+> **`!pmf user <id>` ≠ `!case <id>`.** `!case <id>` is the *general* 360° financial case file (any BON user, via the command gateway) — no cohort, no funnel. `!pmf user <id>` is the *PMF cohort* case file (funnel stage + cohort evidence) for an active-cohort member. Same id, different lens — never conflate the two.
 
 ## Operating Truth
 
