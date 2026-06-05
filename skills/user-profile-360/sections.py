@@ -337,6 +337,28 @@ INTENT_PROFILES: dict[str, list[str]] = {
         "chat.intent_breakdown",
         "chat.feedback_summary",
     ],
+    # The `!case` user case-file DOCX (lib/alaska_capabilities/user_casefile.py) renders
+    # EVERY summarizer block — credit, debt, liquidity, income, spending, subscriptions,
+    # chat counts + topics + feedback. So it needs the full read, not the thin
+    # user_summary (profile+persona only). This is deliberately broader than
+    # full_picture (adds plaid_income for income stability, and chat.recent_turns +
+    # chat.threads for the real/proactive turn + thread counts).
+    "case_file": [
+        "profile",                                       # identity + account linking
+        "persona",
+        "credit_report_history",                         # credit score (Array, canonical)
+        "spinwheel_credit_report",                       # credit fallback
+        "tradeline_history",                             # debt detail / overdue flag
+        "plaid_profiles",                                # card_profile=debt aggregates; bank_profile=liquidity + monthly income
+        "plaid_accounts",                                # liquidity + spending accounts
+        "plaid_transactions.by_category_current_month",  # spending total + top categories
+        "plaid_income",                                  # income stability / source
+        "subscriptions",                                 # active count + monthly total
+        "chat.recent_turns",                             # real vs proactive turn counts
+        "chat.threads",                                  # total threads
+        "chat.intent_breakdown",                         # dominant topics
+        "chat.feedback_summary",                         # thumbs up / down
+    ],
 }
 
 
