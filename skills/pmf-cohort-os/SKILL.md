@@ -23,19 +23,19 @@ Use this skill when:
 
 Do **not** use this skill for ordinary Alaska task tracking. `task-handler` remains the sole writer of team task tables.
 
-## /pmf — the PMF query mode
+## `!pmf` — the PMF query mode
 
-This skill owns the explicit **`/pmf`** command — the user-facing signal for a PMF-cohort question (e.g. `/pmf what's up with user 2903`, `/pmf who are the likely lovers`, `/pmf show the cockpit`). Answer **only** from the PMF source set, grounded, and never blend in the default 360/Amplitude user-intel read (that is a different lens):
+This skill owns the **`!pmf`** command (legacy `/pmf` alias also works) — the user-facing signal for a PMF-cohort question (e.g. `!pmf what's up with user 2903`, `!pmf who are the likely lovers`, `!pmf show the cockpit`). `SOUL.md` → "STEP 0 — Command Router" routes the `!pmf` verb here. **A *bare* `pmf …` WITHOUT the `!` is NOT a trigger** — "pmf is strong this week" is normal chat, not a command; don't run this skill for it. Answer **only** from the PMF source set, grounded, and never blend in the default 360/Amplitude user-intel read (that is a different lens):
 
 - **Source set:** the PMF store (`alaska_pmf.db` — registry, daily snapshots, **case files**, funnel, operating queues, interventions), end-of-cohort survey responses, PMF Watchers, and `workspace/knowledge/definitions/pmf-cohort-os.md`.
 - **If no cohort is active** (or the user isn't a cohort member), say so plainly — do NOT invent a funnel stage or case file. You may still give their raw 360 read separately if asked, but label it as such.
 - Per-user PMF detail (the case file) is founder-grade operational info the whole team may see; the aggregate daily Slack line stays aggregate.
 
-**`/pmf tell me about user <id>`** → fetch their case file and render it with your read:
+**`!pmf tell me about user <id>`** → fetch their case file and render it with your read:
 ```bash
 python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db case-file --bon-user-id <id>
 ```
-`--cohort-id` defaults to the active cohort; pass `--user-key user:<id>` if you have it. The result is the structured case file (identity, onboarding, linked accounts, financial context, activity, CredGPT, **funnel stage + evidence**, interventions). Compose a tight Slack message from it — lead with the stage + what's notable + what to do; first names, exact numbers, no JSON dump. If `case_file` is null, say so plainly (not in this cohort, or no daily run has populated it yet) — never invent a stage. Grounded in the PMF store; don't blend the default 360/Amplitude read into a `/pmf` answer.
+`--cohort-id` defaults to the active cohort; pass `--user-key user:<id>` if you have it. The result is the structured case file (identity, onboarding, linked accounts, financial context, activity, CredGPT, **funnel stage + evidence**, interventions). Compose a tight Slack message from it — lead with the stage + what's notable + what to do; first names, exact numbers, no JSON dump. If `case_file` is null, say so plainly (not in this cohort, or no daily run has populated it yet) — never invent a stage. Grounded in the PMF store; don't blend the default 360/Amplitude read into a `!pmf` answer.
 
 ## Operating Truth
 

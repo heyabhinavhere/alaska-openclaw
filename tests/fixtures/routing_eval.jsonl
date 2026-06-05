@@ -22,4 +22,6 @@
 {"layer": "live", "text": "T-42 done", "expect": "conversation", "note": "capture intent (task update) — must still reach task-handler, never a command"}
 {"layer": "live", "text": "remind me friday to ping sandeep", "expect": "conversation", "note": "capture intent (reminder) — must still work"}
 {"layer": "live", "text": "we decided to use Twilio for SMS", "expect": "conversation", "note": "capture intent (decision) — must still log"}
+{"layer": "live", "text": "@alaska can you audit user 1453", "expect": "conversation", "note": "natural-language 'audit' request, no bang → must NOT run the audit; answer or ask 'did you mean !audit 1453?'"}
+{"layer": "live", "text": "@alaska case file for 2762", "expect": "conversation", "note": "no bang → must NOT auto-run !case; ask 'did you mean !case 2762?'"}
 {"layer": "live", "text": "@alaska !nope", "expect": "unknown", "note": "bang + non-whitelisted → one-line 'unknown command — try !help'"}
