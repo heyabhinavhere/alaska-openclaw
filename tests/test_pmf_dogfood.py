@@ -65,7 +65,11 @@ def test_team_html_shows_user_detail():
         artifact_root=str(root), snapshot_date="2026-06-13",
     )
     team_html = Path(team["html_path"]).read_text(encoding="utf-8")
-    assert "user:2000" in team_html  # the whole team sees per-user rows
+    # The cockpit is now AGGREGATE-ONLY — humanized funnel + health, no per-user table
+    # (the per-user registry/queue tables were removed as confusing; per-user detail
+    # lives in the /pmf case file). So aggregate sections are present, per-user rows are not.
+    assert "PMF Funnel" in team_html and "Signed up" in team_html  # humanized stage labels
+    assert "user:2000" not in team_html  # no per-user rows in the cockpit anymore
     # HTML stays self-contained (no external network dependency).
     assert "http://" not in team_html
     assert "https://" not in team_html

@@ -96,28 +96,24 @@ def render_html(snapshot: dict[str, Any], path: str | Path) -> str:
     summary = snapshot.get("summary", {})
     stage_counts = summary.get("stage_counts", {})
     queue_counts = summary.get("queue_counts", {})
-    users = snapshot.get("users", [])[:80]
-    queues = snapshot.get("queues", [])[:80]
     clusters = snapshot.get("credgpt_quality", {}).get("clusters", [])[:20]
     max_stage = max(stage_counts.values(), default=1) or 1
     health_counts = summary.get("health_counts", {})
+    # The per-user tables (Priority Queue Items, User Registry Sample) were removed from
+    # the cockpit — long + confusing at-a-glance; per-user detail lives in the /pmf case file.
     detail_sections = f"""<section class="panel" style="margin-top:16px">
       <h2>Health Breakdown</h2>
       {_count_list(health_counts, "No health data yet.")}
-    </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>Priority Queue Items</h2>
-      {_queues_table(queues)}
-    </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>User Registry Sample</h2>
-      {_users_table(users)}
     </section>"""
+    # Context for the headline numbers (a bare "Open queues: 118" reads as scary noise).
+    total_queues = sum(queue_counts.values()) if isinstance(queue_counts, dict) else 0
+    actionable_queues = sum(queue_counts.get(q, 0) for q in _ACTIONABLE_QUEUES) if isinstance(queue_counts, dict) else 0
+    total_reviews = summary.get("credgpt_reviews", 0)
 
     stage_bars = "\n".join(
         f"""
         <div class="bar-row">
-          <span>{_label(stage)}</span>
+          <span>{_stage_label(stage)}</span>
           <div class="bar-track"><div class="bar-fill" style="width:{(stage_counts.get(stage, 0) / max_stage) * 100:.1f}%"></div></div>
           <strong>{stage_counts.get(stage, 0)}</strong>
         </div>
@@ -177,8 +173,8 @@ def render_html(snapshot: dict[str, Any], path: str | Path) -> str:
     <section class="grid">
       {_metric("Signups", summary.get("total_signup_users", 0))}
       {_metric("Real users", summary.get("real_users", 0))}
-      {_metric("Open queues", sum(queue_counts.values()) if isinstance(queue_counts, dict) else 0)}
-      {_metric("Weak CredGPT", summary.get("weak_credgpt_reviews", 0))}
+      {_metric("Open queues", total_queues, f"{actionable_queues} to act on · {total_queues - actionable_queues} to review")}
+      {_metric("Weak CredGPT", summary.get("weak_credgpt_reviews", 0), f"of {total_reviews} reviews")}
     </section>
     <section class="two">
       <div class="panel">
@@ -321,8 +317,9 @@ def _count_by(items: list[dict[str, Any]], key: str) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
-def _metric(label: str, value: Any) -> str:
-    return f"""<div class="panel metric"><span class="value">{_e(value)}</span><span class="label">{_e(label)}</span></div>"""
+def _metric(label: str, value: Any, sub: str | None = None) -> str:
+    sub_html = f'<span class="label" style="opacity:.7;font-size:11px">{_e(sub)}</span>' if sub else ""
+    return f"""<div class="panel metric"><span class="value">{_e(value)}</span><span class="label">{_e(label)}</span>{sub_html}</div>"""
 
 
 def _queue_count_list(queue_counts: dict[str, int]) -> str:
@@ -504,8 +501,27 @@ def _title(snapshot: dict[str, Any]) -> str:
     return f"Alaska V5 {label}"
 
 
+# Plain-English labels for the funnel stages (the raw enums read as jargon).
+STAGE_LABELS = {
+    "signed_up": "Signed up",
+    "onboarded_real_user": "Onboarded (real user)",
+    "activated_user": "Activated",
+    "activated_saver": "Activated saver",
+    "likely_lover": "Likely lover",
+    "confirmed_lover": "Confirmed lover",
+}
+
+# Queues that map to an actual user intervention (vs internal review) — drives the
+# cockpit's "X to act on" context. Mirrors queue_actions.QUEUE_INTERVENTION_MAP.
+_ACTIONABLE_QUEUES = ("high_intent", "stuck_onboarding", "at_risk", "potential_lover")
+
+
 def _label(value: Any) -> str:
     return str(value or "unknown").replace("_", " ").title()
+
+
+def _stage_label(stage: Any) -> str:
+    return STAGE_LABELS.get(str(stage), _label(stage))
 
 
 def _e(value: Any) -> str:

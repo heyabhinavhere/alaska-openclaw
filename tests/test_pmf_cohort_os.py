@@ -457,9 +457,11 @@ def test_reports_show_full_detail_and_render_self_contained_artifacts():
     assert all(item["structural_pass"] for item in rendered["qa"])
 
     html_text = Path(rendered["html_path"]).read_text(encoding="utf-8")
-    # Team sees full per-user detail (the registry row is present).
-    assert "user:2714" in html_text
-    assert "Asha" in html_text
+    # The cockpit is now AGGREGATE-ONLY (per-user registry/queue tables removed as
+    # confusing); per-user detail lives in the /pmf case file. So aggregate sections are
+    # present, but no per-user rows.
+    assert "PMF Funnel" in html_text  # aggregate sections present
+    assert "user:2714" not in html_text and "Asha" not in html_text  # no per-user rows
     # HTML stays self-contained (no external CDN/network dependency).
     assert "http://" not in html_text
     assert "https://" not in html_text

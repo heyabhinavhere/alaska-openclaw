@@ -299,7 +299,7 @@ def test_run_cohort_day_delivers_to_slack():
     )
     assert run["delivery"]["ok"] is True
     assert sent["channel"] == "C123"
-    assert "PMF Cohort daily run" in sent["summary"]
+    assert "PMF Cohort" in sent["summary"] and "Funnel:" in sent["summary"]
     assert sent["html_path"] and Path(sent["html_path"]).exists()
 
 

@@ -104,11 +104,14 @@ def test_team_cockpit_keeps_name_drops_secrets():
     assert user["account_number"].startswith("•") and user["account_number"].endswith("7890")
     # SSN pattern scrubbed even inside free text
     assert "123-45-6789" not in user["financial_context"]["note"]
-    # rendered cockpit shows the name but leaks no SSN / address
+    # The cockpit is now AGGREGATE-ONLY (the per-user table was removed) — so it carries
+    # no per-user name AND, critically, no secrets in a channel-posted artifact. The
+    # team-visible per-user detail (name kept, secrets dropped — asserted above) lives in
+    # the /pmf case file instead.
     out = Path(tempfile.mkdtemp(prefix="p5_")) / "cockpit.html"
     render_html(snap, out)
     text = out.read_text(encoding="utf-8")
-    assert "Jordan Rivera" in text
+    assert "Jordan Rivera" not in text  # aggregate cockpit → no per-user PII in the channel
     assert "123-45-6789" not in text and "742 Evergreen Terrace" not in text
 
 
