@@ -247,4 +247,5 @@ def compose_memo_slack(report: dict[str, Any]) -> str:
                 lines.append(f"*{label}:*\n" + "\n".join(f"• {x}" for x in items[:8]))
         return "\n".join(x for x in lines if x)
     rates = (facts.get("funnel") or {}).get("rates") or {}
-    return f"🏁 *End-of-cohort PMF memo* (facts only — run with --narrate-live for the verdict)\nrates: {rates}"
+    rate_line = " · ".join(f"{k.replace('_', ' ')} {v}" for k, v in rates.items()) or "no rate data yet"
+    return f"🏁 *End-of-cohort PMF memo* (facts only — run with --narrate-live for the verdict)\n{rate_line}"

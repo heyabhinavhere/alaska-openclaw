@@ -266,12 +266,12 @@ def main(argv: list[str] | None = None) -> int:
             if not user_key and args.bon_user_id and cohort_id:
                 user_key = store.user_key_for_bon_id(cohort_id, args.bon_user_id) or f"user:{args.bon_user_id}"
             if not cohort_id:
-                out = {"case_file": None, "note": "no active cohort"}
+                out = {"label": "PMF cohort case file", "case_file": None, "note": "no active cohort"}
             elif not user_key:
-                out = {"case_file": None, "note": "provide --user-key or --bon-user-id"}
+                out = {"label": "PMF cohort case file", "case_file": None, "note": "provide --user-key or --bon-user-id"}
             else:
                 cf = store.get_case_file(cohort_id, user_key)
-                out = {"cohort_id": cohort_id, "user_key": user_key, "case_file": cf,
+                out = {"label": "PMF cohort case file", "cohort_id": cohort_id, "user_key": user_key, "case_file": cf,
                        "note": None if cf else "no case file — user not in this cohort, or no daily run has populated it yet"}
         elif args.cmd == "validate-customerio-action":
             action = _load_json_arg(args.action_json)
