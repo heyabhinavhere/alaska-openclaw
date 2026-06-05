@@ -1,6 +1,6 @@
 ---
 name: bon-internal-audit
-description: Conducts a deep, expert-level internal financial audit of a single BON user and produces the Internal Report (agent decision tree). Triggered ONLY by the "!audit <user_id>" command (routed by SOUL.md STEP 0; the legacy "/audit <user_id>" alias also works) — a BARE "audit 1453" without the ! is NOT a trigger, never run an audit for it. Fetches the user 360 profile (Array credit report + Plaid), runs the audit, fills Internal_Report_Template.docx, posts a concise Slack summary, and attaches the report. Internal only. Never messages the end user, never triggers Customer.io or SMS.
+description: Conducts a deep, expert-level internal financial audit of a single BON user and produces the Internal Report (agent decision tree). Triggered by the "!audit <user_id>" command (the clean explicit form; legacy "/audit" alias also works) OR a clear unambiguous bare "audit <user_id>" request — but a SENTENCE merely about audits ("what does an audit show", "can you audit this later") is NOT a trigger. Fetches the user 360 profile (Array credit report + Plaid), runs the audit, fills Internal_Report_Template.docx, posts a concise Slack summary, and attaches the report. Internal only. Never messages the end user, never triggers Customer.io or SMS.
 version: 1.0
 owner: BON Product (Abhinav)
 scope: Internal Report ONLY. External Report is out of scope for v1.
@@ -24,16 +24,16 @@ report you write becomes how BON's agent talks to thousands of other real users.
 
 ## When this runs
 
-You are invoked **ONLY by the `!audit <user_id>` command** — `SOUL.md` → "STEP 0 —
-Command Router" recognizes the `!audit` verb and hands control here (the legacy
-`/audit <user_id>` alias still works). It's a **mention-command** parsed from the
-message body, not a native Slack slash command.
+You are invoked by the **`!audit <user_id>` command** (the clean, explicit form;
+legacy `/audit` alias works) OR by a clear, unambiguous bare **`audit <user_id>`**
+request. `SOUL.md` → "STEP 0 — Command Router" handles the routing. It's a
+**mention-command** parsed from the message body, not a native Slack slash command.
 
-**A *bare* `audit <id>` WITHOUT the `!` is NOT a trigger — do NOT run an audit for
-it.** "audit 1453", "can you audit user 1453", "what does an audit show" are normal
-messages: answer conversationally (or ask *"did you mean `!audit 1453`?"*). The `!`
-(or the legacy `/`) is the only trigger. If you reached this skill for a message
-that has no `!audit`/`/audit`, stop — it wasn't a command.
+**A SENTENCE that merely mentions audits is NOT a trigger — do NOT run an audit for
+it.** "what does an audit show", "can you audit this later", "we should audit our
+process", "what's up with user 2762" are normal messages: answer conversationally
+(or, if it might be a fumbled command, ask *"did you mean `!audit 1453`?"*). `!audit`
+always removes doubt; a bare `audit <id>` is fine only when the intent is unmistakable.
 
 ## Hard safety rules (non-negotiable)
 

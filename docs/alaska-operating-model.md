@@ -42,7 +42,9 @@ Alaska is **internally aware of every mode** and pattern-matches the question to
 
 §1 is the **source-router** — for a *free-form question* it picks which data source to trust. §1.5 is the **command layer** — for an *explicit command* it routes deterministically, *before* §1 runs. They are complementary: a message is either a command (`!verb`) or it falls through to the source-router.
 
-**The grammar — `!` + a CLOSED whitelist.** A leading `!` alone is **not** a command. The trigger is: the first meaningful token (after any @mention, or at DM start) is `!<verb>` **and** `<verb>` is whitelisted. Otherwise → normal chat (or, for a non-whitelisted `!token`, a one-line *"unknown command — try `!help`"*, never an improvised answer). This kills the collision that made `audit 1453` read as a question.
+**The grammar — `!` + a CLOSED whitelist.** A leading `!` alone is **not** a command. The trigger is: the first meaningful token (after any @mention, or at DM start) is `!<verb>` **and** `<verb>` is whitelisted. Otherwise → normal chat (or, for a non-whitelisted `!token`, a one-line *"unknown command — try `!help`"*, never an improvised answer). `!` is the explicit, always-reliable form.
+
+**Bare verbs (decided 2026-06-05 — "accept unambiguous bare verbs").** A *clear, unambiguous* bare command — just the verb + its target, like `audit 1453`, `case 2762`, `pmf likely lovers` — is also accepted as that command (the intent is obvious; the model runs it regardless, so the prose matches reality rather than fighting it). The guardrail is on the **fuzzy** cases: a *sentence* that merely mentions a verb ("can you audit user 1453", "what does an audit show", "case file for user X", "how's pmf going") is NOT a command — answer it, or ask *"did you mean `!audit 1453`?"*. **Boundary:** a bare `user 2762` / "what's up with user X" stays the source-router **360 summary**, NOT the `!case` command (`user` is only a back-compat alias inside the explicit `!case`/`/alaska user` forms).
 
 | Command | Routes to | How |
 |---|---|---|

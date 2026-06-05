@@ -25,7 +25,7 @@ Do **not** use this skill for ordinary Alaska task tracking. `task-handler` rema
 
 ## `!pmf` — the PMF query mode
 
-This skill owns the **`!pmf`** command (legacy `/pmf` alias also works) — the user-facing signal for a PMF-cohort question (e.g. `!pmf what's up with user 2903`, `!pmf who are the likely lovers`, `!pmf show the cockpit`). `SOUL.md` → "STEP 0 — Command Router" routes the `!pmf` verb here. **A *bare* `pmf …` WITHOUT the `!` is NOT a trigger** — "pmf is strong this week" is normal chat, not a command; don't run this skill for it. Answer **only** from the PMF source set, grounded, and never blend in the default 360/Amplitude user-intel read (that is a different lens):
+This skill owns the **`!pmf`** command (legacy `/pmf` alias also works) — the user-facing signal for a PMF-cohort question (e.g. `!pmf what's up with user 2903`, `!pmf who are the likely lovers`, `!pmf show the cockpit`). `SOUL.md` → "STEP 0 — Command Router" routes the `!pmf` verb here (a clear bare `pmf <query>` works too). **But a sentence merely *about* pmf is NOT a trigger** — "pmf is strong this week", "how's pmf going" is normal chat, not a command; don't run this skill for it. Answer **only** from the PMF source set, grounded, and never blend in the default 360/Amplitude user-intel read (that is a different lens):
 
 - **Source set:** the PMF store (`alaska_pmf.db` — registry, daily snapshots, **case files**, funnel, operating queues, interventions), end-of-cohort survey responses, PMF Watchers, and `workspace/knowledge/definitions/pmf-cohort-os.md`.
 - **If no cohort is active** (or the user isn't a cohort member), say so plainly — do NOT invent a funnel stage or case file. You may still give their raw 360 read separately if asked, but label it as such.
