@@ -33,12 +33,20 @@ namespace keeps every Alaska action discoverable and consistent.
 ## Status: P0 — built, tested, NOT wired live
 
 P0 delivers the runtime-agnostic brain and a reference HTTP receiver, fully
-covered by tests. It does **not** turn `/alaska` on in production. Why: the only
-public ingress is the single OpenClaw gateway process/port, Slack currently runs
-in Socket Mode (no public request URL), and the built-in `/hooks` receiver uses a
-static Bearer token + a slow `action:agent` turn — none of which fits a signed,
-<3s slash command as-is. Turning `/alaska` on is a separate, **approved** wiring
-step after verifying OpenClaw's capabilities. See
+covered by tests. It does **not** turn `/alaska` on in production.
+
+**Verified (2026-06-05):** OpenClaw *natively* supports Slack slash commands —
+Socket Mode (no public URL, **no signing secret**) and HTTP mode. But native
+support landed *after* our pinned **`v2026.3.13`** (GitHub #66194, resolved
+~2026-04), so live Alaska can't receive a Socket-Mode slash command today — hence
+the instruction-routed `/pmf` and `/audit` workaround. Going live needs the
+**`v2026.3.13 → v2026.5.26` upgrade** (+ a `config/openclaw.json` `streaming` /
+`nativeStreaming` fix + an `openclaw doctor --fix` preflight). Then the recommended
+path is **Architecture A**: OpenClaw routes `/alaska` → a routing skill that calls
+this lib's `parse_command` + handlers (`help`/`ping` answered deterministically,
+`audit` enqueued). In that path `verify.py` + `receiver.py` are unused — they are
+the HTTP-mode / own-the-endpoint alternative (Architecture B). All live wiring is a
+separate, **approved** step. See
 [docs/platform/command-gateway.md](../../docs/platform/command-gateway.md).
 
 ## Flow
