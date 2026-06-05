@@ -65,12 +65,13 @@ def _result(ok: bool, text: str, **extra: Any) -> Dict[str, Any]:
 
 def build_context(invoker: Optional[str] = None, channel: Optional[str] = None,
                   channel_type: str = "channel", thread_ts: Optional[str] = None,
-                  **extra: Any) -> Dict[str, Any]:
+                  channel_label: Optional[str] = None, **extra: Any) -> Dict[str, Any]:
     ctx: Dict[str, Any] = {
         "invoker": invoker,
         "channel": channel,
         "channel_type": channel_type,
         "thread_ts": thread_ts,
+        "channel_label": channel_label,  # human label for the success message (e.g. "#user-audit")
         "authority": extra.pop("authority", None) or authority_for(invoker),
     }
     ctx.update(extra)
@@ -108,7 +109,7 @@ def _cmd_user(parsed: ParsedCommand, ctx: Dict[str, Any]) -> Dict[str, Any]:
         from alaska_capabilities.user_casefile import generate as generate  # noqa: PLC0415
 
     res = generate(
-        user_id, ctx.get("invoker"),
+        user_id, ctx.get("invoker") or "slash-command",
         requester_authority=ctx.get("authority") or "unknown",
         channel_id=ctx.get("channel"),
         channel_type=ctx.get("channel_type") or "channel",
@@ -127,9 +128,10 @@ def _cmd_user(parsed: ParsedCommand, ctx: Dict[str, Any]) -> Dict[str, Any]:
                        % (user_id, res.get("message") or status), status=status)
 
     uid = res.get("user_id", user_id)
+    where = ctx.get("channel_label") or "the channel"
     if res.get("delivered"):
         note = " _(served from a stale cache — BON API was unreachable)_" if res.get("served_stale") else ""
-        return _result(True, ":card_index_dividers: User case file for *#%s* posted above.%s" % (uid, note),
+        return _result(True, ":card_index_dividers: User case file for *#%s* posted to %s.%s" % (uid, where, note),
                        artifact_id=res.get("artifact_id"), delivered=True)
     # Generated but not delivered (no channel, or Slack upload failed).
     slack_err = (res.get("slack") or {}).get("error")
@@ -197,10 +199,12 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--channel", default=None, help="Slack channel id the command was run in")
     ap.add_argument("--channel-type", default="channel", help="channel|dm|group")
     ap.add_argument("--thread-ts", default=None, help="post into this Slack thread, if the command was threaded")
+    ap.add_argument("--channel-label", default=None, help="human label for the success message, e.g. #user-audit")
     args = ap.parse_args(argv)
 
     ctx = build_context(invoker=args.invoker, channel=args.channel,
-                        channel_type=args.channel_type, thread_ts=args.thread_ts)
+                        channel_type=args.channel_type, thread_ts=args.thread_ts,
+                        channel_label=args.channel_label)
     result = route(args.text, ctx)
     print(json.dumps(result, indent=2, sort_keys=True, default=str))
     return 0 if result.get("ok") else 1
