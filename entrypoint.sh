@@ -145,6 +145,22 @@ if [ -n "$HOOKS_TOKEN" ]; then
   echo "[alaska] Hooks token injected into config"
 fi
 
+# Migrate the persisted config to the running OpenClaw version's schema BEFORE boot.
+# v2026.5.x rewrites legacy channels.slack keys (boolean `streaming`, `nativeStreaming`)
+# into the canonical object shape and strips unknown keys. We also fix the git config
+# (streaming -> {mode:off}, nativeStreaming removed), but the git->runtime deep-merge can
+# leave a stale NESTED `nativeStreaming` on the persistent /data volume from a prior deploy
+# (the merge only strips unknown TOP-LEVEL keys). doctor --fix removes it so `gateway run`
+# doesn't reject the config. Non-fatal: a doctor hiccup must never crash-loop the boot — the
+# gateway still validates config on run. OPENCLAW_STATE_DIR=/data/.openclaw (Dockerfile)
+# points doctor at the live config.
+echo "[alaska] Running openclaw doctor --fix (config schema migration)..."
+if openclaw doctor --fix 2>&1; then
+  echo "[alaska] doctor --fix completed."
+else
+  echo "[alaska] doctor --fix reported issues (non-fatal, continuing to gateway run)."
+fi
+
 echo "[alaska] Starting OpenClaw gateway..."
 
 # exec replaces this shell with the gateway process

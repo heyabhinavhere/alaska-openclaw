@@ -3,7 +3,13 @@
 # Pinned version — no surprise auto-updates
 
 # 1panel/openclaw mirrors the official OpenClaw with confirmed version tags on Docker Hub
-FROM 1panel/openclaw:2026.3.13
+# Upgraded 2026.3.13 -> 2026.5.26: unlocks native Slack slash commands (for /alaska — see
+# GitHub #66194, resolved ~2026-04) plus cron-delivery and concurrency-recovery fixes.
+# v2026.5.x is fixes-only over 5.x (no breaking changes that affect us). The one schema
+# break (channels.slack.streaming object + nativeStreaming removal) is fixed in
+# config/openclaw.json below and migrated at boot by the `openclaw doctor --fix` preflight
+# in entrypoint.sh. Rollback = revert this line to 2026.3.13 and redeploy.
+FROM 1panel/openclaw:2026.5.26
 
 USER root
 
