@@ -12,6 +12,13 @@
       "dangerouslyDisableDeviceAuth": true
     }
   },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "anthropic/claude-sonnet-4-20250514"
+      }
+    }
+  },
   "channels": {
     "slack": {
       "enabled": true,
