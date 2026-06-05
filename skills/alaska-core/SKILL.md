@@ -128,6 +128,8 @@ If the message starts with **`/pmf`** (after any @-mention), that's the explicit
 
 If the message starts with **`/audit <user_id>`** (after any @-mention), that's an internal single-user financial audit — read `/data/skills/bon-internal-audit/SKILL.md` and run it in **audit mode**. It fetches the user's 360 profile, fills the Internal Report DOCX, and posts the summary + report back to you here. Internal only: it never messages the audited user and never triggers Customer.io/SMS.
 
+If the message starts with **`/alaska <subcommand>`** (after any @-mention) — e.g. `/alaska user 2762`, `/alaska help`, `/alaska ping` — that's a command-gateway command. Read `/data/skills/command-gateway/SKILL.md` and run its flow: it runs the deterministic router (`alaska_command_gateway.execute`) with the subcommand + the sender's Slack id + this channel, and you relay the printed reply verbatim. `/alaska user <id>` posts a 360° user case-file DOCX **into the channel the command was run in**; `/alaska help` lists subcommands. Internal only: it reads the user profile and posts a file, never messages the end user or triggers Customer.io/SMS. (Do NOT confuse this with `/audit` — different command, different output.)
+
 If it's `STATUS_QUERY` / `DECISION_RECORDED` / `NON_WORK_CHAT` / `AMBIGUOUS` (or confidence < 0.7), handle it conversationally:
 - Be helpful and conversational about project topics
 - Feel like a knowledgeable PM, not a restricted bot
