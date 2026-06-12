@@ -123,9 +123,9 @@ If the graph returns SOME rows (even one), use the graph only — do NOT mix pro
 (The Notion Sprint Board is retired as of 2026-05-23 — do not query it. The staleness guard above still applies whenever the DAILY_STATE.md fallback is used.)
 
 ### 1b. GitHub Activity (if configured)
-If GitHub API access is available (via `GITHUB_TOKEN` env var):
+If GitHub API access is available (via `BON_GITHUB_TOKEN` env var — renamed from `GITHUB_TOKEN`, which OpenClaw ≥5.28 strips from session env by name):
 ```bash
-curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+curl -s -H "Authorization: Bearer ${BON_GITHUB_TOKEN}" \
   "https://api.github.com/repos/[org]/[repo]/events?per_page=30" | head -c 5000
 ```
 
