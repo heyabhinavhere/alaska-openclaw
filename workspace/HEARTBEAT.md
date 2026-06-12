@@ -1,5 +1,10 @@
 # HEARTBEAT.md
 
-# Reminders — check date and fire if due
+## Closing note (main session — cheap check, every heartbeat)
 
-- **After June 10, 2026:** Remind Sandeep (U0AQFJV9B32) in #agentic-ai about building the human-in-the-loop API for the remaining 3%. New API needed, post-V2 launch.
+- If this session produced a significant artifact, decision, or investigation
+  since the last journal line, append ONE line to
+  `/data/workspace/workbench/journal/YYYY-MM-DD.md` (today's date; create the
+  dir/file if missing): `HH:MM — <what> — <where it lives>`.
+- Nothing significant since the last line → skip silently. Never post this
+  check or the journal to Slack.

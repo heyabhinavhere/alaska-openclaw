@@ -64,3 +64,18 @@ def test_bootstrap_set_total_within_budget():
         f"Injected bootstrap set totals {total:,} chars > {TOTAL_BUDGET:,} "
         "(loader default total cap is 60,000 — files past the budget get squeezed or skipped)."
     )
+
+
+# HEARTBEAT.md is NOT loader-injected (not in PER_FILE_BUDGETS on purpose): the
+# platform heartbeat file-reads it in the main session every ~30 min. Its cost is
+# recurring token burn, not the 12k truncation cliff — hence a separate soft cap.
+HEARTBEAT_SOFT_CAP = 1_200
+
+
+def test_heartbeat_stays_small():
+    """HEARTBEAT.md is re-read every ~30 min heartbeat — keep it lean."""
+    size = _size("workspace/HEARTBEAT.md")
+    assert size <= HEARTBEAT_SOFT_CAP, (
+        f"workspace/HEARTBEAT.md is {size:,} chars > {HEARTBEAT_SOFT_CAP:,} soft cap "
+        "— it is file-read on every heartbeat (~30 min); trim it rather than raising the cap."
+    )

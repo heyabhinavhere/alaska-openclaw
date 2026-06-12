@@ -250,6 +250,35 @@ def test_list_self_tasks_orders_dated_before_undated():
     assert [r[0] for r in rows] == [dated, undated], rows
 
 
+# --- review (morning self-task sweep) ----------------------------------------
+
+def test_review_orders_due_first_then_undated():
+    """The review op's exact ORDER BY: due/overdue first, then future-dated, undated last."""
+    conn = _db()
+    undated = _remember(conn, "self_task", "no date", "x")
+    future = _remember(conn, "self_task", "later", "x", due_at="2099-01-01 00:00:00")
+    due = _remember(conn, "self_task", "now", "x", due_at="2020-01-01 00:00:00")
+    rows = conn.execute(
+        "SELECT mem_id FROM agent_memory "
+        "WHERE kind='self_task' AND status='open' "
+        "ORDER BY (due_at IS NULL), due_at, created_at;"
+    ).fetchall()
+    assert [r[0] for r in rows] == [due, future, undated], rows
+
+
+def test_review_kb_proposal_cue_filter():
+    """KB proposals are self_tasks tagged recall_cue='kb-proposal'; review bundles exactly those."""
+    conn = _db()
+    kb = _remember(conn, "self_task", "suggest Twilio A2P page to Abhinav", "c", "kb-proposal")
+    _remember(conn, "self_task", "ordinary follow-up", "c", "deploy")
+    rows = conn.execute(
+        "SELECT mem_id FROM agent_memory "
+        "WHERE kind='self_task' AND status='open' "
+        "AND recall_cue LIKE '%kb-proposal%';"
+    ).fetchall()
+    assert [r[0] for r in rows] == [kb], rows
+
+
 # --- complete / archive lifecycle -------------------------------------------
 
 def test_complete_moves_self_task_to_done():
