@@ -370,7 +370,7 @@ GitHub is the source. Reference `integrations/github.md` for the handle table an
 - **Query:**
 
 ```bash
-curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+curl -s -H "Authorization: Bearer $BON_GITHUB_TOKEN" \
   "https://api.github.com/repos/<org>/<repo>/commits?per_page=20"
 ```
 
@@ -382,7 +382,7 @@ curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
 - **Query:**
 
 ```bash
-curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+curl -s -H "Authorization: Bearer $BON_GITHUB_TOKEN" \
   "https://api.github.com/search/issues?q=repo:<org>/<repo>+is:pr+is:merged+author:<handle>+merged:>=<today_iso_date>"
 ```
 
@@ -407,7 +407,7 @@ curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
 - **Query:**
 
 ```bash
-curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "User-Agent: alaska" \
+curl -s -H "Authorization: Bearer $BON_GITHUB_TOKEN" -H "User-Agent: alaska" \
   "https://api.github.com/repos/<org>/<repo>/contents/<path>?ref=<branch>" \
   | python3 -c "import sys,json,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())"
 ```

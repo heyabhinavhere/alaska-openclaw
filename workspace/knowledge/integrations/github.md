@@ -1,6 +1,6 @@
 # GitHub — Repos, Read Access, and the READ-ONLY Rule
 
-**Last updated:** 2026-05-30 by Abhinav
+**Last updated:** 2026-06-05 (token env-var renamed to `BON_GITHUB_TOKEN`; edit authorized by Abhinav)
 **Status:** Draft
 
 ---
@@ -20,7 +20,7 @@ This capability exists because the opposite failed badly. In a past investigatio
 Alaska can fetch and read the real contents of any file in the 9 private repos via the GitHub Contents API, then decode it:
 
 ```bash
-curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "User-Agent: alaska" \
+curl -s -H "Authorization: Bearer $BON_GITHUB_TOKEN" -H "User-Agent: alaska" \
   "https://api.github.com/repos/<org>/<repo>/contents/<path>?ref=<branch>" \
   | python3 -c "import sys,json,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())"
 ```
@@ -30,7 +30,7 @@ curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "User-Agent: alaska" \
 - This is the mechanism behind every grounded code answer.
 - **Don't know the exact path?** List the repo's file tree first, then read the file you find:
   ```bash
-  curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "User-Agent: alaska" \
+  curl -s -H "Authorization: Bearer $BON_GITHUB_TOKEN" -H "User-Agent: alaska" \
     "https://api.github.com/repos/<org>/<repo>/git/trees/<branch>?recursive=1"
   ```
   Find the path in the tree, then fetch its contents with the call above. Never guess a path. List, then read.
@@ -62,13 +62,13 @@ This is the rule that keeps the capability honest:
 
 **Alaska never writes to GitHub.** No push, merge, branch create/delete, PR open/close, issue close, or commenting. Ever. This applies to all 9 repos AND to `alaska-openclaw/` (Alaska's own config repo), where the temptation to "just fix this one thing" is highest.
 
-**Honest caveat, don't paper over this:** the rule is currently enforced by THIS INSTRUCTION, not by the token's scope. The `$GITHUB_TOKEN` in use actually carries full `repo` read + write access to all repos. Broader than read-only. A swap to a fine-grained, read-only token (Contents:read + commit/PR read) is planned. Abhinav owns that change. Until then, treat READ-ONLY as absolute discipline. The key will not stop a mistaken write. Only the rule will.
+**Honest caveat, don't paper over this:** the rule is currently enforced by THIS INSTRUCTION, not by the token's scope. The `$BON_GITHUB_TOKEN` in use actually carries full `repo` read + write access to all repos. Broader than read-only. A swap to a fine-grained, read-only token (Contents:read + commit/PR read) is planned. Abhinav owns that change. Until then, treat READ-ONLY as absolute discipline. The key will not stop a mistaken write. Only the rule will.
 
 ---
 
 ## Auth + access
 
-- **Env var:** `$GITHUB_TOKEN` (40-char token; never log it, never put it in Slack output)
+- **Env var:** `$BON_GITHUB_TOKEN` (40-char token; never log it, never put it in Slack output). **Renamed from `GITHUB_TOKEN` 2026-06-05** — OpenClaw ≥2026.5.28 strips the well-known names `GITHUB_TOKEN`/`GH_TOKEN` from session env by design (bundled denylist, not configurable). Do NOT rename back — every GitHub read silently breaks.
 - **Current scope:** full `repo` read+write (see caveat above). To be narrowed to read-only.
 - **API base:** `https://api.github.com`
 - **Rate limit:** 5,000 req/hr authenticated. Walking commit history across 9 repos hourly can add up. Cache where possible. If you hit it (HTTP 403 + `X-RateLimit-Remaining: 0`), back off and say "GitHub rate-limited, I'll retry shortly." Never fail silently or invent an answer.
@@ -77,20 +77,20 @@ This is the rule that keeps the capability honest:
 
 ```bash
 # File contents on the right branch (see default-branch table!)
-curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "User-Agent: alaska" \
+curl -s -H "Authorization: Bearer $BON_GITHUB_TOKEN" -H "User-Agent: alaska" \
   "https://api.github.com/repos/Bonhq/bon_webservices/contents/src/app.js?ref=dev_testing" \
   | python3 -c "import sys,json,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())"
 
 # Recent commits in a repo
-curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+curl -s -H "Authorization: Bearer $BON_GITHUB_TOKEN" \
   "https://api.github.com/repos/Bonlife/BON-CredGPT/commits?per_page=20"
 
 # Commits by a specific engineer in the last 7 days (use the handle table below)
-curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+curl -s -H "Authorization: Bearer $BON_GITHUB_TOKEN" \
   "https://api.github.com/repos/Bonlife/BON-CredGPT/commits?author=Sandy-39&since=2026-05-23T00:00:00Z"
 
 # PRs (open + closed)
-curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+curl -s -H "Authorization: Bearer $BON_GITHUB_TOKEN" \
   "https://api.github.com/repos/Bonhq/bon_webservices/pulls?state=all&per_page=20"
 ```
 
@@ -181,7 +181,7 @@ Verified from commit authorship 2026-05-30:
 - **Wrong default branch.** `bon_webservices` defaults to `dev_testing`. Reading it with `?ref=main` returns stale code or 404. Always confirm the branch from the table.
 - **MobileFirst vs internal authorship** (see caveat above). Don't misattribute or undercount.
 - **Don't push.** The single most important constraint. Token write-access does not relax it.
-- **Don't expose the token.** Never log `$GITHUB_TOKEN` or include it in any message.
+- **Don't expose the token.** Never log `$BON_GITHUB_TOKEN` or include it in any message.
 - **Two orgs.** "All BON commits today" must query both `Bonhq/*` and `Bonlife/*`.
 - **Author email vs handle drift.** Same person may commit under multiple git names/emails. The handle table is the reliable join key.
 - **No CODEOWNERS / no release tags** (except `BON-langfuse`'s CODEOWNERS). Don't assume formal review-ownership or tag-based releases exist.
