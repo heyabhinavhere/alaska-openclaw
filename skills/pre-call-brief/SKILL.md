@@ -205,6 +205,8 @@ Reply-parsing does NOT run inside the brief-posting cron (that run ends after po
 
 **(e) Morning consolidation — MORNING PASS ONLY (the 8:30 AM IST fire).** Parse overnight stragglers + follow-up answers first, then **recompute coverage from each whole thread** (sheet + all replies + your own follow-ups). Then post **ONE calm consolidated message** to #project-management (`C0ANKDD664A`) covering BOTH kinds of gaps, **@-mentioning each member with a real Slack mention (`<@U…>`)** — un-pinged messages get ignored (Abhinav-confirmed team pattern): *"Standup gaps today: <@U_PANKAJ> (no reply), <@U_SHAILESH> (item 3 — CTA testing) — drop an update in #daily-standup when you get a sec 🙏"*. One combined message, friendly tone, never per-person posts; skip the post entirely when there are no gaps. *(The public mention is by Abhinav's explicit instruction 2026-06-12 — a standup-compliance exception to the default no-public-individual-tracking rule; it applies to standup-reply compliance ONLY. Repeated-miss escalation belongs to Follow-Through, not this parser.)*
 
+**(f) Regenerate the daily state — BOTH passes, after all processing:** run `python3 /opt/lib/generate_daily_state.py` (real run) so `DAILY_STATE.md`'s `## Per Person` + `## Active Blockers` reflect the replies just parsed — the graph is the source of truth (cutover 2026-06-12); the generator splices only those two sections and bumps the Last-compiled header.
+
 ```text
 Regex patterns (try in order, first match wins). Each verb anchors with \b to avoid swallowing
 trailing tokens — "T-42 done by EOD" still matches `done` and the suffix is captured as the

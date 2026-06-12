@@ -12,7 +12,7 @@ This file is auto-loaded every session and budget-capped — only the always-nee
 
 | Need | Where |
 |---|---|
-| Current operational state (per-person focus, blockers, decisions, metrics) | `DAILY_STATE.md` (live; written by Meeting Intelligence) |
+| Current operational state | **the task graph** (`tasks`/`blockers`/`person_status`) — source of truth; `DAILY_STATE.md` is its convenient view (MI-written narrative + GENERATED Per Person/Blockers) |
 | **My private working memory — self-tasks + notes/references to recall on cue** | the **`agent-memory`** skill (`agent_memory` table). Private to ME by construction — team readers (Daily Pulse, Follow-Through, Risk Radar) never query it. |
 | Why the system is the way it is — version history, past fixes | `memory/system-evolution.md` |
 | Day-by-day raw logs | `memory/YYYY-MM-DD.md` |
@@ -38,7 +38,7 @@ When a durable, reusable fact flows past me — **even in passing** — I write 
 - **V4 is stable + live-verified:** the stabilization sprint is complete — thin crons defer to SKILLs; the Standup-Reply Parser is live (8:30 AM IST, deduped via `standup_processed`); MI no-show guard fires ≥18:30 UTC only, MI timeout 900s; `agent_memory` + `blockers` write-paths proven; the grounding contract verified end-to-end. All of it survived the 5.28 upgrade intact.
 - **Platform: OpenClaw 2026.5.28.** Default model `anthropic/claude-sonnet-4-6` (Thinker pinned `opus-4-8`). The OM4 **`!`-command layer is live** (SOUL STEP 0: `!case` `!audit` `!pmf` `!help` `!ping` + unambiguous bare verbs; legacy `/` aliases work). Native `/alaska` slash command: deferred (postmortem 2026-06-05).
 - **V5 PMF Cohort OS: P0–P21 code-complete + E2E-tested on the TEST db. GATED — 0 PMF crons, 0 active cohort** until Abhinav's explicit go (scorecard: `docs/v5-pmf-launch-readiness.md`; delivery channel #pmf-cohort).
-- **Phase E cutover: HOLD.** `DAILY_STATE.md` is STILL the operational source of truth; the task graph dual-writes in parallel. Do not state the graph as authoritative.
+- **THE CUTOVER IS DONE (2026-06-12): the task graph is the source of truth.** `DAILY_STATE.md` = MI-written narrative + GENERATED `Per Person`/`Active Blockers` (the generator runs after every MI pipeline + parser pass). Never hand-write the generated sections; on disagreement the graph wins.
 
 ## Project: BON Credit
 
@@ -78,7 +78,7 @@ Moved to **`TOOLS.md`** (all 12 Slack channel IDs, Notion data-source IDs, GitHu
 
 ### Key pipeline
 
-Fireflies → Meeting Intelligence → **`DAILY_STATE.md` + the SQLite task graph** (via task-handler) → Pre-Call Brief sheets → #daily-standup; replies → the Standup-Reply Parser (8:30 AM IST) → the task graph. Channel/DM messages → intent-classifier → task-handler (gated ≥0.85 on channels). Readers (Daily Pulse / Follow-Through / Risk Radar / slack-commands) read the graph with a DAILY_STATE fallback. All agents read `AGENT_RULES.md` first.
+Sheets (8 PM) → replies (8–9 PM, the PRIMARY record) → Standup-Reply Parser (9:30 PM + 8:30 AM passes) → **the task graph** ← also fed by Meeting Intelligence (transcripts, via task-handler), the gated channel classifier (≥0.85), and DM commands. The **generator** renders the graph into `DAILY_STATE.md`'s Per Person/Blockers after every MI run + parser pass; MI writes only the narrative sections. Readers (Daily Pulse / Follow-Through / Risk Radar / slack-commands) read the graph first. All agents read `AGENT_RULES.md` first.
 
 ## Lessons Learned
 
