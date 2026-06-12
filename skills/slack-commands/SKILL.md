@@ -474,7 +474,11 @@ Triggered by someone stating their own availability in a DM or @-mention: "I'm t
 3. Upsert the TARGET's row (`set_by` records the sender):
 
 ```bash
-sqlite3 /data/queue/alaska.db "INSERT OR REPLACE INTO person_status (slack_id, status_text, until_date, set_by, updated_at) VALUES ('$TARGET_ID', '$status_esc', '$until_iso', '$SENDER_ID', CURRENT_TIMESTAMP);"
+# No end date stated -> SQL NULL, UNQUOTED. Quoting an empty/"NULL" variable
+# would store the literal string 'NULL' as a date and break the contract.
+UNTIL_SQL="NULL"
+if [ -n "$until_iso" ]; then UNTIL_SQL="'$until_iso'"; fi
+sqlite3 /data/queue/alaska.db "INSERT OR REPLACE INTO person_status (slack_id, status_text, until_date, set_by, updated_at) VALUES ('$TARGET_ID', '$status_esc', $UNTIL_SQL, '$SENDER_ID', CURRENT_TIMESTAMP);"
 ```
 
 4. "I'm back / back now" → `DELETE FROM person_status WHERE slack_id='$TARGET_ID';` (same authorization rule).

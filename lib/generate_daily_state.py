@@ -302,13 +302,16 @@ def fetch_active_blockers(conn: sqlite3.Connection, now: Optional[datetime] = No
             continue
         raised = _parse_dt(r["raised_at"])
         days_active = max(0, (now - raised).days) if raised else None
+        live_links = [m for m in meta if m["status"] not in ("done", "dropped")]
         out.append(
             {
                 "title": r["title"],
                 "days_active": days_active,
                 "owner_slack_id": r["owner_slack_id"],
-                # Show only the still-live linked tasks in the "blocking:" cell.
-                "blocking_titles": [m["title"] for m in meta if m["status"] not in ("done", "dropped")],
+                # Keep the live linked tasks WITH their ids — reason lookups key
+                # on task_id (titles can collide across tasks).
+                "blocking_tasks": live_links,
+                "blocking_titles": [m["title"] for m in live_links],
             }
         )
     return out
@@ -407,12 +410,12 @@ def render_per_person(
     LAST COMMITTED / DONE RECENTLY / BLOCKED fields. Owners are ordered by their
     position in the roster (so the output is stable), with any unknown ids after.
     """
-    # Build a reason lookup keyed by blocked task title (titles are what we carry
-    # in the NOW/BLOCKED buckets) so BLOCKED lines can show the blocker reason.
-    reason_by_blocked_title: Dict[str, str] = {}
+    # Reason lookup keyed by blocked task_id — NOT title (two blocked tasks can
+    # share a title, which would attach the wrong blocker reason).
+    reason_by_blocked_task_id: Dict[str, str] = {}
     for b in active_blockers:
-        for t in b["blocking_titles"]:
-            reason_by_blocked_title.setdefault(t, b["title"])
+        for t in b.get("blocking_tasks", []):
+            reason_by_blocked_task_id.setdefault(t["task_id"], b["title"])
 
     # Stable ordering: roster order first, then any unknown owners alphabetically.
     roster_order = list(roster.keys())
@@ -445,7 +448,7 @@ def render_per_person(
         blocked_parts: List[str] = []
         for item in bucket["blocked"]:
             title = item["title"]
-            reason = reason_by_blocked_title.get(title)
+            reason = reason_by_blocked_task_id.get(item["task_id"])
             blocked_parts.append(f"{title} ({reason})" if reason else title)
         lines.append(f"- **BLOCKED:** {'; '.join(blocked_parts)}")
         lines.append("")

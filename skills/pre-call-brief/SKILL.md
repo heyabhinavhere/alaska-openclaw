@@ -221,7 +221,17 @@ reply text passed to task-handler (which extracts the actual due hint from it):
 
 **`ack` / `pass` routing (the sheet's PENDING-ACK lines instruct exactly these words):** route to task-handler with `acceptance='accept'|'decline'` and `explicit_task_id` — taken from the named `T-N`, or, when bare, from the replier's own sheet **if it shows exactly ONE pending-acceptance line**; several pending and none named → ask which one ("ack which — T-12 or T-19?"). **Never treat a bare `ack`/`pass` as a free-form work note** — it's an assignment handshake, not a status update.
 
-**`on leave` handling (Phase B):** there is no scheduled_actions write yet (those land in Phase C). For now, post a one-line ack: `Got it — noted you're on leave today. I'll skip your tasks in tomorrow's brief.` and INSERT a `task_events` row with `event_type='comment'` and `context='on_leave:<YYYY-MM-DD>'` against ANY of the person's active tasks (pick the most recent) so the audit log carries the signal. Phase C will replace this with a proper recurring_routine row.
+**`on leave` handling:** availability is a PERSON-level fact — record it in **`person_status`** (migration 0008), never as a task_events comment on an arbitrary task (the old Phase-B hack misattributed the signal and lost it entirely for taskless people). Ack one line — `Got it — noted you're on leave. I'll skip your tasks in tomorrow's brief.` — then upsert:
+
+```bash
+# Stated end date wins; a bare "on leave" expires tomorrow (compute with python3,
+# never calendar math); truly open-ended -> SQL NULL, UNQUOTED.
+UNTIL_ISO=$(python3 -c "import datetime; print((datetime.date.today()+datetime.timedelta(days=1)).isoformat())")
+UNTIL_SQL="'$UNTIL_ISO'"   # or "NULL" (unquoted) for open-ended
+sqlite3 /data/queue/alaska.db "INSERT OR REPLACE INTO person_status (slack_id, status_text, until_date, set_by, updated_at) VALUES ('$REPLIER_ID', 'On leave', $UNTIL_SQL, '$REPLIER_ID', CURRENT_TIMESTAMP);"
+```
+
+The generator renders it as their STATUS line, and the next sheet run posts the short "_[Name] — on leave_" note instead of a full sheet.
 
 ### Resolving bare numbered replies (the common case — nobody uses `T-N`)
 
