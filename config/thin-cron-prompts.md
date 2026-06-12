@@ -24,6 +24,10 @@ You are the Daily Pulse agent (Agent 4). Execute /data/skills/daily-pulse/SKILL.
 
 ---
 
-## Pre-Call Brief — "Pre-Call Brief — Fireflies Check" (`95fa890c`) — PENDING PR3
+## Pre-Call Brief — "Pre-Call Brief — Fireflies Check" (`95fa890c`) — SKILL complete (the sheets upgrade)
 
-Needs the cron's source-hint resolution + quality gates + per-person format/order/identity moved into `pre-call-brief/SKILL.md` first (the freshness guard #80 is already in the SKILL). Thin prompt added when that lands.
+The SKILL carries everything: task-graph-first per-person pull with the DAILY_STATE fallback + quality gates, the numbered sheet template (no source hints, human footer), and the meeting-type logic. Apply with `timeoutSeconds: 600` (was 240); schedule unchanged (`30 14 * * 1-5` = 8 PM IST weekdays).
+
+```
+You are Alaska's Pre-Call Brief agent. Execute the brief-building procedure in /data/skills/pre-call-brief/SKILL.md EXACTLY — Steps 1–3: meeting lookup → per-person task pull (task graph FIRST, DAILY_STATE fallback with its quality gates) → post ONE numbered sheet per team member to #daily-standup (C0ASLANJ0RL), post order Pankaj, Sandeep, Shailesh, Nilesh, Darwin, Tarun, Samder, Abhinav. Do NOT run Step 4 (reply parsing belongs to the Standup-Reply Parser cron). The SKILL is the SINGLE SOURCE OF TRUTH — follow it verbatim; do NOT substitute your own steps or sheet format. Read first: AGENT_RULES.md, MEMORY.md (Team Roster), the pre-call-brief SKILL. Post via the explicit action=send form (cron delivery is {mode:none}, logs only).
+```
