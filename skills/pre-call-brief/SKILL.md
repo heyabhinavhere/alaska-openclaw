@@ -123,33 +123,32 @@ Format the brief in the thread reply (or DM, depending on meeting type — prese
 [FirstName] — [Day, Date abbrev]
 
 TODAY — what happened? (reply by number):
-1. T-N  [Title] — [source hint, e.g., "from your Wed standup" / "from Tue meeting"]
-        [optional second line: due [date] · last update [relative time]]
-2. T-N  ...
+1. T-N  [Title] — due [date]        ← the "— due [date]" part ONLY when due_at exists; otherwise just the title. NO source hints ("from Wed standup/meeting") — confusing + redundant (Abhinav, 2026-06-12).
+2. T-N  [Title]
 
 SUGGESTED FOR TOMORROW (confirm, change, or add):
-3. T-N  [Title] — [why suggested: "due tomorrow" / "no update in N days — still yours?"]
-4. T-N  ...
+3. T-N  [Title] — due tomorrow
+4. T-N  [Title] — no update in [N] days, still yours?
 • T-N — assigned to you by [name]: reply 'ack' to accept or 'pass' to decline  (omit if none)
 
 BLOCKED:
-5. T-N  [Title] — [blocker title] (B-N, day [N]) — still blocked?
+5. T-N  [Title] — [blocker title] (day [N]) — still blocked?
 
 REMINDERS DUE TODAY:  (omit heading if 0)
 • [reminder text]
 
-Reply format (one line per number + your tomorrow):
+Reply (one line per number + your tomorrow):
   <number> done / in progress / yes / drop it / still blocked / blocked by X
   new: <anything you did or will do that isn't listed>
-  tomorrow: <your plan in one line, if different from the suggestions>
+  tomorrow: <your plan in one line>
 
-_Reply 8–9 PM — your reply is the PRIMARY record (team decision Jun 12); the call covers blockers + high-level only._
+_Reply by 9 PM — anything I missed, just tell me._
 Team call in [N] min.    ← compute N as `(meeting_start_ts − now())` rounded to the nearest minute (from Step 1's calendar lookup; if the calendar is missing, omit this line rather than guess).
 ```
 
 ### Source-hint resolution
 
-When formatting each task line, derive the parenthetical source hint from `source` + `source_ref` + `created_at`:
+**As of 2026-06-12 (Abhinav): source hints are NOT rendered on the sheets** — they read as confusing/redundant to the team. Sheets show `due [date]` only (when present). The mapping below remains for INTERNAL attribution only (logs, summaries, answering "where did this task come from"):
 
 - `source='meeting'`: hint = `"from [day abbrev] meeting"` — derive day-of-week from created_at
 - `source='slack_dm'`: hint = `"committed [day abbrev] DM"` — short form
@@ -198,8 +197,8 @@ Reply-parsing does NOT run inside the brief-posting cron (that run ends after po
 **(c) Parse** each new human reply with the grammar below — `T-N` patterns first; free-form replies via step 3. Each reply is parsed using the grammar:
 
 **(d) Mandatory-reply check — EVENING PASS ONLY (the ~9:30 PM IST fire, right after the 8–9 PM reply window; the morning catch-up pass parses stragglers silently, no nudges).** Compare the people who got a sheet this cycle against the people whose replies you just processed (or that sit in `standup_processed`). For each roster member with a sheet but NO reply:
-- Send ONE gentle DM — *"Quick reminder — your standup sheet has no reply yet, and the written reply is the primary record (the call covers blockers only). 30 seconds in the thread: `1 done, 2 in progress, tomorrow: …`"*
-- AND post **one calm, consolidated line** to #project-management (`C0ANKDD664A`): *"Standup replies missing today: [First names]. Reminder — the written standup reply is the primary record now."* One combined message — never per-person posts, neutral tone, no repeat the same evening. *(This public mention is by Abhinav's explicit instruction 2026-06-12 — a standup-compliance exception to the default no-public-individual-tracking rule; it applies to standup-reply compliance ONLY.)*
+- Send ONE gentle DM — *"Quick reminder — your standup sheet is waiting for a reply. 30 seconds in the thread: `1 done, 2 in progress, tomorrow: …`"* (warm coworker tone — no process explanations, no rule citations).
+- AND post **one calm, consolidated line** to #project-management (`C0ANKDD664A`): *"Standup replies pending today: [First names] — drop yours in #daily-standup when you get a sec 🙏"* One combined message — never per-person posts, friendly tone, no repeat the same evening. *(This public mention is by Abhinav's explicit instruction 2026-06-12 — a standup-compliance exception to the default no-public-individual-tracking rule; it applies to standup-reply compliance ONLY.)*
 - List the non-repliers in the run summary. Externals excluded. Repeated-miss escalation belongs to Follow-Through, not this parser.
 
 ```
