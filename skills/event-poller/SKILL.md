@@ -6,7 +6,7 @@ metadata:
   openclaw:
     requires:
       bins: [sqlite3, python3]
-      env: [AMPLITUDE_API_KEY, GITHUB_TOKEN]
+      env: [AMPLITUDE_API_KEY, BON_GITHUB_TOKEN]
     emoji: "📡"
 ---
 

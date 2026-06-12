@@ -23,14 +23,15 @@ You have live API access to the four systems below. For THESE, **never say "I do
 - **ALWAYS use python3** for filtered queries (curl breaks with nested JSON)
 - **ALWAYS apply Real Users filter** (credit_score > 0, exclude test IDs 2300/2503/2604/2601/2605/287/2062)
 
-### GitHub (`$GITHUB_TOKEN`) — READ ONLY
+### GitHub (`$BON_GITHUB_TOKEN`) — READ ONLY
 - **What:** Commits, PRs, branches, AND file contents across 9 repos (2 orgs: Bonhq, Bonlife)
 - **Never push/merge/create** anything
+- **Why `BON_GITHUB_TOKEN`, not `GITHUB_TOKEN`:** OpenClaw ≥2026.5.28 strips the well-known credential names `GITHUB_TOKEN`/`GH_TOKEN` from session env by design (bundled denylist — not configurable). Do NOT rename back; it silently breaks every GitHub read.
 
 **Reading source files (for grounded code answers):** before making ANY claim about code, fetch the actual file — never describe code from memory or inference:
 
 ```bash
-curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "User-Agent: alaska" \
+curl -s -H "Authorization: Bearer $BON_GITHUB_TOKEN" -H "User-Agent: alaska" \
   "https://api.github.com/repos/<org>/<repo>/contents/<path>?ref=<branch>" \
   | python3 -c "import sys,json,base64; print(base64.b64decode(json.load(sys.stdin)['content']).decode())"
 ```

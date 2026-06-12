@@ -130,7 +130,7 @@ Membership = access (no allowlist; see AGENT_RULES). Agents proactively POST to 
 - #agentic-ai: C0AQFPMR4TA · #backend: C0B5YDMMSTU · #front-end: C07GH72L6JW · #bugs: C0AUCCQQB5F
 - #design: C07GKMML6HJ · #user-audit: C0B1W3LUZ4G · #competitor-audit: C0AS0KMV398 · #whatsapp: C0AUSQT37R6
 
-### GitHub Repos ($GITHUB_TOKEN) — 9 repos, 2 orgs — READ ONLY
+### GitHub Repos ($BON_GITHUB_TOKEN) — 9 repos, 2 orgs — READ ONLY
 App + Backend (Bonhq):
 - Bonhq/bon_app — Flutter app (Pankaj, Abhinav)
 - Bonhq/bon_webservices — Backend (Sai → Nilesh transition)
