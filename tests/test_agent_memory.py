@@ -219,6 +219,62 @@ def test_recall_empty_when_no_match():
     assert _recall(conn, "nonexistent-topic") == []
 
 
+def _recall_multi(conn: sqlite3.Connection, k1: str, k2: str):
+    """The Phase-3 multi-keyword recall shape: 2 keywords OR'd across all 3 columns."""
+    return conn.execute(
+        "SELECT mem_id,kind,title,content FROM agent_memory "
+        "WHERE status!='archived' AND ("
+        "  recall_cue LIKE ? OR title LIKE ? OR content LIKE ?"
+        "  OR recall_cue LIKE ? OR title LIKE ? OR content LIKE ?"
+        ") ORDER BY updated_at DESC LIMIT 10;",
+        (f"%{k1}%",) * 3 + (f"%{k2}%",) * 3,
+    ).fetchall()
+
+
+def test_multi_keyword_recall_or_semantics():
+    """Two derived keywords retrieve rows matching EITHER; unrelated rows stay out."""
+    conn = _db()
+    a = _remember(conn, "reference", "CTA list", "body", "cta")
+    b = _remember(conn, "note", "chat behavior", "body", "chat")
+    _remember(conn, "note", "unrelated", "body", "plaid")
+    rows = _recall_multi(conn, "cta", "chat")
+    assert {r[0] for r in rows} == {a, b}, rows
+
+
+def test_recall_limit_caps_at_ten_newest_first():
+    """The recall LIMIT 10 returns the 10 most recently updated matches only."""
+    conn = _db()
+    ids = [_remember(conn, "note", f"cta note {i}", "c", "cta") for i in range(12)]
+    # Pin deterministic, strictly increasing updated_at (changing the column
+    # means OLD != NEW, so the auto-bump trigger does not override our values).
+    for i, mem_id in enumerate(ids):
+        conn.execute(
+            "UPDATE agent_memory SET updated_at=? WHERE mem_id=?;",
+            (f"2024-01-{i + 1:02d} 00:00:00", mem_id),
+        )
+    conn.commit()
+    rows = _recall(conn, "cta")  # single-kw helper has no LIMIT — sanity first
+    assert len(rows) == 12
+    limited = conn.execute(
+        "SELECT mem_id FROM agent_memory WHERE status!='archived' "
+        "AND (recall_cue LIKE '%cta%' OR title LIKE '%cta%' OR content LIKE '%cta%') "
+        "ORDER BY updated_at DESC LIMIT 10;"
+    ).fetchall()
+    assert len(limited) == 10
+    assert [r[0] for r in limited] == [ids[i] for i in range(11, 1, -1)], limited
+
+
+def test_supersede_archive_then_remember_leaves_one_live():
+    """Supersede flow: archive the old row FIRST, then remember the new — recall sees only the new."""
+    conn = _db()
+    old = _remember(conn, "reference", "CTA list v1", "old body", "cta")
+    conn.execute("UPDATE agent_memory SET status='archived' WHERE mem_id=?;", (old,))
+    conn.commit()
+    new = _remember(conn, "reference", "CTA list v2", "new body", "cta")
+    rows = _recall(conn, "cta")
+    assert [r[0] for r in rows] == [new], rows
+
+
 # --- list_self_tasks --------------------------------------------------------
 
 def test_list_self_tasks_only_open_self_tasks():
