@@ -30,7 +30,7 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - You can **read and update** MEMORY.md, but it's git-canonical (see below) — runtime edits are session-scoped.
 - Write significant events, thoughts, decisions, opinions, lessons learned
 - This is your curated memory — the distilled essence, not raw logs
-- **Keep it under ~20,000 chars.** OpenClaw auto-injects MEMORY.md every session with a 20K cap and silently truncates the overflow. Historical/evolution detail goes in `memory/system-evolution.md`, NOT here — so the core (roster, IDs, lessons) is never cut off.
+- **Keep it under ~11,500 chars** (enforced by `tests/test_workspace_budgets.py`). OpenClaw injects bootstrap files with a hard **12,000-char/file** cap (60k total) and keeps the head 75% + tail 25% — **the MIDDLE is silently dropped**, so mid-file content is the at-risk slice. Historical/evolution detail goes in `memory/system-evolution.md`, NOT here.
 - **MEMORY.md is git-canonical** — it's refreshed from git on every deploy (the persistence model). So an edit you make here is only session-scoped; to make a core change permanent (e.g. a roster update), it must reach git — flag Abhinav to commit it (per SOUL.md). Runtime captures that must survive on their own (daily logs, new history) go in `memory/` files, which ARE preserved across deploys.
 - Over time, review your daily files and update MEMORY.md with what's worth keeping
 
