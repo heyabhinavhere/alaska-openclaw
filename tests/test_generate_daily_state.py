@@ -486,6 +486,27 @@ def test_person_status_renders_and_expires():
     assert _field(sandeep, "STATUS") == "", "expired status must not render"
 
 
+def test_person_status_renders_for_person_with_no_tasks():
+    """A person with an availability status but ZERO tasks must still get a block
+    (exercises the by_owner | person_status union in render_per_person)."""
+    tmp, db, state, memory = _fixture()
+    conn = sqlite3.connect(db)
+    conn.executescript((REPO_ROOT / "migrations" / "0008_person_status.sql").read_text(encoding="utf-8"))
+    # Strip Sandeep's seeded tasks entirely so he exists ONLY via person_status.
+    conn.execute("DELETE FROM tasks WHERE task_id IN ('T-1','T-2')")
+    conn.execute(
+        "INSERT INTO person_status (slack_id, status_text, until_date, set_by) VALUES (?, 'On leave', ?, ?)",
+        (SANDEEP, _iso(NOW + timedelta(days=2)), SANDEEP),
+    )
+    conn.commit()
+    conn.close()
+    out = g.generate(db, state, memory, now=NOW)
+    sandeep = _person_block(_extract_section(out, "Per Person"), "Sandeep")
+    assert sandeep, "a person with status but zero tasks must still render a block"
+    assert "On leave (until 2026-06-03)" in _field(sandeep, "STATUS")
+    assert _field(sandeep, "NOW") == ""
+
+
 if __name__ == "__main__":
     import inspect
 

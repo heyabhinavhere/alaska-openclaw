@@ -142,16 +142,28 @@ def _now(now: Optional[datetime] = None) -> datetime:
     return now or datetime.now(timezone.utc)
 
 
+def _is_missing_schema(exc: sqlite3.OperationalError) -> bool:
+    """True only for the schema-drift errors we explicitly tolerate.
+
+    Anything else (locked DB, malformed SQL, corruption) must RAISE — silently
+    returning empty data would hide a parity regression as "no data".
+    """
+    msg = str(exc)
+    return "no such table" in msg or "no such column" in msg
+
+
 def _fetch_snooze_dates(conn: sqlite3.Connection) -> Dict[str, str]:
     """task_id -> snoozed_until from follow-through's `snoozes` table.
 
     That table is created lazily by the follow-through skill, so it may not
-    exist on a given DB — tolerate its absence (SELECT-only either way).
+    exist on a given DB — tolerate exactly that (SELECT-only either way).
     """
     try:
         rows = conn.execute("SELECT task_id, snoozed_until FROM snoozes").fetchall()
-    except sqlite3.OperationalError:
-        return {}
+    except sqlite3.OperationalError as exc:
+        if _is_missing_schema(exc):
+            return {}
+        raise
     return {r["task_id"]: r["snoozed_until"] for r in rows if r["snoozed_until"]}
 
 
@@ -166,21 +178,32 @@ def fetch_standup_touched(conn: sqlite3.Connection, now: Optional[datetime] = No
     SELECT-only; tolerant of schema drift.
     """
     now = _now(now)
-    cutoff = (now - timedelta(hours=cutoff_hours)).strftime("%Y-%m-%d %H:%M:%S")
+    cutoff = now - timedelta(hours=cutoff_hours)
     touched: set = set()
+    # Compare datetimes in Python via _parse_dt — NOT SQL string comparison:
+    # ISO 'T' separators sort after the space form lexicographically, so a raw
+    # text >= mis-windows mixed-shape timestamps. Two independent try blocks so
+    # one missing schema element cannot suppress the other signal.
     try:
         for r in conn.execute(
-            "SELECT task_id FROM tasks WHERE source = 'standup_reply' AND created_at >= ?",
-            (cutoff,),
+            "SELECT task_id, created_at FROM tasks WHERE source = 'standup_reply'"
         ):
-            touched.add(r["task_id"])
+            created = _parse_dt(r["created_at"])
+            if created is not None and created >= cutoff:
+                touched.add(r["task_id"])
+    except sqlite3.OperationalError as exc:
+        if not _is_missing_schema(exc):
+            raise
+    try:
         for r in conn.execute(
-            "SELECT DISTINCT task_id FROM task_events WHERE created_at >= ? AND context LIKE '%standup%'",
-            (cutoff,),
+            "SELECT task_id, created_at FROM task_events WHERE context LIKE '%standup%'"
         ):
-            touched.add(r["task_id"])
-    except sqlite3.OperationalError:
-        pass
+            created = _parse_dt(r["created_at"])
+            if created is not None and created >= cutoff:
+                touched.add(r["task_id"])
+    except sqlite3.OperationalError as exc:
+        if not _is_missing_schema(exc):
+            raise
     return touched
 
 
@@ -323,8 +346,10 @@ def fetch_person_status(conn: sqlite3.Connection, now: Optional[datetime] = None
     now = _now(now)
     try:
         rows = conn.execute("SELECT slack_id, status_text, until_date FROM person_status").fetchall()
-    except sqlite3.OperationalError:
-        return {}
+    except sqlite3.OperationalError as exc:
+        if _is_missing_schema(exc):
+            return {}
+        raise
     out: Dict[str, str] = {}
     for r in rows:
         until = _parse_dt(r["until_date"]) if r["until_date"] else None

@@ -467,13 +467,19 @@ Expires in 7 days if no response.
 
 Triggered by someone stating their own availability in a DM or @-mention: "I'm traveling till Monday", "on leave Thu–Fri", "OOO next week", "WFH tomorrow, low availability", "back on Monday". A person-level fact, not a task — never create a task for it.
 
-1. Compute `until_date` (ISO) from the stated time with `python3` from the real today (never calendar math in your head). No end stated → `until_date` NULL (holds until replaced).
-2. Upsert — the sender's own row only (someone ELSE's availability: only Abhinav or the person themselves is authoritative; otherwise acknowledge without writing):
+1. **Resolve the TARGET first (authorization).** Default target = the SENDER (their own availability). If the message sets someone ELSE's availability ("mark Pankaj as traveling"): allowed ONLY when the sender is **Abhinav (Admin)** — then resolve the named person via the MEMORY.md roster to `$TARGET_ID`. Any other sender talking about a third person → acknowledge conversationally, **write NOTHING**.
+
+2. Compute `until_date` (ISO) from the stated time with `python3` from the real today (never calendar math in your head). No end stated → `until_date` NULL (holds until replaced).
+
+3. Upsert the TARGET's row (`set_by` records the sender):
+
 ```bash
-sqlite3 /data/queue/alaska.db "INSERT OR REPLACE INTO person_status (slack_id, status_text, until_date, set_by, updated_at) VALUES ('$SENDER_ID', '$status_esc', '$until_iso', '$SENDER_ID', CURRENT_TIMESTAMP);"
+sqlite3 /data/queue/alaska.db "INSERT OR REPLACE INTO person_status (slack_id, status_text, until_date, set_by, updated_at) VALUES ('$TARGET_ID', '$status_esc', '$until_iso', '$SENDER_ID', CURRENT_TIMESTAMP);"
 ```
-3. "I'm back / back now" → `DELETE FROM person_status WHERE slack_id='$SENDER_ID';`
-4. Ack in one short line, no process talk: *"Noted — traveling until Mon Jun 15."*
+
+4. "I'm back / back now" → `DELETE FROM person_status WHERE slack_id='$TARGET_ID';` (same authorization rule).
+
+5. Ack in one short line, no process talk: *"Noted — traveling until Mon Jun 15."*
 
 The daily-state generator renders this as the person's `STATUS:` line; rows past `until_date` are ignored automatically.
 
