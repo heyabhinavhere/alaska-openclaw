@@ -123,19 +123,25 @@ Read `/data/skills/amplitude-analyst/SKILL.md` and `/data/skills/customerio-ops/
 - External (MobileFirst — NO proposals): Sai, Ritika, Sara, Bijaya, Leonard, Leo, @mobilefirst.in emails
 - External action items go to Meeting Notes only, NOT proposals or sprint
 
-## Step 4: Update DAILY_STATE.md
+## Step 4: Update DAILY_STATE.md (narrative sections ONLY — the generator owns the rest)
 
-`DAILY_STATE.md` is the canonical operational state file. You are its PRIMARY WRITER. Rewrite the relevant sections of `/root/.openclaw/workspace/DAILY_STATE.md`:
+**THE CUTOVER (2026-06-12): the SQLite task graph is the source of truth.** `DAILY_STATE.md`'s `## Per Person` and `## Active Blockers` sections are **GENERATED from the graph** by `/opt/lib/generate_daily_state.py` — **you do NOT write them anymore.** Hand-writing them would be overwritten by the next generator run and would reintroduce the single-writer staleness the cutover killed. Your task/blocker knowledge flows through **task-handler (Step 5b)** into the graph, and reaches those sections via the generator.
+
+You still write the NARRATIVE sections of `/root/.openclaw/workspace/DAILY_STATE.md`:
 - **Current Sprint** — sprint number, day, status, key updates
 - **This Week's Goals** — in order of priority discussed
-- **Per Person** — each person's NOW, LAST COMMITTED, DONE RECENTLY, BLOCKED, SPRINT TASKS
 - **Active Decisions (last 2 weeks)** — add new ones, mark reversed/superseded ones
-- **Active Blockers** — add new, update status of existing, mark resolved with strikethrough
 - **Metrics** — DAU, push delivery, email delivery, Plaid drop-off, etc. (only if discussed)
 - **What Changed [Date]** — one line per significant shift from this meeting
 - **Upcoming** — milestones, deadlines, what's coming
 
-Keep the file under ~200 lines. Trim old "What Changed" entries older than 2 weeks. Move resolved blockers / superseded decisions to historical sections or remove if stale.
+**Do NOT touch `## Per Person` or `## Active Blockers`** — leave whatever is there. **After Step 5b has written tonight's tasks/blockers to the graph (i.e., as your LAST write of the run, before posting the Step 7 summary), regenerate them:**
+
+```bash
+python3 /opt/lib/generate_daily_state.py    # real run — splices Per Person + Active Blockers from the graph, bumps the Last-compiled header
+```
+
+Keep the file under ~200 lines. Trim "What Changed" entries older than 2 weeks.
 
 ## Step 5: Extract Actions (Contextual)
 

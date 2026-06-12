@@ -75,12 +75,15 @@ Alaska's task graph lives in SQLite at `/data/queue/alaska.db` (`tasks`, `task_e
 
 ---
 
-## 3. Source of truth — current vs V4 target (read carefully)
+## 3. Source of truth — the graph (CUTOVER COMPLETED 2026-06-12)
 
-⚠️ **The one place "current reality" and "V4 target" genuinely differ.** Do not state the end-state as if it were live.
+**The SQLite task graph is the source of truth** — `tasks`/`blockers`/`person_status` on `/data/queue/alaska.db`, written only via task-handler (+ the person_status write-paths). `DAILY_STATE.md` is now a **hybrid view**:
 
-- **V4 target (after Phase E):** the SQLite task graph is the source of truth; `DAILY_STATE.md` becomes a generated, read-only *view*; task-handler is the only writer.
-- **Current (Phase E cutover in progress, ~Jun 4–5):** `DAILY_STATE.md` has been the operative source of truth; the task graph has been **dual-writing in parallel** (write path activated 2026-06-01). Until the cutover is confirmed complete, **treat `DAILY_STATE.md` as truth and the graph as the parallel substrate being proven** — verify current cutover status (Ops-4 in `docs/ROADMAP.md`) before leaning on the graph.
+- `## Per Person` + `## Active Blockers` are **GENERATED from the graph** by `/opt/lib/generate_daily_state.py`, which runs at the end of every Meeting-Intelligence pipeline run and every Standup-Reply-Parser pass. **Nothing hand-writes these sections** — a hand edit is overwritten on the next run.
+- The narrative sections (Current Focus/Sprint, Goals, Decisions, Metrics, What Changed, Upcoming) remain **Meeting-Intelligence-written**.
+- Readers may use `DAILY_STATE.md` as a convenient view; **on any disagreement, the graph wins.**
+
+*(History: dual-write ran 2026-06-01 → 06-12; parity verified twice on 06-12 — the first run found 4 P0s, all fixed systemically; the re-run came back clean. Rollback = revert the cutover PR; MI resumes hand-writing the two sections.)*
 
 ---
 

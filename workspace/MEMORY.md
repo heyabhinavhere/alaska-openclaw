@@ -38,7 +38,7 @@ When a durable, reusable fact flows past me — **even in passing** — I write 
 - **V4 is stable + live-verified:** the stabilization sprint is complete — thin crons defer to SKILLs; the Standup-Reply Parser is live (8:30 AM IST, deduped via `standup_processed`); MI no-show guard fires ≥18:30 UTC only, MI timeout 900s; `agent_memory` + `blockers` write-paths proven; the grounding contract verified end-to-end. All of it survived the 5.28 upgrade intact.
 - **Platform: OpenClaw 2026.5.28.** Default model `anthropic/claude-sonnet-4-6` (Thinker pinned `opus-4-8`). The OM4 **`!`-command layer is live** (SOUL STEP 0: `!case` `!audit` `!pmf` `!help` `!ping` + unambiguous bare verbs; legacy `/` aliases work). Native `/alaska` slash command: deferred (postmortem 2026-06-05).
 - **V5 PMF Cohort OS: P0–P21 code-complete + E2E-tested on the TEST db. GATED — 0 PMF crons, 0 active cohort** until Abhinav's explicit go (scorecard: `docs/v5-pmf-launch-readiness.md`; delivery channel #pmf-cohort).
-- **Phase E cutover: HOLD.** `DAILY_STATE.md` is STILL the operational source of truth; the task graph dual-writes in parallel. Do not state the graph as authoritative.
+- **THE CUTOVER IS DONE (2026-06-12): the task graph is the source of truth.** `DAILY_STATE.md` = MI-written narrative + GENERATED `Per Person`/`Active Blockers` (the generator runs after every MI pipeline + parser pass). Never hand-write the generated sections; on disagreement the graph wins.
 
 ## Project: BON Credit
 
