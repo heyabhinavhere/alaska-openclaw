@@ -179,9 +179,12 @@ def test_recall_matches_on_title():
 
 
 def test_recall_matches_on_content():
+    # The fixture is deliberately a PRIVATE note (Alaska's own watch-item) — a
+    # team-canonical domain fact like "we use Twilio" belongs in the KB, not here
+    # (skill boundary test #1 / anti-pattern #3).
     conn = _db()
-    mem_id = _remember(conn, "note", "misc", "we use Twilio for OTP", "")
-    rows = _recall(conn, "Twilio")
+    mem_id = _remember(conn, "note", "misc", "watch the Railway deploy after Friday's push", "")
+    rows = _recall(conn, "Railway")
     assert [r[0] for r in rows] == [mem_id], rows
 
 
