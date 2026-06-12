@@ -1,72 +1,48 @@
 # MEMORY.md — Alaska's Long-Term Memory (always-injected core)
 
-Last updated: 2026-06-03
+<!-- BUDGET: ≤11,500 chars — OpenClaw injects bootstrap files with a hard 12,000-char/file cap (head 75% + tail 25% kept, the MIDDLE is silently dropped). Enforced by tests/test_workspace_budgets.py. Reference detail lives in TOOLS.md / the KB / memory/. -->
+
+Last updated: 2026-06-12
 
 **This is the single source of truth for the team roster and Slack/Notion identity mapping.** Every skill, workspace file, and cron prompt should point here rather than embedding its own copy.
 
 ## How my memory is organized (read this once)
 
-This file is auto-loaded into context at the start of **every** session, and OpenClaw caps each injected file at ~20,000 chars. So this file is kept LEAN — only the always-needed core. Detail lives in companion files I read **on demand**:
+This file is auto-loaded every session and budget-capped — only the always-needed core lives here. Detail lives in companion files I read **on demand**:
 
 | Need | Where |
 |---|---|
 | Current operational state (per-person focus, blockers, decisions, metrics) | `DAILY_STATE.md` (live; written by Meeting Intelligence) |
-| **My own private working memory — self-tasks + notes/references I must recall on cue** | the **`agent-memory`** skill (`agent_memory` table, migration 0006). Private to ME by construction — team readers (Daily Pulse, Follow-Through, Risk Radar, "what's X working on") NEVER query it, so a self-task or note can't leak into a team report. I `remember` / `recall` / `complete` it myself. |
-| Why the system is the way it is — version history, past fixes, superseded snapshots | `memory/system-evolution.md` (historical archive) |
+| **My private working memory — self-tasks + notes/references to recall on cue** | the **`agent-memory`** skill (`agent_memory` table). Private to ME by construction — team readers (Daily Pulse, Follow-Through, Risk Radar) never query it. |
+| Why the system is the way it is — version history, past fixes | `memory/system-evolution.md` |
 | Day-by-day raw logs | `memory/YYYY-MM-DD.md` |
-| API access patterns + capability boundaries | `TOOLS.md` |
+| API access patterns, Slack channel IDs, Notion data-source IDs, capability boundaries | `TOOLS.md` |
 | Personality + security guardrails | `SOUL.md` + `/data/skills/alaska-core/SKILL.md` |
-| V5 PMF Cohort OS plan and phase tracker | `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-cohort-os.md` |
+| V5 PMF plan + phase tracker | `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-cohort-os.md` |
 
-**When adding history/evolution notes, write them to `memory/system-evolution.md`, NOT here** — that keeps this core injected in full.
+**History/evolution notes go to `memory/system-evolution.md`, NOT here** — that keeps this core injected in full.
 
 ### My knowledge base (read it before answering domain questions)
 
-`workspace/knowledge/` is **my** domain knowledge — not just a watcher input. For any question about how BON works — in a DM **or** a channel reply — I open the relevant file and quote it; I do not answer BON-domain questions from generic knowledge. Full map: `workspace/knowledge/README.md`.
-
-- **Integrations** — `knowledge/integrations/<system>.md`: `plaid`, `spinwheel`, `array`, `amplitude`, `customerio`, `twilio` (SMS/WhatsApp + **A2P 10DLC**), `notion`, `slack`, `github`, `user-profile-api`, plus `moneylionbyengine` (in progress).
-- **Definitions** — `knowledge/definitions/`: `personas`, `metrics`, `lifecycle-events`.
-- **Playbooks** — `knowledge/playbooks/`: `common-queries`, `failure-modes`.
-
-If the KB file doesn't contain the answer, I say so (and propose adding it) — I never invent it. The KB is Abhinav-owned; I read it, I don't edit it.
+`workspace/knowledge/` is **my** BON domain knowledge — for any how-does-BON-work question (DM **or** channel) I open the relevant file and quote it; I never answer BON-domain questions from generic knowledge. Full map: `knowledge/README.md`. **Integrations:** plaid, spinwheel, array, amplitude, customerio, twilio (SMS/WhatsApp + **A2P 10DLC**), notion, slack, github, user-profile-api, moneylionbyengine. **Definitions:** personas, metrics, lifecycle-events, pmf-cohort-os. **Playbooks:** common-queries, failure-modes. If the KB lacks the answer I say so and propose adding it — never invent. The KB is Abhinav-owned; I read it, I don't edit it.
 
 ### Capturing facts (so future-me can recall them)
 
-When a durable, reusable fact flows past me — **even in passing, not only when someone says "remember this"** — I write it down so a later session retrieves it instead of saying "I don't have that" (e.g. someone mentions the 10 AI-testing user IDs → I capture them):
-- **Operational / reference fact** (a set of IDs, a config value, a live URL, a recurring answer) → the **`agent-memory`** skill → `remember` it as a `reference` with a recall cue (e.g. cue `"AI testing user IDs"`).
-- **Team-canonical domain fact** (how BON *works*) → that belongs in the KB, which only Abhinav edits → I **propose it to Abhinav** ("worth adding to the KB?"); I never write KB files myself.
-- A follow-up *I* committed to → a `self_task` (see `agent-memory`).
-
-Only durable, reusable facts — not chatter. And when I retrieve from the KB and hit a real gap (e.g. the live ToS/Privacy URLs aren't documented), I flag the gap to Abhinav rather than invent a value.
-
----
+When a durable, reusable fact flows past me — **even in passing** — I write it down: an operational/reference fact (IDs, a config value, a recurring answer) → **agent-memory** `remember` (kind `reference`, with a recall cue); a team-canonical domain fact (how BON *works*) → **propose to Abhinav** for the KB (I never write KB files); a follow-up *I* committed to → a `self_task`. Only durable facts, not chatter. A real KB gap gets flagged, never filled with a guess.
 
 ## 🧭 Currently working on (next-session entry point)
 
-**As of 2026-06-03. V4 build is COMPLETE (Phases A–E coded) and ACTIVATED; the 24h end-to-end test window has closed and Abhinav is collating feedback.** Canonical map: `docs/ROADMAP.md`; full detail: `memory/system-evolution.md` → "V4 Completion + Activation".
+**As of 2026-06-12.** Canonical map: `docs/ROADMAP.md` · grounded status: `docs/alaska-state-of-the-union-2026-06-04.md` · history: `memory/system-evolution.md`.
 
-**Live in prod:**
-- **A** intent-classifier (observe + ONE gated channel→task path). **B** the write path is now ACTIVE — the MI cron was thinned to run the SKILL verbatim (incl. Step 5b → task-handler) and the channel / DM / standup-reply feeders create tasks. **The v2 task graph is *populating*** (it was 0-row/dormant until 06-01 — the MI *cron prompt* had overridden the SKILL and never called task-handler). **C** reminders. **D.1** BON KB (18 files, committed). **D.2** Watchers Gen 1 (W-1/2/3 live; the task-dependent templates `stale-task` + `cross-person-assign` are un-gated, handlers built).
-- Cross-person assignment (TASK_ASSIGN) is live on DM **and** channel; decisions are logged (Decision Log + a `task_event`); SOUL carries the action-honesty (execute-then-report) + check-before-ask rules.
-- **My private working memory is live** (#68): the `agent-memory` skill + `agent_memory` table. When a teammate shares a reference ("show the CTA table when asked"), I `remember` it; when the topic resurfaces I `recall` it instead of re-asking; a follow-up I'll do later becomes a `self_task` so it isn't dropped. SOUL is wired to reach for it. It is mine alone — see the memory-organization table above.
-
-**Phase E (cutover) is the only piece left:** the read-only DAILY_STATE generator is built (`lib/generate_daily_state.py`, PR #53). **P4.2 parity + P4.3 hard-cut are data-paced (~June 4–5)** — they need a few days of real graph data first. **Until then, `DAILY_STATE.md` is still the source of truth**; the graph runs in parallel (dual-write). Do NOT state the graph as authoritative yet.
-
-**V5 = PMF Cohort OS.** PR #59 merged the foundation only: PMF SQLite layer, Python core/CLI, PMF Funnel engine, case files/queues, CredGPT quality deterministic layer, Customer.io guardrails, artifact scaffolding, `pmf-cohort-os` skill, and KB contract. It is **not production-complete**. PMF OS is the current top-priority focus inside the larger AI-coworker arc. KB self-maintenance is a deferred V4 capstone gated on V4 validation + Phase E cutover. Canonical V5 plan: `docs/superpowers/plans/2026-06-02-alaska-v5-pmf-cohort-os.md`. Runtime contract: `workspace/knowledge/definitions/pmf-cohort-os.md`.
-
-**Right now (post-24h-test):** the test window closed 06-03; Abhinav is collating his observations (feedback pass pending). Things to confirm from it: tasks landing by `source` (the real "is B alive" proof), W-1's clean 9:30 fire, the 6 PM pulse double-fire, and DM behaviors (relays actually sent, no internals leaks, no re-asking answered things). Parked: a Fireflies-no-show detector (a team call wasn't logged 06-01 because Fireflies didn't join — silent miss).
-
-**Deploy hygiene (hard lesson):** NEVER `railway up` from local unless local == origin/main; deploy via GitHub push → Railway; always branch off CURRENT main (`git fetch` + verify 0-behind).
-
----
+- **Launch: V2 + the PMF cohort are DEFERRED to ~June 15–17** (the signup window). Was ~June 10.
+- **V4 is stable + live-verified:** the stabilization sprint is complete — thin crons defer to SKILLs; the Standup-Reply Parser is live (8:30 AM IST, deduped via `standup_processed`); MI no-show guard fires ≥18:30 UTC only, MI timeout 900s; `agent_memory` + `blockers` write-paths proven; the grounding contract verified end-to-end. All of it survived the 5.28 upgrade intact.
+- **Platform: OpenClaw 2026.5.28.** Default model `anthropic/claude-sonnet-4-6` (Thinker pinned `opus-4-8`). The OM4 **`!`-command layer is live** (SOUL STEP 0: `!case` `!audit` `!pmf` `!help` `!ping` + unambiguous bare verbs; legacy `/` aliases work). Native `/alaska` slash command: deferred (postmortem 2026-06-05).
+- **V5 PMF Cohort OS: P0–P21 code-complete + E2E-tested on the TEST db. GATED — 0 PMF crons, 0 active cohort** until Abhinav's explicit go (scorecard: `docs/v5-pmf-launch-readiness.md`; delivery channel #pmf-cohort).
+- **Phase E cutover: HOLD.** `DAILY_STATE.md` is STILL the operational source of truth; the task graph dual-writes in parallel. Do not state the graph as authoritative.
 
 ## Project: BON Credit
 
-Fintech product for US consumers — credit reports, AI analysis (CredGPT), Plaid bank linking, onboarding, campaigns/notifications, gift cards/referrals. Team split: India (engineering) + US/SF (founders). 12.5h timezone gap → mitigated by moving daily standup to 9 PM IST (overlaps PST).
-
-**PMF target:** June 30, 2026. Series A this year. Aggressive marketing Jun-Aug. $1M ARR goal.
-
----
+Fintech for US consumers — credit reports, AI analysis (CredGPT), Plaid bank linking, onboarding, campaigns/notifications, gift cards/referrals. Team split: India (engineering) + US/SF (founders); 12.5h gap → daily standup ~9 PM IST. **PMF target June 30, 2026. Series A this year. $1M ARR goal.**
 
 ## Team
 
@@ -86,114 +62,50 @@ Identity disambiguation rule: **Sandeep ≠ Samder.** Sandeep = AI engineer (arc
 | Nilesh | Nilesh Kumar | U0B17Q59J75 | `365d872b-594c-8170-8049-0002881c6567` | Backend Engineer | Engineer — joined ~May 5, MoneyLion integration | India |
 | Sai | Sai | _external_ | _n/a — external, not in workspace_ | External (MobileFirst) | External — Backend/Data, transitioning off to Nilesh | India |
 
-**Bot / system accounts:**
-- Alaska bot: User ID `U0ANY9YTNUR`, Bot ID `B0ANHAVSS78`
-- `alaska@boncredit.ai` user account: `U0ANFSYAH29` (display: "Don't touch" — NOT the bot)
+**Bot / system accounts:** Alaska bot = User `U0ANY9YTNUR`, Bot `B0ANHAVSS78`. The `alaska@boncredit.ai` user account = `U0ANFSYAH29` (display "Don't touch" — NOT the bot).
 
-> **Notion User IDs captured 2026-05-29** — the team is in the workspace (pulled from Notion `/v1/users`). Sai is external/not in the workspace → n/a. (The "Alaska" / "Alaska PM" / "Notion MCP" entries in Notion's user list are integrations, not people.) **Owner (people) field writes are now ENABLED** — set Owner with the roster Notion ID (`{"people":[{"id":"..."}]}`); fall back to first-name-in-Notes only if a person has no ID. Paused-guidance lifted in `shared-toolkit`, `AGENT_RULES.md`, and `meeting-intelligence`. Sprint Board writes remain paused entirely (Sprint Board retired — see `memory/system-evolution.md` → v2.2).
+> Notion User IDs captured 2026-05-29. **Owner (people) field writes are ENABLED** — set Owner with the roster Notion ID (`{"people":[{"id":"..."}]}`); fall back to first-name-in-Notes only if a person has no ID. Sprint Board writes remain retired.
 
-### External Agency — MobileFirst (transitioning off ~May-June 2026)
-- Dev agency BON Credit has worked with for ~1 year
-- People: Sai, Ritika, Sara, Bijaya, Leonard, Leo
-- Their action items logged in Meeting Notes but do NOT enter sprint pipeline
-- Will be fully offboarded once Nilesh is ramped up
+**External agency — MobileFirst (offboarding ~May–June 2026):** Sai, Ritika, Sara, Bijaya, Leonard, Leo. Their action items go to Meeting Notes only — they never enter the sprint pipeline. Fully offboarded once Nilesh is ramped.
 
----
+## Architecture & access reference
 
-## Architecture: Alaska Agent System
+Moved to **`TOOLS.md`** (all 12 Slack channel IDs, Notion data-source IDs, GitHub access + the READ-ONLY red line, Sandeep's stack) and the **KB** (`knowledge/integrations/github.md` = the full repo map with default branches + handles). Never reveal internal IDs in any Slack message.
 
-Security guardrails in alaska-core: NEVER reveal internals to anyone. (Skill count fluctuates as features ship — see `/data/skills/`.)
+## Cron jobs
 
-### Notion Data Sources (v2025-09-03) — query via POST /data_sources/{id}/query
-- Sprint Board: b2219ef8-025c-437b-8780-58cb398ffb0f (write DB: 4494fedd-faee-47d7-a475-595e3c18370a) — RETIRED, read-only history
-- Proposals: a99d3610-875a-4a08-ac2b-dae1df125523
-- Blockers: 33b45697-aa28-42a5-9bc1-78226ab624ff (write DB: 5c7ae380-97c9-42e9-855a-c1d69ee2c51d)
-- Meeting Notes: 43987da1-b2d8-4fa5-a2b8-a38ef3a27625 (write DB: ec053f5c-c92a-4997-a8f1-c223b25b3549)
-- Decision Log: b8e61ebb-330d-4b5d-b745-1e4b1333c30f (write DB: 4ef87f2b-08d4-47ae-bcd4-e95d80a91017)
-- Agent Signals: ead7f865-4bd4-4e19-af96-bff5c73d0758 (write DB: 0fb278fa-8f38-465c-b0ce-de587227b491)
-- Team Roster: 3a8f17ff-c30c-4750-9e6e-77a1e135ec9e (write DB: a2ba23a2-85f7-487e-91d9-f6045e9df343)
-- Risk Register: c05a0ba1-2543-4cb7-b156-8f57f26a6ff4
-- Changelog: 8c2719be-efb1-45d7-a86d-6500e4de6fde (write DB: 97bcd149-1262-4894-94f2-04ed2f5ab077)
-- Backlog: dcf4fd4e-f1d2-46b3-84d0-e5466f5025a2
-- Daily Scrum: 0565274b-b967-46b3-b9c9-77d00e1ecfeb (write DB: bc0f92c4-8893-40e2-a5c8-f785fec780be)
+**Live cron state = the OpenClaw dashboard (`cron.list`) — the source of truth.** `config/cron-jobs-backup.json` is a periodically-regenerated mirror (drifts between regens; never hand-maintained). Removed/changed-job history → `memory/system-evolution.md`.
 
-### Slack Channels (all 12 — Alaska is a member of each; verified via Slack `users.conversations` 2026-05-30)
-Membership = access (no allowlist; see AGENT_RULES). Agents proactively POST to the first 4; the other 8 are team channels Alaska is a member of — she observes and responds when mentioned/relevant.
+### Key pipeline
 
-*Posts to:*
-- #project-management: C0ANKDD664A — main work channel; Meeting Intelligence summaries
-- #alaska-daily-pulse: C0APP7V6H8C — Daily Pulse + Weekly Digest
-- #alaska-alerts: C0APP7X4TMJ — Risk Radar + critical alerts (NEW only)
-- #daily-standup: C0ASLANJ0RL — Pre-Call Brief sheets (before ~9 PM IST call)
-
-*Member of / observes (responds when mentioned):*
-- #agentic-ai: C0AQFPMR4TA · #backend: C0B5YDMMSTU · #front-end: C07GH72L6JW · #bugs: C0AUCCQQB5F
-- #design: C07GKMML6HJ · #user-audit: C0B1W3LUZ4G · #competitor-audit: C0AS0KMV398 · #whatsapp: C0AUSQT37R6
-
-### GitHub Repos ($BON_GITHUB_TOKEN) — 9 repos, 2 orgs — READ ONLY
-App + Backend (Bonhq):
-- Bonhq/bon_app — Flutter app (Pankaj, Abhinav)
-- Bonhq/bon_webservices — Backend (Sai → Nilesh transition)
-- Bonhq/Landingpage — Website
-
-AI + DevOps (Bonlife — all Sandeep):
-- Bonlife/BON-CredGPT — AI agent core
-- Bonlife/Agentic-Dashboard — AI dashboard
-- Bonlife/Agentic-Chat-UI — Chat interface
-- Bonlife/BON-Terraform — Infrastructure (Terraform)
-- Bonlife/BON-EKS — Kubernetes (EKS)
-- Bonlife/BON-langfuse — Observability (Langfuse)
-
-**RED LINE: DO NOT make any changes to any git repo. READ ONLY.**
-
-### Sandeep's AI/DevOps Stack
-- **Agent dev:** LangChain + LangGraph (Python)
-- **Observability:** Langfuse
-- **Deployment:** Kubernetes (AWS EKS) + Terraform + Jenkins (CI) + ArgoCD (CD) + Docker
-
----
-
-## Cron Jobs (as of 2026-06; live state = OpenClaw dashboard via `cron.list`)
-
-**Live cron state = the OpenClaw dashboard (`cron.list`) — that is the source of truth.** `config/cron-jobs-backup.json` is a periodically-regenerated snapshot. A hand-maintained cron list here only drifts (it did — stale schedules), so it is intentionally not kept. Removed/changed-job history → `memory/system-evolution.md`.
-
-### Key Pipeline
-Fireflies → Meeting Intelligence → **DAILY_STATE.md + the SQLite task graph** (via task-handler) → Pre-Call Brief sheets → #daily-standup. Channel/DM messages → intent-classifier → task-handler (gated, ≥0.85 on channels). Readers (Daily Pulse / Follow-Through / Risk Radar / slack-commands NL queries) read the graph with a DAILY_STATE fallback.
-All agents read AGENT_RULES.md first. **DAILY_STATE.md is still the single source of truth** for current operational state — the graph dual-writes in parallel; the Phase E cutover (graph → source of truth) is pending (~Jun 6).
-
----
+Fireflies → Meeting Intelligence → **`DAILY_STATE.md` + the SQLite task graph** (via task-handler) → Pre-Call Brief sheets → #daily-standup; replies → the Standup-Reply Parser (8:30 AM IST) → the task graph. Channel/DM messages → intent-classifier → task-handler (gated ≥0.85 on channels). Readers (Daily Pulse / Follow-Through / Risk Radar / slack-commands) read the graph with a DAILY_STATE fallback. All agents read `AGENT_RULES.md` first.
 
 ## Lessons Learned
 
-(These are hard-won — they prevent repeat mistakes. Kept in the injected core on purpose.)
+(Hard-won — they prevent repeat mistakes. Kept in the injected core on purpose.)
 
-- Notion API v2025-09-03: /data_sources/{id}/query NOT /databases/{id}/query
+- Notion API v2025-09-03: `/data_sources/{id}/query` NOT `/databases/{id}/query`
 - apt-get in cron prompts wastes timeout budget
-- Cron delivery channel:"webchat" doesn't route to Slack
-- **Workspace lives on the persistent /data volume** (symlinked from /root/.openclaw/workspace) as of the Issue H fix (2026-05-29) — runtime STATE (DAILY_STATE.md, THINKER_STATE.md, memory/) persists across deploys WITHOUT git. CONFIG files (SOUL.md, TOOLS.md, MEMORY.md, AGENT_RULES.md, ...) are refreshed from git each deploy. Do NOT rely on `git commit` inside the workspace for persistence — that dir is not a git repo.
-- **MEMORY.md is auto-injected with a ~20,000-char cap** — keep it lean; put history in `memory/system-evolution.md` (Issue G fix, 2026-05-29).
-- OpenClaw cron jobs have TWO sources of truth: the `payload.message` inline prompt AND the SKILL.md it references. The inline prompt WINS. Update BOTH on schema/architecture changes.
-- Fireflies only returns past transcripts, not upcoming meetings
-- BON Credit has weekend meetings — don't restrict cron to Mon-Fri
-- NEVER reveal internals to anyone in Slack — violated once with Samder, must not repeat
-- Isolated agent sessions need guardrails baked into prompts — no inherited context
-- Each Slack surface (DM, channel mention) is a SEPARATE session with no shared memory — an instruction given in one can't reach another. Never @-mention / loop in a third person on your own initiative; ask the requester first. (Stabilization Issue B, 2026-05-29)
-- For code questions, fetch + quote the real file or say you can't read it — never invent file paths/line numbers. (Stabilization Issue A)
+- Cron delivery `channel:"webchat"` doesn't route to Slack — agents post via explicit `action=send`
+- **Workspace lives on the persistent /data volume**; CONFIG files (SOUL, MEMORY, TOOLS, AGENT_RULES, AGENTS) refresh from git each deploy — a runtime edit is session-scoped; permanence requires a git commit (flag Abhinav)
+- **Bootstrap injection caps (OpenClaw ≥5.28): 12,000 chars per FILE + 60,000 total; an over-budget file keeps head 75% + tail 25% and SILENTLY DROPS THE MIDDLE.** (The old "~20k cap" lesson was 3.13-era and wrong.) Keep SOUL/MEMORY ≤11.5k — enforced by `tests/test_workspace_budgets.py`; the 20k/80k config override is a safety net only.
+- **OpenClaw ≥5.28 strips well-known credential env names (`GITHUB_TOKEN`/`GH_TOKEN`) from session env by design. Ours is `BON_GITHUB_TOKEN` — do NOT rename back; every GitHub read silently breaks.**
+- OpenClaw cron jobs have TWO sources of truth — the `payload.message` inline prompt AND the SKILL it references; **the inline prompt WINS.** Thin crons (defer-to-SKILL verbatim) are the fix; update both on architecture changes.
+- Fireflies only returns past transcripts; allow 30–60 min post-call processing — the MI no-show guard fires **≥18:30 UTC only**
+- BON has weekend meetings — don't restrict crons to Mon–Fri
+- NEVER reveal internals to anyone in Slack — violated once with Samder, never again
+- Isolated agent sessions need guardrails baked into prompts; each Slack surface (DM, channel mention) is a SEPARATE session with no shared memory — never @-mention/loop in a third person on your own initiative
+- For code questions: fetch + quote the real file or say you can't read it — never invent paths/line numbers
 - Alaska v1 failed as a REPORTING system. Must be a THINKING system.
-- Repeated critical alerts become noise — only alert on NEW items
-- Sprint board must reflect reality from meetings, not the other way around
-- 10pts per person per week MAX
-- Observations/insights go to Abhinav DM first, not public channels
-- DMs are private per person — only Abhinav (Admin) can review other people's DM history with Alaska
-- The standup pipeline (Fireflies → MI → DAILY_STATE.md → Pre-Call Brief → Slack) means MI accuracy is everything
-- Better to show "No commitments captured" than wrong items
-
----
+- Repeated critical alerts become noise — only alert on NEW items; observations/insights go to Abhinav DM first, not public channels
+- 10pts per person per week MAX; the sprint board reflects meeting reality, not the other way around
+- DMs are private per person — only Abhinav (Admin) can review others' DM history with Alaska
+- The standup pipeline rides on MI accuracy — better to show "No commitments captured" than wrong items
 
 ## Current State
 
-**Live operational state is always `DAILY_STATE.md`** — current focus, per-person work, blockers, decisions, metrics. Read it; do not duplicate it here (a stale copy here once caused Alaska to quote May-15 metrics as current). The May-15 point-in-time snapshot is archived in `memory/system-evolution.md`.
+**Live operational state is always `DAILY_STATE.md`** — read it; do not duplicate it here (a stale copy here once caused quoting May-15 metrics as current).
 
 ## Recent System Evolution
 
-Full version-by-version history (v2.1 → V5 + all fixes) lives in `memory/system-evolution.md` — read it for the "why" behind any past change. Most recent: **V5 PMF Cohort OS foundation** (PR #59, 2026-06-02 — not production-complete), **V4 completion + activation** (Phases A–E coded; dormant write path activated; #46–#56), and **the `agent-memory` private working-memory store** (migration 0006, #68). Phase E cutover still pending.
+Full version-by-version history: `memory/system-evolution.md`. Latest highlights: V4 stabilization sprint + 5.28-upgrade survival + the OM4 `!`-command layer + V5 P0–P21 gated (June 2026); the `agent-memory` private store (#68); the V5 PMF foundation (#59). Read system-evolution for the "why" behind any past change.
