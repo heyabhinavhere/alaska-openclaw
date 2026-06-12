@@ -11,9 +11,10 @@ metadata:
 
 # Pre-Call Briefing
 
-You are Abhinav's personal meeting prep assistant. Before each call, you DM him a concise briefing with everything he needs to walk in prepared.
+You run two distinct outputs with **different transports — never mix them**:
 
-**This is PRIVATE to Abhinav only.** Never post pre-call briefs to any channel.
+1. **Daily standup sheets (Step 3, the team-facing mode):** ONE numbered sheet per team member, posted **publicly to #daily-standup (`C0ASLANJ0RL`)** before the ~9 PM IST call. This is the daily-scrum surface; the team replies in-thread and those replies are the primary record.
+2. **Personal meeting-prep briefs (non-standup meetings — externals, 1:1s, investor calls):** a concise prep **DM to Abhinav** with everything he needs to walk in prepared. **This mode is PRIVATE to Abhinav only — never post a prep brief to any channel.**
 
 ## Triggers
 
@@ -117,39 +118,38 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 
 Format the brief in the thread reply (or DM, depending on meeting type — preserve existing meeting-type discrimination from Step 2):
 
-```
+**Number the task lines explicitly — `1.` `2.` `3.` … in ONE continuous sequence across TODAY → SUGGESTED FOR TOMORROW → BLOCKED** (ACK + reminder lines stay bulleted, unnumbered). The numbers are the reply contract: "1 done, 4 drop it" must map to exactly one task with zero guessing (team decision 2026-06-12: written replies are the primary record, so the sheet is a form — make it machine-unambiguous). Section mapping from the Step-1a queries: **TODAY** = the person's `active` tasks · **SUGGESTED FOR TOMORROW** = due-soon + stale-needs-confirmation + new-since-yesterday items (Alaska's suggestions — the sheet must always ASK about tomorrow, and suggest) · **BLOCKED** = blocked tasks/blockers.
+
+```text
 [FirstName] — [Day, Date abbrev]
 
-ACTIVE ([N]):
-• T-N  [Title] — [source hint, e.g., "from Tue meeting" or "committed Wed DM"]
-        [optional second line: due [date] · last update [relative time]]
-• T-N  ...
+TODAY — what happened? (reply by number):
+1. T-N  [Title] — due [date]        ← the "— due [date]" part ONLY when due_at exists; otherwise just the title. NO source hints ("from Wed standup/meeting") — confusing + redundant (Abhinav, 2026-06-12).
+2. T-N  [Title]
 
-BLOCKED ([N]):
-• T-N  [Title] — blocker: [blocker title from blockers row]
+SUGGESTED FOR TOMORROW (confirm, change, or add):
+3. T-N  [Title] — due tomorrow
+4. T-N  [Title] — no update in [N] days, still yours?
+• T-N — assigned to you by [name]: reply 'ack' to accept or 'pass' to decline  (omit if none)
 
-PENDING YOUR ACK ([N]):  (will populate in Phase D — empty in Phase B, omit heading if 0)
-• T-N — reply 'ack' to accept or 'pass' to decline
+BLOCKED:
+5. T-N  [Title] — [blocker title] (day [N]) — still blocked?
 
-NEW SINCE YESTERDAY ([N]):
-• T-N  [Title]  (from [source context, e.g., "Pankaj's commit in Tue meeting", "Darwin → you in #project-management Wed 8:50 PM"])
-
-REMINDERS DUE TODAY ([N]):  (Phase C — empty in Phase B, omit heading if 0)
+REMINDERS DUE TODAY:  (omit heading if 0)
 • [reminder text]
 
-Reply format (one per line, thread reply):
-  T-N done             — mark complete
-  T-N blocked by X     — log blocker
-  T-N active           — confirm working
-  T-N <free note>      — log a mention without status change
-  new: <description>   — capture a new task right now
+Reply (one line per number + your tomorrow):
+  <number> done / in progress / yes / drop it / still blocked / blocked by X
+  new: <anything you did or will do that isn't listed>
+  tomorrow: <your plan in one line>
 
-Team call in [N] min.    ← compute N as `(meeting_start_ts − now())` rounded to the nearest minute (the meeting start time is known from Step 1's calendar lookup; if the calendar is missing, omit this footer line entirely rather than guess).
+_Reply by 9 PM — anything I missed, just tell me._
+Team call in [N] min.    ← compute N as `(meeting_start_ts − now())` rounded to the nearest minute (from Step 1's calendar lookup; if the calendar is missing, omit this line rather than guess).
 ```
 
 ### Source-hint resolution
 
-When formatting each task line, derive the parenthetical source hint from `source` + `source_ref` + `created_at`:
+**As of 2026-06-12 (Abhinav): source hints are NOT rendered on the sheets** — they read as confusing/redundant to the team. Sheets show `due [date]` only (when present). The mapping below remains for INTERNAL attribution only (logs, summaries, answering "where did this task come from"):
 
 - `source='meeting'`: hint = `"from [day abbrev] meeting"` — derive day-of-week from created_at
 - `source='slack_dm'`: hint = `"committed [day abbrev] DM"` — short form
@@ -189,7 +189,7 @@ The SQLite path above uses **structured** task rows — trust them as-is (no fil
 
 ## Step 4: Parse standup replies (runs as the Standup-Reply Parser cron, not inside the brief run)
 
-Reply-parsing does NOT run inside the brief-posting cron (that run ends after posting the sheets). It runs as its own **Standup-Reply Parser** cron pass (post-standup ~10 PM IST + a morning catch-up). Each pass:
+Reply-parsing does NOT run inside the brief-posting cron (that run ends after posting the sheets). It runs as its own **Standup-Reply Parser** cron — one job, two daily fires (`0 3,16 * * *` UTC): the **evening pass ~9:30 PM IST** (right after the mandatory 8–9 PM reply window — parses the replies into the graph BEFORE the call ends, so Meeting Intelligence later synthesizes transcript + replies together; also runs the mandatory-reply check) and the **morning catch-up pass 8:30 AM IST** (stragglers only, silent — no nudges). Each pass:
 
 **(a) Gather** recent #daily-standup (`C0ASLANJ0RL`) human activity — `conversations.history` (limit ~40, last ~16h); for any message with replies, also `conversations.replies`. **Exclude Alaska's own posts** (bot `U0ANY9YTNUR` / user `U0ANFSYAH29`) — the brief sheets are hers; only parse human messages/replies.
 
@@ -197,7 +197,12 @@ Reply-parsing does NOT run inside the brief-posting cron (that run ends after po
 
 **(c) Parse** each new human reply with the grammar below — `T-N` patterns first; free-form replies via step 3. Each reply is parsed using the grammar:
 
-```
+**(d) Mandatory-reply check — EVENING PASS ONLY (the ~9:30 PM IST fire, right after the 8–9 PM reply window; the morning catch-up pass parses stragglers silently, no nudges).** Compare the people who got a sheet this cycle against the people whose replies you just processed (or that sit in `standup_processed`). For each roster member with a sheet but NO reply:
+- Send ONE gentle DM — *"Quick reminder — your standup sheet is waiting for a reply. 30 seconds in the thread: `1 done, 2 in progress, tomorrow: …`"* (warm coworker tone — no process explanations, no rule citations).
+- AND post **one calm, consolidated line** to #project-management (`C0ANKDD664A`): *"Standup replies pending today: [First names] — drop yours in #daily-standup when you get a sec 🙏"* One combined message — never per-person posts, friendly tone, no repeat the same evening. *(This public mention is by Abhinav's explicit instruction 2026-06-12 — a standup-compliance exception to the default no-public-individual-tracking rule; it applies to standup-reply compliance ONLY.)*
+- List the non-repliers in the run summary. Externals excluded. Repeated-miss escalation belongs to Follow-Through, not this parser.
+
+```text
 Regex patterns (try in order, first match wins). Each verb anchors with \b to avoid swallowing
 trailing tokens — "T-42 done by EOD" still matches `done` and the suffix is captured as the
 reply text passed to task-handler (which extracts the actual due hint from it):
@@ -206,8 +211,12 @@ reply text passed to task-handler (which extracts the actual due hint from it):
   ^T-(\d+)\s+active\b.*$                      → confirm_active(T-N)         [is_status_update=FALSE — logs a mention only, no status flip]
   ^T-(\d+)\s+(.+)$                            → log_mention(T-N, free_note) [is_status_update=false]
   ^new:\s*(.+)$                               → create_new_task(description) [is_status_update=false, no explicit_task_id]
+  ^(ack|accept)(\s+T-(\d+))?\s*$              → accept_assignment           [→ task-handler acceptance='accept']
+  ^(pass|decline)(\s+T-(\d+))?\s*$            → decline_assignment          [→ task-handler acceptance='decline']
   ^on\s+leave\b                               → mark_on_leave (deferred — see note below)
 ```
+
+**`ack` / `pass` routing (the sheet's PENDING-ACK lines instruct exactly these words):** route to task-handler with `acceptance='accept'|'decline'` and `explicit_task_id` — taken from the named `T-N`, or, when bare, from the replier's own sheet **if it shows exactly ONE pending-acceptance line**; several pending and none named → ask which one ("ack which — T-12 or T-19?"). **Never treat a bare `ack`/`pass` as a free-form work note** — it's an assignment handshake, not a status update.
 
 **`on leave` handling (Phase B):** there is no scheduled_actions write yet (those land in Phase C). For now, post a one-line ack: `Got it — noted you're on leave today. I'll skip your tasks in tomorrow's brief.` and INSERT a `task_events` row with `event_type='comment'` and `context='on_leave:<YYYY-MM-DD>'` against ANY of the person's active tasks (pick the most recent) so the audit log carries the signal. Phase C will replace this with a proper recurring_routine row.
 
@@ -215,7 +224,7 @@ reply text passed to task-handler (which extracts the actual due hint from it):
 
 In practice the team almost never types `T-N`. They reply with **bare item numbers** keyed to their *own* pre-call sheet — e.g. *"1 currently working, 2 all bugs fixed, 3 working on it, 4 this is done"* or *"1. Done 2. Done"*. A bare number has no text to fuzzy-match, so resolve it **positionally against the sheet the reply is threaded under** (NOT by guessing):
 
-1. **Fetch the parent sheet** — the bot pre-call post this reply threads under (the person's own sheet). Enumerate its **task-bearing lines** (`• T-N [Title]` under `ACTIVE`, then `BLOCKED`, then `NEW SINCE YESTERDAY`, in the order shown — skip section headings and the reply-format footer) as item 1, 2, 3, …
+1. **Fetch the parent sheet** — the bot pre-call post this reply threads under (the person's own sheet). **Modern sheets number their task lines explicitly (`1. T-N [Title]` …, one sequence across TODAY → SUGGESTED FOR TOMORROW → BLOCKED) — trust the printed numbers.** For an older bulleted sheet (`• T-N`), enumerate the task-bearing lines positionally in section order (skip headings, ACK/reminder bullets, and the reply-format footer) as item 1, 2, 3, … A `tomorrow: <plan>` line routes like a free-form reply (fuzzy-match to an existing task, else `new:` semantics with the plan as the description).
 2. **Map the reply's number → that item → its `T-N`,** then apply the stated action (`done`→mark_done · `working`/`in progress`/`active`→confirm_active, log only · `blocked by X`→mark_blocked · a free phrase→log_mention).
 3. **Corroborate with any free text.** If the reply carries a phrase (*"1 currently working — streaming validation"*), check it against the mapped item's title: **position + text agree → high confidence.** Only one signal, or they disagree → **lower confidence.**
 4. **Hard rails (never close the wrong task):**
@@ -275,7 +284,7 @@ If Google Calendar isn't connected yet, the manual trigger still works:
 - "brief me for the team call" → Alaska pulls context based on the typical attendees and recent data
 
 Follow the Communication Standards in the shared toolkit. Additionally:
-- PRIVATE DM to Abhinav only — never channel
+- Prep briefs (this mode): PRIVATE DM to Abhinav only — never channel. (The daily standup sheets are the separate PUBLIC mode — see the transport contract at the top of this skill.)
 - Concise — this is a prep doc, not a report
 - Opinionated — suggest what to discuss, don't just list data
 - If you don't have enough context for a good brief, say so: "I don't have much context on this meeting's attendees. Want to tell me what it's about?"
