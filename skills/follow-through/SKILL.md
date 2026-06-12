@@ -35,6 +35,26 @@ Only `escalate_unacked_assignments` is implemented as an `action` here. Any othe
 - **Cron:** 3x daily — 9 AM, 1 PM, 6 PM IST
 - **Manual:** "check on tasks" or "what's overdue"
 
+## Post-once guard — run BEFORE any channel check-in or weekly report (cron runs only)
+
+**Why this exists (live incident 2026-06-05):** the 6 PM run posted its check-in to #alaska-daily-pulse, then timed out mid-run — the runner re-fired the job 30s later and it posted a *second*, slightly different check-in. Any mid-run kill (timeout, or a Railway redeploy — frequent) re-runs the whole job; without a marker, every retry re-posts. This guard makes retries post-safe.
+
+For a cron run, compute this run's **slot** first (`date -u +%F` for the date; variant from which cron fired): `<YYYY-MM-DD>:9am` · `<YYYY-MM-DD>:6pm` · `<YYYY-MM-DD>:weekly` (the Friday report).
+
+```bash
+sqlite3 /data/queue/alaska.db "CREATE TABLE IF NOT EXISTS followthrough_posted (slot TEXT PRIMARY KEY, posted_at DATETIME DEFAULT CURRENT_TIMESTAMP);"
+sqlite3 /data/queue/alaska.db "SELECT posted_at FROM followthrough_posted WHERE slot='<slot>';"
+```
+
+- **Row exists → a prior attempt already posted this slot's check-in/report.** Do NOT compose or post it again (no channel check-in; no duplicate weekly DM). Note "duplicate-slot retry — check-in already posted at <posted_at>, skipped" in the run summary. Per-person nudges/DMs may still proceed — they carry their own dedup (the nudge log + the never-nudge-twice rules).
+- **No row → proceed normally**, and **INSERT the marker IMMEDIATELY AFTER the channel post (or weekly DM) succeeds** — after, not before, so a failed send doesn't suppress the post forever:
+
+```bash
+sqlite3 /data/queue/alaska.db "INSERT OR IGNORE INTO followthrough_posted (slot) VALUES ('<slot>');"
+```
+
+(Manual invocations skip this guard — a human asking "what's overdue" should always get an answer. Rows are tiny; the Watcher Janitor may clear entries older than 30 days.)
+
 ## Step 1: Gather open tasks per person from the task graph
 
 For each owner in the `MEMORY.md` Team Roster who is Available, pull their open tasks from the graph. This is the §1.7 "active tasks for a person" pattern, scoped to the statuses Follow-Through acts on (`active`, `blocked` — `pending_acceptance` is the unacked-assignment flow owned by `escalate_unacked_assignments`, out of scope here):
