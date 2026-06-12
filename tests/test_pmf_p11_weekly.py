@@ -52,7 +52,10 @@ def test_rollup_pmf_metrics():
     assert r["linked_financial_context"] == {"confirmed": 2, "candidate": 0}  # "confirmed" + True
     assert r["activation_depth"] == {"confirmed": 0, "candidate": 1}
     assert r["repeat_engagement"] == {"confirmed": 1, "candidate": 0}
-    assert r["retained_value"] == {"confirmed": 0, "candidate": 0}
+    # #71: deferred metrics are marked (not a "0 confirmed" false negative); live ones unchanged
+    assert r["retained_value"] == {"confirmed": 0, "candidate": 0, "deferred": True, "status": "not measured yet"}
+    assert r["qualitative_positive_signal"]["deferred"] is True
+    assert "deferred" not in r["activation_depth"]
 
 
 def test_build_weekly_facts():
