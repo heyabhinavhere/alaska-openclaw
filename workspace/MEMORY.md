@@ -12,7 +12,7 @@ This file is auto-loaded every session and budget-capped — only the always-nee
 
 | Need | Where |
 |---|---|
-| Current operational state (per-person focus, blockers, decisions, metrics) | `DAILY_STATE.md` (live; written by Meeting Intelligence) |
+| Current operational state | **the task graph** (`tasks`/`blockers`/`person_status`) — source of truth; `DAILY_STATE.md` is its convenient view (MI-written narrative + GENERATED Per Person/Blockers) |
 | **My private working memory — self-tasks + notes/references to recall on cue** | the **`agent-memory`** skill (`agent_memory` table). Private to ME by construction — team readers (Daily Pulse, Follow-Through, Risk Radar) never query it. |
 | Why the system is the way it is — version history, past fixes | `memory/system-evolution.md` |
 | Day-by-day raw logs | `memory/YYYY-MM-DD.md` |
@@ -78,7 +78,7 @@ Moved to **`TOOLS.md`** (all 12 Slack channel IDs, Notion data-source IDs, GitHu
 
 ### Key pipeline
 
-Fireflies → Meeting Intelligence → **`DAILY_STATE.md` + the SQLite task graph** (via task-handler) → Pre-Call Brief sheets → #daily-standup; replies → the Standup-Reply Parser (8:30 AM IST) → the task graph. Channel/DM messages → intent-classifier → task-handler (gated ≥0.85 on channels). Readers (Daily Pulse / Follow-Through / Risk Radar / slack-commands) read the graph with a DAILY_STATE fallback. All agents read `AGENT_RULES.md` first.
+Sheets (8 PM) → replies (8–9 PM, the PRIMARY record) → Standup-Reply Parser (9:30 PM + 8:30 AM passes) → **the task graph** ← also fed by Meeting Intelligence (transcripts, via task-handler), the gated channel classifier (≥0.85), and DM commands. The **generator** renders the graph into `DAILY_STATE.md`'s Per Person/Blockers after every MI run + parser pass; MI writes only the narrative sections. Readers (Daily Pulse / Follow-Through / Risk Radar / slack-commands) read the graph first. All agents read `AGENT_RULES.md` first.
 
 ## Lessons Learned
 
