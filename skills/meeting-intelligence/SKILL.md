@@ -98,11 +98,12 @@ Read the full transcript and build an internal understanding. Answer these quest
 - Did roles/responsibilities change?
 - Did strategy change?
 
-**Daily Scrum data — TEAM DECISION 2026-06-12: the written standup replies are the canonical record.** The team no longer discusses tasks in detail on the call (blockers + high-level overview only); every member's REPLY to their #daily-standup sheet is the primary commitment source, parsed into the task graph by the Standup-Reply Parser. Therefore:
-- **Do NOT mine the transcript for per-person commitments.** Task-silence on the call is EXPECTED now — never write "no commitments captured" (or any empty-commitments framing) for someone merely because they didn't speak about tasks.
-- From the transcript extract what the call actually carries: **blockers, decisions, scope/timeline changes, and high-level context.** A transcript item matching a same-day sheet/reply is the SAME item — rely on task-handler dedup to merge, and prefer the written reply's title/owner.
-- **Attendance comes from the transcript's PARTICIPANTS list, never the speakers list** — attending silently is normal now. Phrase a gap as "no spoken items on the call", never "not on the call" unless the participants list actually says so.
-- Extract Done/Doing/Blockers per person for the Daily Scrum Notion database only where genuinely present in the call; the replies remain the primary source.
+**Daily Scrum data — TEAM DECISION 2026-06-12: the written standup replies are the PRIMARY record; the call ENRICHES them. Your job is SYNTHESIS.** Members reply to their sheets 8–9 PM IST and the Standup-Reply Parser (evening pass ~9:30 PM) has already written those replies into the task graph BEFORE you process the transcript. The call carries blockers, decisions, and high-level overview — not detailed task talk. Combine both:
+- **Read tonight's standup data FIRST:** the graph's fresh `standup_reply` updates (and the #daily-standup sheet threads if you need the raw words) = the per-person did-today / doing-tomorrow truth.
+- **From the transcript extract what only the call carries:** blockers raised or resolved, decisions, scope/timeline changes, and confirmations or CONTRADICTIONS of the written replies. Where the call contradicts a reply ("actually that broke in prod after I replied") the call is NEWER — update the task via task-handler and note the correction.
+- **Match, don't duplicate:** a transcript item matching a same-day reply is the SAME item — task-handler dedup merges; prefer the written reply's title/owner. Task-silence on the call is EXPECTED — never write "no commitments captured" (or any empty framing) because someone didn't speak about tasks.
+- **Attendance comes from the transcript's PARTICIPANTS list, never the speakers list** — attending silently is normal. Phrase a gap as "no spoken items on the call", never "not on the call" unless the participants list says so.
+- **The nightly #project-management summary (Step 7) is now the COMBINED artifact** — replies + call in one post the team reads next morning: ✅ *Progress today* (per member, from the replies, enriched by the call) · 📌 *Decisions* · 🚧 *Blockers* (new/resolved) · 📋 *Tomorrow* (per member, from replies + confirmed suggestions). Extract Done/Doing/Blockers for the Daily Scrum Notion database from this combined view.
 
 **Metric verification (if Amplitude/Customer.io configured):**
 Read `/data/skills/amplitude-analyst/SKILL.md` and `/data/skills/customerio-ops/SKILL.md` for API patterns.
