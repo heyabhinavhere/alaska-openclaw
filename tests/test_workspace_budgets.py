@@ -36,7 +36,14 @@ def _size(rel: str) -> int:
     return len((ROOT / rel).read_text(encoding="utf-8"))
 
 
+def test_bootstrap_files_exist():
+    """Every budgeted bootstrap file must exist — a missing rulebook is worse than a fat one."""
+    missing = [rel for rel in PER_FILE_BUDGETS if not (ROOT / rel).exists()]
+    assert not missing, "Missing bootstrap file(s): " + ", ".join(missing)
+
+
 def test_each_bootstrap_file_within_injection_budget():
+    """Each bootstrap file stays under its per-file injection budget (hard cap 12k chars)."""
     over = [
         f"{rel}: {_size(rel):,} > {budget:,}"
         for rel, budget in PER_FILE_BUDGETS.items()
@@ -51,6 +58,7 @@ def test_each_bootstrap_file_within_injection_budget():
 
 
 def test_bootstrap_set_total_within_budget():
+    """The whole injected set stays under the total budget (loader default total cap 60k)."""
     total = sum(_size(rel) for rel in PER_FILE_BUDGETS if (ROOT / rel).exists())
     assert total <= TOTAL_BUDGET, (
         f"Injected bootstrap set totals {total:,} chars > {TOTAL_BUDGET:,} "

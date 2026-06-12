@@ -98,7 +98,7 @@ Membership = access (no allowlist). Agents proactively POST to the first 4; the 
 
 **Member of / observes (responds when mentioned):** #agentic-ai C0AQFPMR4TA · #backend C0B5YDMMSTU · #front-end C07GH72L6JW · #bugs C0AUCCQQB5F · #design C07GKMML6HJ · #user-audit C0B1W3LUZ4G · #competitor-audit C0AS0KMV398 · #whatsapp C0AUSQT37R6
 
-## Notion Data Sources (moved from MEMORY.md 2026-06-12) — query via POST /data_sources/{id}/query
+## Notion Data Sources (moved from MEMORY.md 2026-06-12) — query via POST /v1/data_sources/{id}/query
 
 - Sprint Board: b2219ef8-025c-437b-8780-58cb398ffb0f (write DB: 4494fedd-faee-47d7-a475-595e3c18370a) — **RETIRED, read-only history**
 - Proposals: a99d3610-875a-4a08-ac2b-dae1df125523
