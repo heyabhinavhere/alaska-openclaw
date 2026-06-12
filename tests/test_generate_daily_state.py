@@ -378,6 +378,135 @@ def _field(person_block: str, field_name: str) -> str:
     return ""
 
 
+# ---------------------------------------------------------------------------
+# Parity-redesign behaviors (2026-06-12): snoozed visible, zombie filter,
+# LAST COMMITTED = standup-touched + current-due, person_status line.
+# ---------------------------------------------------------------------------
+def test_snoozed_task_visible_with_annotation():
+    tmp, db, state, memory = _fixture()
+    conn = sqlite3.connect(db)
+    conn.execute("UPDATE tasks SET status='snoozed' WHERE task_id='T-4'")
+    # follow-through creates this table lazily in prod; mirror its shape here.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS snoozes (task_id TEXT, task_name TEXT, snoozed_until DATETIME)"
+    )
+    conn.execute(
+        "INSERT INTO snoozes (task_id, task_name, snoozed_until) VALUES ('T-4', 'Returning-user UI', ?)",
+        (_iso(NOW + timedelta(days=3)),),
+    )
+    conn.commit()
+    conn.close()
+    out = g.generate(db, state, memory, now=NOW)
+    pankaj = _person_block(_extract_section(out, "Per Person"), "Pankaj")
+    assert "Returning-user UI (snoozed until 2026-06-04)" in _field(pankaj, "NOW"), (
+        "snoozed task must stay VISIBLE in NOW with its snooze date"
+    )
+
+
+def test_snoozed_task_without_date_still_visible():
+    tmp, db, state, memory = _fixture()
+    conn = sqlite3.connect(db)
+    conn.execute("UPDATE tasks SET status='snoozed' WHERE task_id='T-4'")  # no snoozes table at all
+    conn.commit()
+    conn.close()
+    out = g.generate(db, state, memory, now=NOW)
+    pankaj = _person_block(_extract_section(out, "Per Person"), "Pankaj")
+    assert "Returning-user UI (snoozed)" in _field(pankaj, "NOW")
+
+
+def test_zombie_blocker_skipped():
+    tmp, db, state, memory = _fixture()
+    conn = sqlite3.connect(db)
+    # B-1 links only T-3; completing T-3 makes B-1 a zombie.
+    conn.execute(
+        "UPDATE tasks SET status='done', done_at=? WHERE task_id='T-3'", (_iso(NOW),)
+    )
+    conn.commit()
+    conn.close()
+    out = g.generate(db, state, memory, now=NOW)
+    blockers = _extract_section(out, "Active Blockers")
+    assert "Play Store review pending" not in blockers, (
+        "a blocker whose linked tasks are all done must not render"
+    )
+
+
+def test_last_committed_standup_touched_and_current_due_only():
+    tmp, db, state, memory = _fixture()
+    conn = sqlite3.connect(db)
+    # Standup-created task inside the 36h window -> LAST COMMITTED.
+    conn.execute(
+        "INSERT INTO tasks (task_id, title, status, owner_slack_id, creator_slack_id, source, created_at) "
+        "VALUES ('T-7', 'Webhook for card-link', 'active', ?, ?, 'standup_reply', ?)",
+        (PANKAJ, PANKAJ, _iso(NOW - timedelta(hours=2))),
+    )
+    # Active task with a STALE due date (5 days past) -> NOT a commitment.
+    conn.execute(
+        "INSERT INTO tasks (task_id, title, status, owner_slack_id, creator_slack_id, source, due_at) "
+        "VALUES ('T-8', 'Ancient overdue thing', 'active', ?, ?, 'manual', ?)",
+        (ABHINAV, ABHINAV, _iso(NOW - timedelta(days=5))),
+    )
+    # Existing task updated via the standup path (event context stamp) -> LAST COMMITTED.
+    conn.execute(
+        "INSERT INTO task_events (task_id, event_type, context, created_at) "
+        "VALUES ('T-4', 'status_changed', 'standup_reply via slack:thread:C0ASLANJ0RL', ?)",
+        (_iso(NOW - timedelta(hours=12)),),
+    )
+    conn.commit()
+    conn.close()
+    out = g.generate(db, state, memory, now=NOW)
+    pp = _extract_section(out, "Per Person")
+    pankaj = _person_block(pp, "Pankaj")
+    abhinav = _person_block(pp, "Abhinav")
+    sandeep = _person_block(pp, "Sandeep")
+    assert "Webhook for card-link" in _field(pankaj, "LAST COMMITTED"), "standup-created task is a commitment"
+    assert "Returning-user UI" in _field(pankaj, "LAST COMMITTED"), "standup-event-stamped task is a commitment"
+    assert "Ancient overdue thing" not in _field(abhinav, "LAST COMMITTED"), "stale due_at is NOT a commitment"
+    assert "Fix tool-call skipping" in _field(sandeep, "LAST COMMITTED"), "future-due active task stays a commitment"
+
+
+def test_person_status_renders_and_expires():
+    tmp, db, state, memory = _fixture()
+    conn = sqlite3.connect(db)
+    conn.executescript((REPO_ROOT / "migrations" / "0008_person_status.sql").read_text(encoding="utf-8"))
+    conn.execute(
+        "INSERT INTO person_status (slack_id, status_text, until_date, set_by) VALUES (?, 'Traveling, returns Monday', ?, ?)",
+        (ABHINAV, _iso(NOW + timedelta(days=3)), ABHINAV),
+    )
+    conn.execute(
+        "INSERT INTO person_status (slack_id, status_text, until_date, set_by) VALUES (?, 'On leave', ?, ?)",
+        (SANDEEP, _iso(NOW - timedelta(days=3)), SANDEEP),  # expired -> ignored
+    )
+    conn.commit()
+    conn.close()
+    out = g.generate(db, state, memory, now=NOW)
+    pp = _extract_section(out, "Per Person")
+    abhinav = _person_block(pp, "Abhinav")
+    sandeep = _person_block(pp, "Sandeep")
+    assert "Traveling, returns Monday (until 2026-06-04)" in _field(abhinav, "STATUS")
+    assert _field(sandeep, "STATUS") == "", "expired status must not render"
+
+
+def test_person_status_renders_for_person_with_no_tasks():
+    """A person with an availability status but ZERO tasks must still get a block
+    (exercises the by_owner | person_status union in render_per_person)."""
+    tmp, db, state, memory = _fixture()
+    conn = sqlite3.connect(db)
+    conn.executescript((REPO_ROOT / "migrations" / "0008_person_status.sql").read_text(encoding="utf-8"))
+    # Strip Sandeep's seeded tasks entirely so he exists ONLY via person_status.
+    conn.execute("DELETE FROM tasks WHERE task_id IN ('T-1','T-2')")
+    conn.execute(
+        "INSERT INTO person_status (slack_id, status_text, until_date, set_by) VALUES (?, 'On leave', ?, ?)",
+        (SANDEEP, _iso(NOW + timedelta(days=2)), SANDEEP),
+    )
+    conn.commit()
+    conn.close()
+    out = g.generate(db, state, memory, now=NOW)
+    sandeep = _person_block(_extract_section(out, "Per Person"), "Sandeep")
+    assert sandeep, "a person with status but zero tasks must still render a block"
+    assert "On leave (until 2026-06-03)" in _field(sandeep, "STATUS")
+    assert _field(sandeep, "NOW") == ""
+
+
 if __name__ == "__main__":
     import inspect
 

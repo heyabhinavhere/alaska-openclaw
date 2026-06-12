@@ -45,7 +45,7 @@ import argparse
 import json
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -142,19 +142,106 @@ def _now(now: Optional[datetime] = None) -> datetime:
     return now or datetime.now(timezone.utc)
 
 
+def _is_missing_schema(exc: sqlite3.OperationalError) -> bool:
+    """True only for the schema-drift errors we explicitly tolerate.
+
+    Anything else (locked DB, malformed SQL, corruption) must RAISE — silently
+    returning empty data would hide a parity regression as "no data".
+    """
+    msg = str(exc)
+    return "no such table" in msg or "no such column" in msg
+
+
+def _fetch_snooze_dates(conn: sqlite3.Connection) -> Dict[str, str]:
+    """task_id -> snoozed_until from follow-through's `snoozes` table.
+
+    That table is created lazily by the follow-through skill, so it may not
+    exist on a given DB — tolerate exactly that (SELECT-only either way).
+    """
+    try:
+        rows = conn.execute("SELECT task_id, snoozed_until FROM snoozes").fetchall()
+    except sqlite3.OperationalError as exc:
+        if _is_missing_schema(exc):
+            return {}
+        raise
+    return {r["task_id"]: r["snoozed_until"] for r in rows if r["snoozed_until"]}
+
+
+def fetch_standup_touched(conn: sqlite3.Connection, now: Optional[datetime] = None, cutoff_hours: int = 36) -> set:
+    """task_ids touched by the standup-reply path within the last cycle.
+
+    Two signals (parity redesign 2026-06-12 — replies are the team's primary
+    commitment record, so LAST COMMITTED must mean "what the latest reply said"):
+      1. tasks created with source='standup_reply' inside the cutoff window;
+      2. tasks whose task_events context carries the 'standup' marker inside the
+         window (task-handler stamps the invocation source into event context).
+    SELECT-only; tolerant of schema drift.
+    """
+    now = _now(now)
+    cutoff = now - timedelta(hours=cutoff_hours)
+    touched: set = set()
+    # Compare datetimes in Python via _parse_dt — NOT SQL string comparison:
+    # ISO 'T' separators sort after the space form lexicographically, so a raw
+    # text >= mis-windows mixed-shape timestamps. Two independent try blocks so
+    # one missing schema element cannot suppress the other signal.
+    try:
+        for r in conn.execute(
+            "SELECT task_id, created_at FROM tasks WHERE source = 'standup_reply'"
+        ):
+            created = _parse_dt(r["created_at"])
+            if created is not None and created >= cutoff:
+                touched.add(r["task_id"])
+    except sqlite3.OperationalError as exc:
+        if not _is_missing_schema(exc):
+            raise
+    try:
+        for r in conn.execute(
+            "SELECT task_id, created_at FROM task_events WHERE context LIKE '%standup%'"
+        ):
+            created = _parse_dt(r["created_at"])
+            if created is not None and created >= cutoff:
+                touched.add(r["task_id"])
+    except sqlite3.OperationalError as exc:
+        if not _is_missing_schema(exc):
+            raise
+    return touched
+
+
+def _due_is_current(due_at: Optional[str], now: datetime) -> bool:
+    """True when due_at parses and is NOT stale — today-ish or in the future.
+
+    A deadline that blew past more than a day ago is overdue history, not a
+    commitment; rendering it as LAST COMMITTED misleads (parity 2026-06-12:
+    two week-old overdue tasks rendered as Sandeep's "commitments").
+    """
+    if not due_at:
+        return False
+    dt = _parse_dt(due_at)
+    return dt is not None and dt >= now - timedelta(days=1)
+
+
 def fetch_owner_tasks(conn: sqlite3.Connection, now: Optional[datetime] = None) -> Dict[str, Dict[str, list]]:
     """Group tasks by owner into {slack_id: {"now", "last_committed", "done", "blocked"}}.
 
     All reads are SELECT-only. `now` is injectable for deterministic tests; the
     done-recent cutoff is now - 3 days.
+
+    Parity redesign (2026-06-12):
+      * `snoozed` tasks are INCLUDED in NOW with a "(snoozed until …)" tag —
+        an invisible snooze buried Nilesh's two launch-critical tasks.
+      * LAST COMMITTED = standup-touched tasks (primary; see
+        fetch_standup_touched) plus active tasks with a CURRENT deadline
+        (_due_is_current) — never bare/stale due_at.
     """
     now = _now(now)
+    snooze_dates = _fetch_snooze_dates(conn)
+    standup_touched = fetch_standup_touched(conn, now=now)
     # We fetch all relevant statuses and apply the done-recent (>= now-3d) cutoff
     # in Python via _is_recent, to keep date math identical across DB datetime shapes.
     rows = conn.execute(
         "SELECT task_id, title, status, owner_slack_id, due_at, done_at "
         "FROM tasks "
-        "WHERE status IN ('active', 'pending_acceptance', 'blocked', 'done')"
+        "WHERE status IN ('active', 'pending_acceptance', 'blocked', 'done', 'snoozed')"
     ).fetchall()
 
     by_owner: Dict[str, Dict[str, list]] = {}
@@ -166,11 +253,16 @@ def fetch_owner_tasks(conn: sqlite3.Connection, now: Optional[datetime] = None) 
         status = r["status"]
         if status in ("active", "pending_acceptance"):
             bucket["now"].append(r["title"])
-            # LAST COMMITTED proxy: active work that carries a deadline.
-            if r["due_at"]:
+            if r["task_id"] in standup_touched or _due_is_current(r["due_at"], now):
                 bucket["last_committed"].append(r["title"])
+        elif status == "snoozed":
+            until = snooze_dates.get(r["task_id"])
+            tag = f"(snoozed until {str(until)[:10]})" if until else "(snoozed)"
+            bucket["now"].append(f"{r['title']} {tag}")
         elif status == "blocked":
             bucket["blocked"].append({"task_id": r["task_id"], "title": r["title"]})
+            if r["task_id"] in standup_touched:
+                bucket["last_committed"].append(r["title"])
         elif status == "done":
             if _is_recent(r["done_at"], now):
                 bucket["done"].append(r["title"])
@@ -202,21 +294,35 @@ def fetch_active_blockers(conn: sqlite3.Connection, now: Optional[datetime] = No
     ).fetchall()
     out: List[dict] = []
     for r in rows:
+        meta = _resolve_blocking_meta(conn, r["blocking_task_ids"])
+        # Zombie filter (parity 2026-06-12): a blocker whose linked tasks are ALL
+        # done/dropped blocks nothing — skip it rather than render a phantom.
+        # Blockers with NO linked tasks (chronic/platform blockers) always render.
+        if meta and all(m["status"] in ("done", "dropped") for m in meta):
+            continue
         raised = _parse_dt(r["raised_at"])
         days_active = max(0, (now - raised).days) if raised else None
+        live_links = [m for m in meta if m["status"] not in ("done", "dropped")]
         out.append(
             {
                 "title": r["title"],
                 "days_active": days_active,
                 "owner_slack_id": r["owner_slack_id"],
-                "blocking_titles": _resolve_blocking_titles(conn, r["blocking_task_ids"]),
+                # Keep the live linked tasks WITH their ids — reason lookups key
+                # on task_id (titles can collide across tasks).
+                "blocking_tasks": live_links,
+                "blocking_titles": [m["title"] for m in live_links],
             }
         )
     return out
 
 
-def _resolve_blocking_titles(conn: sqlite3.Connection, blocking_task_ids: Optional[str]) -> List[str]:
-    """Resolve a blockers.blocking_task_ids JSON array → list of task titles."""
+def _resolve_blocking_meta(conn: sqlite3.Connection, blocking_task_ids: Optional[str]) -> List[dict]:
+    """Resolve a blockers.blocking_task_ids JSON array → [{task_id, title, status}].
+
+    Order-preserving; ids with no matching task are skipped. Status is carried so
+    callers can detect zombie blockers (all linked tasks done/dropped).
+    """
     if not blocking_task_ids:
         return []
     try:
@@ -228,11 +334,35 @@ def _resolve_blocking_titles(conn: sqlite3.Connection, blocking_task_ids: Option
     ids = [str(i) for i in ids]
     placeholders = ",".join("?" for _ in ids)
     rows = conn.execute(
-        f"SELECT task_id, title FROM tasks WHERE task_id IN ({placeholders})", ids
+        f"SELECT task_id, title, status FROM tasks WHERE task_id IN ({placeholders})", ids
     ).fetchall()
-    title_by_id = {row["task_id"]: row["title"] for row in rows}
-    # Preserve the order given in the JSON array; skip ids with no matching task.
-    return [title_by_id[i] for i in ids if i in title_by_id]
+    by_id = {row["task_id"]: {"task_id": row["task_id"], "title": row["title"], "status": row["status"]} for row in rows}
+    return [by_id[i] for i in ids if i in by_id]
+
+
+def fetch_person_status(conn: sqlite3.Connection, now: Optional[datetime] = None) -> Dict[str, str]:
+    """slack_id -> availability line from person_status (migration 0008).
+
+    Rows expire when until_date passes (1-day grace); the table may not exist on
+    older DBs — tolerate absence. SELECT-only.
+    """
+    now = _now(now)
+    try:
+        rows = conn.execute("SELECT slack_id, status_text, until_date FROM person_status").fetchall()
+    except sqlite3.OperationalError as exc:
+        if _is_missing_schema(exc):
+            return {}
+        raise
+    out: Dict[str, str] = {}
+    for r in rows:
+        until = _parse_dt(r["until_date"]) if r["until_date"] else None
+        if until is not None and until < now - timedelta(days=1):
+            continue  # expired
+        text = r["status_text"]
+        if r["until_date"]:
+            text = f"{text} (until {str(r['until_date'])[:10]})"
+        out[r["slack_id"]] = text
+    return out
 
 
 def _parse_dt(value: str) -> Optional[datetime]:
@@ -272,6 +402,7 @@ def render_per_person(
     by_owner: Dict[str, Dict[str, list]],
     active_blockers: List[dict],
     roster: Dict[str, Dict[str, str]],
+    person_status: Optional[Dict[str, str]] = None,
 ) -> str:
     """Render the `## Per Person` section body (heading included).
 
@@ -279,12 +410,12 @@ def render_per_person(
     LAST COMMITTED / DONE RECENTLY / BLOCKED fields. Owners are ordered by their
     position in the roster (so the output is stable), with any unknown ids after.
     """
-    # Build a reason lookup keyed by blocked task title (titles are what we carry
-    # in the NOW/BLOCKED buckets) so BLOCKED lines can show the blocker reason.
-    reason_by_blocked_title: Dict[str, str] = {}
+    # Reason lookup keyed by blocked task_id — NOT title (two blocked tasks can
+    # share a title, which would attach the wrong blocker reason).
+    reason_by_blocked_task_id: Dict[str, str] = {}
     for b in active_blockers:
-        for t in b["blocking_titles"]:
-            reason_by_blocked_title.setdefault(t, b["title"])
+        for t in b.get("blocking_tasks", []):
+            reason_by_blocked_task_id.setdefault(t["task_id"], b["title"])
 
     # Stable ordering: roster order first, then any unknown owners alphabetically.
     roster_order = list(roster.keys())
@@ -294,14 +425,22 @@ def render_per_person(
             return (0, roster_order.index(slack_id))
         return (1, slack_id)
 
+    person_status = person_status or {}
+    # Include people who have an availability status but no tasks at all.
+    all_ids = set(by_owner.keys()) | set(person_status.keys())
+
     lines: List[str] = ["## Per Person", ""]
-    for slack_id in sorted(by_owner.keys(), key=sort_key):
-        bucket = by_owner[slack_id]
+    for slack_id in sorted(all_ids, key=sort_key):
+        bucket = by_owner.get(
+            slack_id, {"now": [], "last_committed": [], "done": [], "blocked": []}
+        )
         name = resolve_name(slack_id, roster)
         role = resolve_role(slack_id, roster)
         heading = f"### {name} ({role})" if role else f"### {name}"
         lines.append(heading)
 
+        if slack_id in person_status:
+            lines.append(f"- **STATUS:** {person_status[slack_id]}")
         lines.append(f"- **NOW:** {_fmt_list(bucket['now'])}")
         lines.append(f"- **LAST COMMITTED:** {_fmt_list(bucket['last_committed'])}")
         lines.append(f"- **DONE RECENTLY:** {_fmt_list(bucket['done'])}")
@@ -309,7 +448,7 @@ def render_per_person(
         blocked_parts: List[str] = []
         for item in bucket["blocked"]:
             title = item["title"]
-            reason = reason_by_blocked_title.get(title)
+            reason = reason_by_blocked_task_id.get(item["task_id"])
             blocked_parts.append(f"{title} ({reason})" if reason else title)
         lines.append(f"- **BLOCKED:** {'; '.join(blocked_parts)}")
         lines.append("")
@@ -469,9 +608,10 @@ def generate(db_path: str, state_path: str, memory_path: str, now: Optional[date
     try:
         by_owner = fetch_owner_tasks(conn, now=now)
         active_blockers = fetch_active_blockers(conn, now=now)
+        person_status = fetch_person_status(conn, now=now)
     finally:
         conn.close()
-    per_person = render_per_person(by_owner, active_blockers, roster)
+    per_person = render_per_person(by_owner, active_blockers, roster, person_status)
     blockers = render_blockers(active_blockers, roster)
     existing = Path(state_path).read_text(encoding="utf-8")
     return splice_sections(existing, per_person, blockers)
