@@ -80,7 +80,7 @@ Key versions live: `intent-classifier 1.4.1`, `meeting-intelligence 2.3.1`, `tas
 |---|---|---|
 | tasks | 9 | growing (T-9 from the Nilesh channel TASK_ASSIGN — handshake confirmed working) |
 | blockers | 0 | ⚠️ no blockers in the graph — write-path may not be firing |
-| agent_memory | 0 | table live (0006 applied); capture reflex deployed but never exercised in real use |
+| agent_memory | 3 | table live (0006 applied); starved until 2026-06-12 — its SOUL remember/recall triggers sat in the truncated middle (recall wiring never live before #151/#152); self-task review loop ships with PR-A |
 | intent_inbox | 711 | Thinker sweep feeding it |
 | classifier_audit | 715 | classifier actively processing |
 | scheduled_actions | 1 | |
@@ -94,7 +94,7 @@ Key versions live: `intent-classifier 1.4.1`, `meeting-intelligence 2.3.1`, `tas
 2. **🟡 No structured standup-reply parser fires.** The pre-call-brief Step 4 grammar is dormant (no trigger). Replies are only generically classified.
 3. **🟡 `DAILY_STATE.md` single-writer (MI/transcripts).** No transcript = stale. Structural fix = Phase E (graph → source of truth).
 4. **🟡 SOUL 19,121 / MEMORY 19,605 chars — at the ~20k injection cap.** Trim before further injected-context additions.
-5. **🟡 agent_memory never exercised (0 rows).** Capture reflex is deployed but unproven in real conversation — needs a live smoke test.
+5. **🟡 agent_memory starved, not broken (3 rows lifetime as of 2026-06-12).** Root cause found: the SOUL.md remember/recall triggers were middle-truncated out of every live session (recall from day one) until #151/#152 landed. Post-deploy smoke + the morning self-task review cron (PR-A) make it a working loop.
 6. **🟢 Thinker ingests #daily-standup → its own Pre-Call sheets loop into `intent_inbox`.** Confirm the bot-self pre-filter excludes them.
 7. **🟢 blockers = 0.** Confirm the blocker write-path actually fires from MI / task-handler.
 

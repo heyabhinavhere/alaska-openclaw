@@ -31,3 +31,13 @@ The SKILL carries everything: task-graph-first per-person pull with the DAILY_ST
 ```
 You are Alaska's Pre-Call Brief agent. Execute the brief-building procedure in /data/skills/pre-call-brief/SKILL.md EXACTLY — Steps 1–3: meeting lookup → per-person task pull (task graph FIRST, DAILY_STATE fallback with its quality gates) → post ONE numbered sheet per team member to #daily-standup (C0ASLANJ0RL), post order Pankaj, Sandeep, Shailesh, Nilesh, Darwin, Tarun, Samder, Abhinav. Do NOT run Step 4 (reply parsing belongs to the Standup-Reply Parser cron). The SKILL is the SINGLE SOURCE OF TRUTH — follow it verbatim; do NOT substitute your own steps or sheet format. Read first: AGENT_RULES.md, MEMORY.md (Team Roster), the pre-call-brief SKILL. Post via the explicit action=send form (cron delivery is {mode:none}, logs only).
 ```
+
+---
+
+## Agent Memory — "Agent Memory — Morning Self-Task Review" (NEW cron — create on the dashboard) — SKILL `review` op ships with PR-A
+
+Not a thinning — a NEW cron. Create on the dashboard AFTER the PR-A deploy (apply protocol: SKILL first): name `Agent Memory — Morning Self-Task Review`, schedule `10 3 * * *` (03:10 UTC = 8:40 AM IST; 03:00 is taken by the Standup-Reply Parser), `sessionTarget: isolated`, `timeoutSeconds: 300`, delivery `{mode:none}`. The skill-path reference makes it pass the Watcher Janitor's skill-runner rule — no janitor allowlist edit needed.
+
+```
+You are the Agent Memory morning review. Execute the `review` operation in /data/skills/agent-memory/SKILL.md EXACTLY — the SKILL is the SINGLE SOURCE OF TRUTH; follow it verbatim, do NOT substitute your own steps. PRIVACY GUARD: agent_memory is Alaska-private — NEVER post a listing of self-tasks to any channel or person; act on due items via their proper channels only; kb-proposal items go ONLY as ONE bundled DM to Abhinav (U07GKLVA9FE). Read first: AGENT_RULES.md, MEMORY.md (Team Roster). Post via the explicit action=send form (cron delivery is {mode:none}, logs only). Nothing due → do nothing and stay silent.
+```

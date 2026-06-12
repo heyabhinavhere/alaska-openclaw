@@ -1,7 +1,7 @@
 ---
 name: agent-memory
 description: Alaska's private working memory — her own self-tasks plus notes/references she's been asked to remember. A SIBLING store to the team task graph and the BON KB, not a route through either. Self-managed: Alaska creates, recalls, completes, and archives these rows herself. Private by construction — team-facing readers (Daily Pulse, Follow-Through, Risk Radar, "what's X working on") NEVER query this table. Writes to the `agent_memory` table per migration 0006.
-version: 1.0.0
+version: 1.1.0
 metadata:
   openclaw:
     requires:
@@ -91,6 +91,8 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 
 `created_at` / `updated_at` default to `CURRENT_TIMESTAMP` — do not set them manually.
 
+Filing a suggest-to-Abhinav KB proposal (boundary test #1 / anti-pattern #3)? Make it a `self_task` with `recall_cue='kb-proposal'` — the morning `review` bundles all of those into ONE DM to Abhinav instead of letting them rot in the table.
+
 ### recall — retrieve by cue to ANSWER a question (read-only)
 
 **When to use:** a question or topic surfaces that might match something Alaska was asked to remember (someone asks about CTAs; Alaska wonders if she has a relevant note). Derive a keyword `<kw>` from the question, then run the recall query. This is the lookup behind "show the CTA table when asked about CTAs." Match is broad: it checks `recall_cue`, `title`, AND `content`, and excludes archived rows. Use the recalled `content` to **answer** — never read the result list out to the team.
@@ -121,6 +123,27 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 ```
 
 Ordering puts dated follow-ups first (by `due_at`), falling back to creation order for undated ones via `COALESCE`.
+
+### review — morning sweep of open self-tasks (cron-invoked)
+
+**When to use:** the "Agent Memory — Morning Self-Task Review" cron, or Abhinav explicitly asking for a review. This is Alaska working through her own to-do list. Alaska-internal: the result is NEVER posted as a listing to any channel or person — the privacy guard applies in full.
+
+Pull every open self_task, due-first (dated before undated):
+
+```bash
+sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
+  SELECT mem_id, title, content, recall_cue, due_at, source FROM agent_memory \
+  WHERE kind='self_task' AND status='open' \
+  ORDER BY (due_at IS NULL), due_at, created_at;"
+```
+
+Then work the list, item by item:
+
+- **Due or overdue** (`due_at <= now`): DO the follow-up now, through its proper channel (the relay, the check, the DM it represents), then `complete` it. Genuinely can't act on it today → re-date it (`UPDATE agent_memory SET due_at='<new ISO>' WHERE mem_id='M-N';`) — never silently drop a commitment.
+- **KB proposals** (`recall_cue LIKE '%kb-proposal%'`): bundle ALL of them into ONE DM to Abhinav — "KB suggestion(s): …" — never one DM per item. Leave each row open until he rules; `complete` on accept or reject.
+- **Undated and stale** (open > 7 days, no `due_at`): still relevant → keep it open; overtaken by events → `complete` or `archive` it, with judgment.
+
+Nothing open or due → do nothing and post nothing (the watcher-janitor stay-silent rule). Acting on an item means acting through its proper channel — the list itself is never read out to anyone.
 
 ### complete — mark a self-task done (UPDATE)
 
