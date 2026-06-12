@@ -117,34 +117,35 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 
 Format the brief in the thread reply (or DM, depending on meeting type — preserve existing meeting-type discrimination from Step 2):
 
+**Number the task lines explicitly — `1.` `2.` `3.` … continuing in ONE sequence across ACTIVE → BLOCKED → NEW** (skip the numbering on ACK + reminder lines). The numbers are the reply contract: "1 done, 2 in progress" must map to exactly one task with zero guessing (team decision 2026-06-12: written replies are the primary record, so the sheet is a form — make it machine-unambiguous).
+
 ```
 [FirstName] — [Day, Date abbrev]
 
 ACTIVE ([N]):
-• T-N  [Title] — [source hint, e.g., "from Tue meeting" or "committed Wed DM"]
+1. T-N  [Title] — [source hint, e.g., "from Tue meeting" or "from Wed standup"]
         [optional second line: due [date] · last update [relative time]]
-• T-N  ...
+2. T-N  ...
 
 BLOCKED ([N]):
-• T-N  [Title] — blocker: [blocker title from blockers row]
+3. T-N  [Title] — blocker: [blocker title from blockers row]
 
-PENDING YOUR ACK ([N]):  (will populate in Phase D — empty in Phase B, omit heading if 0)
+PENDING YOUR ACK ([N]):  (omit heading if 0)
 • T-N — reply 'ack' to accept or 'pass' to decline
 
 NEW SINCE YESTERDAY ([N]):
-• T-N  [Title]  (from [source context, e.g., "Pankaj's commit in Tue meeting", "Darwin → you in #project-management Wed 8:50 PM"])
+4. T-N  [Title]  (from [source context])
 
-REMINDERS DUE TODAY ([N]):  (Phase C — empty in Phase B, omit heading if 0)
+REMINDERS DUE TODAY ([N]):  (omit heading if 0)
 • [reminder text]
 
 Reply format (one per line, thread reply):
-  T-N done             — mark complete
-  T-N blocked by X     — log blocker
-  T-N active           — confirm working
-  T-N <free note>      — log a mention without status change
-  new: <description>   — capture a new task right now
+  <number> done / in progress / blocked by X   — by the numbers above
+  T-N done | blocked by X | active | <note>    — by task id
+  new: <description>                           — capture a new task
 
-Team call in [N] min.    ← compute N as `(meeting_start_ts − now())` rounded to the nearest minute (the meeting start time is known from Step 1's calendar lookup; if the calendar is missing, omit this footer line entirely rather than guess).
+_Your reply here is the PRIMARY record (team decision Jun 12) — reply by end of day. The call covers blockers + high-level only._
+Team call in [N] min.    ← compute N as `(meeting_start_ts − now())` rounded to the nearest minute (from Step 1's calendar lookup; if the calendar is missing, omit this line rather than guess).
 ```
 
 ### Source-hint resolution
@@ -197,6 +198,8 @@ Reply-parsing does NOT run inside the brief-posting cron (that run ends after po
 
 **(c) Parse** each new human reply with the grammar below — `T-N` patterns first; free-form replies via step 3. Each reply is parsed using the grammar:
 
+**(d) Mandatory-reply check (after processing — replies are the primary record per the 2026-06-12 team decision).** Compare the people who got a sheet in the last cycle against the people whose replies you just processed (or that sit in `standup_processed`). For each roster member with a sheet but NO reply: send ONE gentle DM — *"Quick reminder — your standup sheet from last night has no reply yet, and the written reply is now the primary record (the call covers blockers only). 30 seconds in the thread: `1 done, 2 in progress…`"* — and list the non-repliers in the run summary. One nudge per person per cycle, never public, externals excluded. (Repeated-miss escalation belongs to Follow-Through, not this parser.)
+
 ```
 Regex patterns (try in order, first match wins). Each verb anchors with \b to avoid swallowing
 trailing tokens — "T-42 done by EOD" still matches `done` and the suffix is captured as the
@@ -215,7 +218,7 @@ reply text passed to task-handler (which extracts the actual due hint from it):
 
 In practice the team almost never types `T-N`. They reply with **bare item numbers** keyed to their *own* pre-call sheet — e.g. *"1 currently working, 2 all bugs fixed, 3 working on it, 4 this is done"* or *"1. Done 2. Done"*. A bare number has no text to fuzzy-match, so resolve it **positionally against the sheet the reply is threaded under** (NOT by guessing):
 
-1. **Fetch the parent sheet** — the bot pre-call post this reply threads under (the person's own sheet). Enumerate its **task-bearing lines** (`• T-N [Title]` under `ACTIVE`, then `BLOCKED`, then `NEW SINCE YESTERDAY`, in the order shown — skip section headings and the reply-format footer) as item 1, 2, 3, …
+1. **Fetch the parent sheet** — the bot pre-call post this reply threads under (the person's own sheet). **Modern sheets number their task lines explicitly (`1. T-N [Title]` …, one sequence across ACTIVE → BLOCKED → NEW) — trust the printed numbers.** For an older bulleted sheet (`• T-N`), enumerate the task-bearing lines positionally in the same section order (skip headings, ACK/reminder bullets, and the reply-format footer) as item 1, 2, 3, …
 2. **Map the reply's number → that item → its `T-N`,** then apply the stated action (`done`→mark_done · `working`/`in progress`/`active`→confirm_active, log only · `blocked by X`→mark_blocked · a free phrase→log_mention).
 3. **Corroborate with any free text.** If the reply carries a phrase (*"1 currently working — streaming validation"*), check it against the mapped item's title: **position + text agree → high confidence.** Only one signal, or they disagree → **lower confidence.**
 4. **Hard rails (never close the wrong task):**

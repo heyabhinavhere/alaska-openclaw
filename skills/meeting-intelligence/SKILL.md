@@ -98,10 +98,11 @@ Read the full transcript and build an internal understanding. Answer these quest
 - Did roles/responsibilities change?
 - Did strategy change?
 
-**Daily Scrum data (if this is the daily team call):**
-- For each person who spoke: what did they say they did yesterday? What are they doing today? Are they blocked?
-- **The structured pre-call standup cards in #daily-standup are your HIGHEST-confidence commitment signal** — they're already framed as "yesterday committed / today suggested" and confirmed per person. Treat them as PRIMARY for who-committed-to-what; use the transcript to CONFIRM and ENRICH (detail, decisions, context), not as the primary source for commitments. A transcript commitment that matches a same-day card is the SAME item — rely on task-handler dedup to merge, and prefer the card's cleaner title/owner. (Read Abhinav's replies to each person's sheet too.)
-- Extract Done/Doing/Blockers per person for the Daily Scrum Notion database
+**Daily Scrum data — TEAM DECISION 2026-06-12: the written standup replies are the canonical record.** The team no longer discusses tasks in detail on the call (blockers + high-level overview only); every member's REPLY to their #daily-standup sheet is the primary commitment source, parsed into the task graph by the Standup-Reply Parser. Therefore:
+- **Do NOT mine the transcript for per-person commitments.** Task-silence on the call is EXPECTED now — never write "no commitments captured" (or any empty-commitments framing) for someone merely because they didn't speak about tasks.
+- From the transcript extract what the call actually carries: **blockers, decisions, scope/timeline changes, and high-level context.** A transcript item matching a same-day sheet/reply is the SAME item — rely on task-handler dedup to merge, and prefer the written reply's title/owner.
+- **Attendance comes from the transcript's PARTICIPANTS list, never the speakers list** — attending silently is normal now. Phrase a gap as "no spoken items on the call", never "not on the call" unless the participants list actually says so.
+- Extract Done/Doing/Blockers per person for the Daily Scrum Notion database only where genuinely present in the call; the replies remain the primary source.
 
 **Metric verification (if Amplitude/Customer.io configured):**
 Read `/data/skills/amplitude-analyst/SKILL.md` and `/data/skills/customerio-ops/SKILL.md` for API patterns.
