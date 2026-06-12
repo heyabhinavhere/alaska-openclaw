@@ -16,7 +16,10 @@
     "defaults": {
       "model": {
         "primary": "anthropic/claude-sonnet-4-6"
-      }
+      },
+      "bootstrapMaxChars": 20000,
+      "bootstrapTotalMaxChars": 80000,
+      "bootstrapPromptTruncationWarning": "always"
     }
   },
   "plugins": {
