@@ -224,10 +224,16 @@ reply text passed to task-handler (which extracts the actual due hint from it):
 **`on leave` handling:** availability is a PERSON-level fact — record it in **`person_status`** (migration 0008), never as a task_events comment on an arbitrary task (the old Phase-B hack misattributed the signal and lost it entirely for taskless people). Ack one line — `Got it — noted you're on leave. I'll skip your tasks in tomorrow's brief.` — then upsert:
 
 ```bash
-# Stated end date wins; a bare "on leave" expires tomorrow (compute with python3,
-# never calendar math); truly open-ended -> SQL NULL, UNQUOTED.
-UNTIL_ISO=$(python3 -c "import datetime; print((datetime.date.today()+datetime.timedelta(days=1)).isoformat())")
-UNTIL_SQL="'$UNTIL_ISO'"   # or "NULL" (unquoted) for open-ended
+# Three branches, in priority order:
+#   1. a stated end date in the reply ("on leave till Friday") -> use it;
+#   2. a bare "on leave" -> default to tomorrow (compute with python3, never calendar math);
+#   3. explicitly open-ended ("on leave indefinitely") -> SQL NULL, UNQUOTED.
+UNTIL_ISO="$PARSED_UNTIL_ISO"        # branch 1: from the reply, if explicitly stated
+if [ -z "$UNTIL_ISO" ] && [ "$OPEN_ENDED" != "1" ]; then
+  UNTIL_ISO=$(python3 -c "import datetime; print((datetime.date.today()+datetime.timedelta(days=1)).isoformat())")   # branch 2
+fi
+UNTIL_SQL="NULL"                     # branch 3 default
+if [ -n "$UNTIL_ISO" ]; then UNTIL_SQL="'$UNTIL_ISO'"; fi
 sqlite3 /data/queue/alaska.db "INSERT OR REPLACE INTO person_status (slack_id, status_text, until_date, set_by, updated_at) VALUES ('$REPLIER_ID', 'On leave', $UNTIL_SQL, '$REPLIER_ID', CURRENT_TIMESTAMP);"
 ```
 
