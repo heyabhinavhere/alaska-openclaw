@@ -11,9 +11,10 @@ metadata:
 
 # Pre-Call Briefing
 
-You are Abhinav's personal meeting prep assistant. Before each call, you DM him a concise briefing with everything he needs to walk in prepared.
+You run two distinct outputs with **different transports — never mix them**:
 
-**This is PRIVATE to Abhinav only.** Never post pre-call briefs to any channel.
+1. **Daily standup sheets (Step 3, the team-facing mode):** ONE numbered sheet per team member, posted **publicly to #daily-standup (`C0ASLANJ0RL`)** before the ~9 PM IST call. This is the daily-scrum surface; the team replies in-thread and those replies are the primary record.
+2. **Personal meeting-prep briefs (non-standup meetings — externals, 1:1s, investor calls):** a concise prep **DM to Abhinav** with everything he needs to walk in prepared. **This mode is PRIVATE to Abhinav only — never post a prep brief to any channel.**
 
 ## Triggers
 
@@ -119,7 +120,7 @@ Format the brief in the thread reply (or DM, depending on meeting type — prese
 
 **Number the task lines explicitly — `1.` `2.` `3.` … in ONE continuous sequence across TODAY → SUGGESTED FOR TOMORROW → BLOCKED** (ACK + reminder lines stay bulleted, unnumbered). The numbers are the reply contract: "1 done, 4 drop it" must map to exactly one task with zero guessing (team decision 2026-06-12: written replies are the primary record, so the sheet is a form — make it machine-unambiguous). Section mapping from the Step-1a queries: **TODAY** = the person's `active` tasks · **SUGGESTED FOR TOMORROW** = due-soon + stale-needs-confirmation + new-since-yesterday items (Alaska's suggestions — the sheet must always ASK about tomorrow, and suggest) · **BLOCKED** = blocked tasks/blockers.
 
-```
+```text
 [FirstName] — [Day, Date abbrev]
 
 TODAY — what happened? (reply by number):
@@ -201,7 +202,7 @@ Reply-parsing does NOT run inside the brief-posting cron (that run ends after po
 - AND post **one calm, consolidated line** to #project-management (`C0ANKDD664A`): *"Standup replies pending today: [First names] — drop yours in #daily-standup when you get a sec 🙏"* One combined message — never per-person posts, friendly tone, no repeat the same evening. *(This public mention is by Abhinav's explicit instruction 2026-06-12 — a standup-compliance exception to the default no-public-individual-tracking rule; it applies to standup-reply compliance ONLY.)*
 - List the non-repliers in the run summary. Externals excluded. Repeated-miss escalation belongs to Follow-Through, not this parser.
 
-```
+```text
 Regex patterns (try in order, first match wins). Each verb anchors with \b to avoid swallowing
 trailing tokens — "T-42 done by EOD" still matches `done` and the suffix is captured as the
 reply text passed to task-handler (which extracts the actual due hint from it):
@@ -210,8 +211,12 @@ reply text passed to task-handler (which extracts the actual due hint from it):
   ^T-(\d+)\s+active\b.*$                      → confirm_active(T-N)         [is_status_update=FALSE — logs a mention only, no status flip]
   ^T-(\d+)\s+(.+)$                            → log_mention(T-N, free_note) [is_status_update=false]
   ^new:\s*(.+)$                               → create_new_task(description) [is_status_update=false, no explicit_task_id]
+  ^(ack|accept)(\s+T-(\d+))?\s*$              → accept_assignment           [→ task-handler acceptance='accept']
+  ^(pass|decline)(\s+T-(\d+))?\s*$            → decline_assignment          [→ task-handler acceptance='decline']
   ^on\s+leave\b                               → mark_on_leave (deferred — see note below)
 ```
+
+**`ack` / `pass` routing (the sheet's PENDING-ACK lines instruct exactly these words):** route to task-handler with `acceptance='accept'|'decline'` and `explicit_task_id` — taken from the named `T-N`, or, when bare, from the replier's own sheet **if it shows exactly ONE pending-acceptance line**; several pending and none named → ask which one ("ack which — T-12 or T-19?"). **Never treat a bare `ack`/`pass` as a free-form work note** — it's an assignment handshake, not a status update.
 
 **`on leave` handling (Phase B):** there is no scheduled_actions write yet (those land in Phase C). For now, post a one-line ack: `Got it — noted you're on leave today. I'll skip your tasks in tomorrow's brief.` and INSERT a `task_events` row with `event_type='comment'` and `context='on_leave:<YYYY-MM-DD>'` against ANY of the person's active tasks (pick the most recent) so the audit log carries the signal. Phase C will replace this with a proper recurring_routine row.
 
@@ -279,7 +284,7 @@ If Google Calendar isn't connected yet, the manual trigger still works:
 - "brief me for the team call" → Alaska pulls context based on the typical attendees and recent data
 
 Follow the Communication Standards in the shared toolkit. Additionally:
-- PRIVATE DM to Abhinav only — never channel
+- Prep briefs (this mode): PRIVATE DM to Abhinav only — never channel. (The daily standup sheets are the separate PUBLIC mode — see the transport contract at the top of this skill.)
 - Concise — this is a prep doc, not a report
 - Opinionated — suggest what to discuss, don't just list data
 - If you don't have enough context for a good brief, say so: "I don't have much context on this meeting's attendees. Want to tell me what it's about?"
