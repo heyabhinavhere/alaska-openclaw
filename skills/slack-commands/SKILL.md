@@ -463,6 +463,20 @@ Reply: 'approve RP-N' / 'decline RP-N because <reason>' / 'modify RP-N: <changes
 Expires in 7 days if no response.
 ```
 
+### AVAILABILITY_UPDATE handler (person_status — migration 0008)
+
+Triggered by someone stating their own availability in a DM or @-mention: "I'm traveling till Monday", "on leave Thu–Fri", "OOO next week", "WFH tomorrow, low availability", "back on Monday". A person-level fact, not a task — never create a task for it.
+
+1. Compute `until_date` (ISO) from the stated time with `python3` from the real today (never calendar math in your head). No end stated → `until_date` NULL (holds until replaced).
+2. Upsert — the sender's own row only (someone ELSE's availability: only Abhinav or the person themselves is authoritative; otherwise acknowledge without writing):
+```bash
+sqlite3 /data/queue/alaska.db "INSERT OR REPLACE INTO person_status (slack_id, status_text, until_date, set_by, updated_at) VALUES ('$SENDER_ID', '$status_esc', '$until_iso', '$SENDER_ID', CURRENT_TIMESTAMP);"
+```
+3. "I'm back / back now" → `DELETE FROM person_status WHERE slack_id='$SENDER_ID';`
+4. Ack in one short line, no process talk: *"Noted — traveling until Mon Jun 15."*
+
+The daily-state generator renders this as the person's `STATUS:` line; rows past `until_date` are ignored automatically.
+
 ### WATCHER_REQUEST handler
 
 Triggered by: "watch X", "track X and do Y", "alert me when Z", "every Monday show me …", "every Tuesday create …", or "@alaska activate <template>" — the classifier's WATCHER_REQUEST label. (A bare reminder with no data query is REMINDER_REQUEST, not this — see the REMINDER-vs-WATCHER disambiguation rule in intent-classifier.)
