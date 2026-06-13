@@ -50,7 +50,7 @@ For each message:
    - **Emoji-only or punctuation-only messages:** Skip if message strips to empty after removing emojis and punctuation. Mark as `NON_WORK_CHAT`.
    - **Commands are handled upstream — you never see them.** `!`-commands, their legacy `/pmf`/`/audit`/`/alaska` aliases, AND a clear unambiguous bare verb (`audit 1453`, `case 2762`) are intercepted by `SOUL.md` → "STEP 0 — Command Router" *before* any classification. What reaches you is genuinely non-command text. A sentence that merely *mentions* audit/pmf/case ("can you audit user 1453", "what does an audit show") is NOT a command — classify it on its merits (usually `STATUS_QUERY` / `AMBIGUOUS`); do NOT route it to the audit/pmf/case skill.
 
-2. **Classify with LLM:** for the rest, call Claude Sonnet 4.6. On the **DM path** that's one call for the one message; in the **5-min cron** it's a SINGLE batched call over the whole queue slice (array in → array out — see "Cron behavior (batched mode)" below), where the shape below is what each array element follows. Prompt structure:
+2. **Classify with LLM:** for the rest, call Claude Sonnet 4.6. On the **DM path** that's one call for the one message; in the **5-min cron** it's a series of SMALL sub-batch calls (≤5 messages each, committed per chunk — see "Cron behavior (batched mode)" below), where the shape below is what each array element follows. Prompt structure:
 
 ```
 You are classifying Slack messages from BON Credit team members for the Alaska
@@ -167,7 +167,7 @@ For a `TASK_CREATE` / `TASK_UPDATE` / `TASK_BLOCKER` row that passes the gate, i
 
 ## Cron behavior (batched mode)
 
-Triggered every 5 min via OpenClaw cron. Read unprocessed messages:
+Triggered every 5 min via OpenClaw cron. Read up to a slice of the queue:
 
 ```bash
 sqlite3 /data/queue/alaska.db "
@@ -180,15 +180,15 @@ sqlite3 /data/queue/alaska.db "
 "
 ```
 
-**Classify the whole batch in ONE Claude call — do NOT loop one call per message.** One call per row is exactly what wedged this cron: ~50 sequential model calls + reads blew past the 300s cron timeout, *nothing* committed before the kill, and the identical backlog retried every 5 min forever. The fix is: batch the call, lower the cap, and commit incrementally.
+**Classify in SMALL sub-batches and commit after EACH — never one giant call, never one-per-message.** Both extremes wedge this cron: one call per message = ~50 sequential calls that blow the 300s budget; one call for all 20 = a single heavy call that hangs past 300s and — worst of all — returns nothing, so **zero** rows get marked and the identical backlog retries forever (this is what kept it failing even after the per-message loop was removed). The fix is sub-batching with per-chunk commits.
 
-1. **Once per run** (not per message), read the shared context: the channel-name map from `/root/.openclaw/workspace/TOOLS.md` and the full team roster (`slack_id → first_name`) from `/root/.openclaw/workspace/MEMORY.md`.
+1. **Once per run** (not per message), read the shared context: the channel-name map from `/root/.openclaw/workspace/TOOLS.md` and the team roster (`slack_id → first_name`) from `/root/.openclaw/workspace/MEMORY.md`.
 2. **Pre-filter** the rows with the fast no-LLM bypasses above (bot self-messages, trivially short, emoji/punct-only). Mark each `processed=1` with its trivial intent immediately — they never reach the LLM.
-3. **One batched LLM call** for the rest: pass them as a numbered JSON array `[{id, message_text, channel, author, ts}, …]` and instruct Claude to return a JSON **array** — one object per input `id`, each in the exact single-message shape above (echo each `id` back). Same rules, just vectorized over the batch; substitute the roster once.
-4. **Write + mark INCREMENTALLY, per returned row:** as each result is parsed, write its `classifier_audit` row and `UPDATE intent_inbox SET processed=1, …` for that `id` — row by row, not all-at-once at the end. A mid-run kill (timeout, redeploy) then never loses progress or re-loops the same backlog.
-5. Run the gated action step (task-handler / DECISION_RECORDED) per freshly-classified row, as above.
+3. **Classify in chunks of ≤5.** Split the remaining rows into sub-batches of at most **5**. For each chunk, make ONE classification call: pass the ≤5 rows as a numbered JSON array `[{id, message_text, channel, author, ts}, …]` and require the model to return a JSON array where **each object = the single-message JSON shape above PLUS an explicit top-level `"id": <the intent_inbox row id>` echoed verbatim from the input.** That `id` is the join key — map each result back to its row by `id`, write only rows whose `id` was in the chunk you sent, and if the model omits or invents an `id`, skip that result (leave the row `processed=0`) rather than guess. A 5-message call returns in seconds, comfortably inside the budget even under model/network latency.
+4. **Commit after EVERY chunk, before starting the next:** write each row's `classifier_audit` row and `UPDATE intent_inbox SET processed=1, …`, then run the gated action step (task-handler / DECISION_RECORDED) for that chunk. Only then move to the next chunk. **This is the kill-safety guarantee** — a mid-run timeout loses at most the one in-flight chunk of 5, never the whole run, and the queue strictly drains.
+5. **Soft time budget:** if more than ~200s have elapsed this run, stop and leave the rest for the next 5-min fire (they stay `processed=0`). Never start a chunk you can't finish inside the 300s wall.
 
-`LIMIT 20` keeps each run well under the 300s budget; the queue drains across runs and incremental marking guarantees forward progress. If the queue grows >200, alert Abhinav.
+Each run drains up to 20 rows in chunks of 5, persisting after each chunk — a 90-row backlog converges in a handful of runs. If the queue grows >200, alert Abhinav.
 
 ## DM handling (synchronous mode) — LIVE action path
 
