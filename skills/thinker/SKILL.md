@@ -57,11 +57,11 @@ for c in data.get('channels', []):
     if c.get('is_archived'): continue
     if not is_dm and any(p in name.lower() for p in NOISE): continue
     ctype = 'dm' if is_dm else 'mpim' if c.get('is_mpim') else 'channel'
-    print(f'{c[\"id\"]}\\t{ctype}\\t{name}')
-" > /tmp/thinker-conversations.tsv
+    print(json.dumps({'id': c['id'], 'ctype': ctype, 'name': name}))
+" > /tmp/thinker-conversations.jsonl
 ```
 
-For each row in `/tmp/thinker-conversations.tsv`: **channel** → `conversations.history` limit=15; **DM / mpim** → limit=5; for any message with a `thread_ts`, also fetch `conversations.replies`.
+For each line in `/tmp/thinker-conversations.jsonl` (one JSON object per conversation — read `channel_id` from `.id`, `ctype` from `.ctype`, `name` from `.name` via `json.loads`/`jq`; never split on tabs/whitespace): **channel** → `conversations.history` limit=15; **DM / mpim** → limit=5; for any message with a `thread_ts`, also fetch `conversations.replies`.
 
 **Resolve Slack IDs → names before you analyze or report.** Fetched messages carry only `author_slack_id` (e.g. `U0AQFJV9B32`), never a display name. Map every ID to a first name using the **Team Roster in `MEMORY.md`** (`AGENT_RULES.md` points there) — it is the single maintained source of truth and includes recent joiners (e.g. **Tarun**, **Nilesh**) that any hardcoded list silently misses. **Never infer who's speaking from message content, and never guess a name** — `Sandeep ≠ Samder`, and an `author_slack_id` you cannot resolve from the roster stays *"unknown"* (or look it up via `users.info`); do not invent a person. This map is load-bearing for Step 2 (per-person comparison vs. `DAILY_STATE.md`) and Step 4 (naming people in observations) — a wrong or invented name is exactly the fabrication this agent must not produce.
 
@@ -84,16 +84,16 @@ For each row in `/tmp/thinker-conversations.tsv`: **channel** → `conversations
 
 For every channel message you fetch in this step, ALSO write it to the `intent_inbox` table so the v2 intent-classifier (Phase A) can process it on its 5-min cron. Pattern documented in `/data/skills/shared-toolkit/SKILL.md` → Section 1.6.
 
-Specifically for each fetched message:
+Per channel, capture the raw `conversations.history` body and pipe it to the committed parser (shared-toolkit Section 1.6). **Do NOT parse the response by splitting lines/tabs, and do NOT hand-build the SQL** — that missing parser was the source of the column-misaligned, mid-word-truncated junk rows:
 
 ```bash
-# For each fetched message — apply the Section 1.6 escape pattern:
-q="'"; qq="''"
-text_escaped="${message_text//$q/$qq}"
-if [ -z "$thread_ts" ]; then thread_ts_literal="NULL"; else thread_ts_literal="'$thread_ts'"; fi
-
-sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; INSERT OR IGNORE INTO intent_inbox (message_ts, channel_id, author_slack_id, message_text, thread_ts) VALUES ('$message_ts', '$channel_id', '$author_slack_id', '$text_escaped', $thread_ts_literal);"
+# channel_id comes from the JSONL discovery (.id field) — never from positional splitting.
+CH_JSON=$(curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+  "https://slack.com/api/conversations.history?channel=$channel_id&limit=15")
+printf '%s' "$CH_JSON" | python3 /opt/lib/ingest_messages.py "$channel_id"
 ```
+
+`ingest_messages.py` reads every message structurally and binds each field, so a tab, apostrophe, newline, or `'); DROP …` in any message is stored verbatim — it can never shift columns or inject. (For DMs/mpims use `limit=5`; thread replies fetched via `conversations.replies` pipe through the same parser.)
 
 This is a fire-and-forget write that doesn't change Thinker's own analysis. The classifier and Thinker do their work independently. Don't gate any Thinker logic on whether the ingestion succeeded — the `INSERT OR IGNORE` makes duplicates harmless, and the classifier will catch up on the next cron tick.
 

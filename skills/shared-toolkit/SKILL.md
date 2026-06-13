@@ -154,33 +154,19 @@ Any skill that reads Slack channel messages should ALSO write each message to th
 
 ### Pattern
 
-After fetching new channel messages, for each message:
+After fetching a channel's `conversations.history` response, pass the **raw JSON body** to the committed ingestion parser — once per channel. It parses the response structurally (`json.loads`, never tab/line splitting) and INSERTs via SQLite bound parameters, so message bytes (apostrophes, quotes, tabs, newlines, even `'); DROP …`) never touch SQL or shell. Do NOT hand-build the INSERT, and do NOT split the response into fields yourself:
 
 ```bash
-# Escape single quotes in message_text for safe SQL interpolation.
-# Slack messages routinely contain apostrophes ("I'm done", "let's ship") —
-# without doubling them, the INSERT will break with a SQL syntax error.
-# Pattern matches migrations/run_migrations.sh:22-25.
-q="'"; qq="''"
-text_escaped="${message_text//$q/$qq}"
-
-# Construct thread_ts SQL literal: NULL (unquoted) for top-level messages,
-# 'parent_ts' (quoted) for thread replies. Variable expansion can't toggle
-# quoting cleanly inside the SQL string, so build the literal here.
-if [ -z "$thread_ts" ]; then
-  thread_ts_literal="NULL"
-else
-  thread_ts_literal="'$thread_ts'"
-fi
-
-# Now do the insert. PRAGMA is a no-op for intent_inbox (no outgoing FKs)
-# but kept for consistency with Section 1.5 — always include it on v2 task table writes.
-sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; INSERT OR IGNORE INTO intent_inbox (message_ts, channel_id, author_slack_id, message_text, thread_ts) VALUES ('$message_ts', '$channel_id', '$author_slack_id', '$text_escaped', $thread_ts_literal);"
+# $CH_JSON    = the raw conversations.history response body for ONE channel.
+# $channel_id = that channel's Slack id (C…/D…).
+printf '%s' "$CH_JSON" | python3 /opt/lib/ingest_messages.py "$channel_id"
 ```
+
+The parser (`lib/ingest_messages.py`, deployed to `/opt/lib`) does all of it: it derives `message_ts` / `author_slack_id` / `message_text` / `thread_ts` from JSON keys (no positional splitting → no column shift, no mid-word truncation), strips C0 control bytes incl. NUL (which would otherwise truncate the SQLite TEXT bind) while keeping `\t`/`\n`/`\r`, falls back to `bot_id` then `"unknown"` when a message has no `.user`, treats a thread parent's self-referencing `thread_ts` as top-level, and `INSERT OR IGNORE`s on the `(channel_id, message_ts)` unique key. Bot, empty, and system messages are all ingested (the contract below); only a message with no `ts` is skipped.
 
 **Important:** the ingester writes ONLY `message_ts`, `channel_id`, `author_slack_id`, `message_text`, and `thread_ts`. Do NOT pre-populate `processed`, `intent`, `confidence`, `classifier_output`, or `processed_at` — those columns are owned by the intent-classifier skill. The schema defaults `processed` to 0, which is correct.
 
-**Other special characters:** Slack messages contain newlines, backticks, dollar signs, and backslashes. The pattern above is safe for these because: (1) the bash variable expansion is inside `"..."` (double quotes) which doesn't re-expand `$var` or backticks already substituted, and (2) SQLite's single-quoted string literals only need apostrophe-doubling. If you see SQL errors from a specific message, capture the raw bytes and inspect — likely a backslash or null byte edge case. In Phase A, we accept rare drops on truly pathological messages; classifier_audit count vs intent_inbox count will surface any systematic loss.
+**Special characters are handled structurally, not by escaping.** Because the parser uses `json.loads` + bound parameters, apostrophes, double-quotes, backticks, `$`, backslashes, newlines, tabs, pipes, and SQL metacharacters are all stored verbatim with zero injection risk and zero column shift. C0 control bytes (incl. NUL `\x00`) are stripped before binding so they can't truncate the value; `\t`/`\n`/`\r` are preserved. There are no "rare drops on pathological messages" anymore — the `classifier_audit`-vs-`intent_inbox` count check (Thinker) stays only as a belt-and-suspenders signal. (This replaced an earlier hand-built `INSERT … VALUES('$message_ts', …)` recipe whose missing parser let the model improvise a tab/whitespace split — the source of the column-misaligned, mid-word-truncated rows.)
 
 Fields:
 - `message_ts`: Slack's `ts` field (string, format `1234567890.123456`).
