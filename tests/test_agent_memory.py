@@ -12,6 +12,7 @@ Stdlib only. Runnable directly:
 from __future__ import annotations
 
 import json
+import os.path
 import sqlite3
 import sys
 import tempfile
@@ -524,20 +525,26 @@ def test_workshop_writers_carry_builder_scope():
 
 
 def test_memory_search_index_excludes_workbench():
-    # If native memory search is configured (Phase 5), its index must not sweep in
-    # the workbench/ journal — that dir is the builder notebook's file companion and
-    # the index is NOT scope-aware, so including it would re-open the leak at the
-    # file level. Default scope (no extraPaths) = MEMORY.md + memory/*.md only, safe.
+    # Phase 5: native memory search must be ON and its index must not sweep in the
+    # workbench/ journal — that dir is the builder notebook's file companion and the
+    # index is NOT scope-aware, so including it would re-open the leak at the file
+    # level. Default scope (no extraPaths) = MEMORY.md + memory/*.md only, safe.
     cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
     ms = cfg.get("agents", {}).get("defaults", {}).get("memorySearch")
-    if not ms:
-        return  # not configured — nothing to guard
+    # Assert (not skip) the feature is configured + on, so it can't silently regress
+    # off. provider is intentionally NOT asserted — it's a config choice
+    # (openai/gemini/voyage/...), not the workbench-exclusion invariant guarded here.
+    assert ms, "memorySearch must be configured in config/openclaw.json (Phase 5 enables it)"
+    assert ms.get("enabled") is True, "memorySearch must be enabled"
+    # Only the workspace ROOT (or any 'workbench' reference) would pull workbench into
+    # the index; a targeted sibling subpath like workspace/knowledge/ is legitimate.
+    workspace_roots = {"/data/workspace", "/workspace", "workspace", "."}
     for p in ms.get("extraPaths", []):
-        low = p.lower()
-        assert "workbench" not in low, f"memorySearch.extraPaths includes workbench: {p!r}"
-        assert low.rstrip("/") not in ("/data/workspace", "workspace", "."), (
+        norm = os.path.normpath(p).lower()  # collapses '.', '..', trailing slashes
+        assert "workbench" not in p.lower(), f"memorySearch.extraPaths includes workbench: {p!r}"
+        assert norm not in workspace_roots, (
             f"memorySearch.extraPaths includes the workspace root ({p!r}) — that would "
-            f"index workbench/ transitively"
+            f"index workbench/ transitively. (A targeted subpath like workspace/knowledge/ is fine.)"
         )
 
 
