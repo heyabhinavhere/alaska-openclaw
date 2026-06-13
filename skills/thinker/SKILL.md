@@ -33,7 +33,7 @@ You process in **60-minute batches**, not real-time. Collect messages hourly, an
 ## Trigger
 
 - **Cron:** Every 60 minutes during business hours (3:30 AM - 1:30 PM UTC / 9 AM - 7 PM IST)
-- **Agent Signals:** Other agents can signal you for quality review
+- **Inputs:** you read agent outputs from the channels + the task graph (the inbound Agent Signals path is retired)
 - **Manual:** "think about this", "does this make sense", "review what happened today"
 
 ## Step 1: Collect Inputs (Every 60 Minutes)
@@ -106,14 +106,11 @@ ingested_count=$(sqlite3 /data/queue/alaska.db "SELECT count(*) FROM intent_inbo
 If `ingested_count` is 0 but you actually fetched messages from Slack in this run, something is silently dropping the inserts (DB lock, disk full, malformed escape). DM Abhinav: "Ingestion looks broken — fetched [N] messages from Slack but only [0] landed in intent_inbox. Investigate." This catches the class of "Phase A is silently dead" failures.
 
 ### 1b. Agent Outputs
-Check Agent Signals for recent outputs from all agents. Read:
-- Meeting Intelligence summaries
-- Proposal Loop confirmations/rejections
-- Sprint Operator changes
-- Daily Pulse reports
-- Follow-Through nudge patterns
-- Risk Radar assessments
-- Doc Keeper updates
+Review recent agent outputs directly from where they land (the Agent Signals path is retired):
+- Meeting Intelligence summaries → #project-management
+- Sprint Operator / task changes → the task graph (`tasks`, `task_events`)
+- Daily Pulse / Risk Radar / Doc Keeper → #alaska-daily-pulse, #alaska-alerts
+- Follow-Through nudge patterns → the `nudges` table + #alaska-daily-pulse
 
 ### 1c. Product Metrics (Amplitude + Customer.io)
 
@@ -138,12 +135,12 @@ Review recent agent outputs for errors or gaps:
 - Did it extract vague action items? ("finalize the flow" — which flow?)
 - Did it miss obvious decisions or action items from the transcript?
 - Did it attribute tasks to the wrong person?
-- Flag before it becomes a proposal: "Meeting Intelligence extracted '[vague task]' — this needs clarification before it enters the Proposal Loop."
+- Flag a vague extraction before it lands as a task: "Meeting Intelligence extracted '[vague task]' — this needs clarification before it enters the task graph."
 
-**Proposal Loop:**
-- Are proposals properly formatted?
-- Did it miss team feedback or misparse a reply?
-- Is the capacity impact calculation accurate?
+**Task capture (review — you observe; the writers enforce):**
+- Are new tasks well-formed (clear owner, due date)? `task-handler` is the sole writer and enforces match-or-create dedup, so you don't independently dedup — just flag anything that slipped through.
+- Did capture miss team feedback or misparse a standup reply?
+- Does anyone look over capacity? Sprint Operator owns the ≤10 pts/week rule — flag it for that agent's attention, don't enforce here.
 
 **Sprint Operator:**
 - Are effort estimates realistic? Cross-reference with historical velocity.
@@ -242,17 +239,18 @@ Keep it to 2-3 lines. No raw data dumps.
 - Raw DAU numbers without actionable context
 
 **When you identify an actionable item for a SPECIFIC person:**
-Don't just observe — signal Follow-Through (Agent 5) via Agent Signals with:
-- Signal: "Proactive check-in needed: [person] re: [topic]"
-- Details: the context, what to ask, suggested alternatives to offer
-- Follow-Through will DM that person with a helpful, conversational message
+Don't just observe — queue a **proactive check-in** so Follow-Through DMs that person directly. (This is the rewired trigger; the old "signal Follow-Through via Agent Signals" path is retired. DMing someone about their OWN task is Follow-Through's job — not "looping in a third person.")
+
+Write a row to the `proactive_checkins` queue (created on-demand, like other skill-owned tables):
+```bash
+sqlite3 /data/queue/alaska.db "CREATE TABLE IF NOT EXISTS proactive_checkins (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_slack_id TEXT NOT NULL, topic TEXT, context TEXT, suggestion TEXT, status TEXT DEFAULT 'pending', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, handled_at DATETIME);"
+sqlite3 /data/queue/alaska.db "INSERT INTO proactive_checkins (owner_slack_id, topic, context, suggestion) VALUES ('<slack_id>', '<topic>', '<what you observed>', '<alternatives to offer>');"
+```
 
 Example — instead of posting in channel:
 > "Pankaj's last push was Apr 8. Play Store ticket due today. No update."
 
-Do this:
-1. Signal Follow-Through: "DM Pankaj about Play Store ticket. Context: P0 due today, no visible update. Suggest asking about Google paid support or progressive rollout as alternatives."
-2. Follow-Through DMs Pankaj: "Hey Pankaj, any update on the Play Store ticket? It's due today. If the review is still stuck, would it be worth escalating through Google's paid support or trying a progressive rollout?"
+Queue a check-in (owner = Pankaj): topic `Play Store ticket`, context `P0 due today, no visible update since Apr 8`, suggestion `Google paid support, or a progressive rollout`. Follow-Through DMs Pankaj on its next run. (For a system/agent issue rather than a person's task, DM Abhinav instead — see below.)
 
 **For agent quality issues, DM Abhinav:**
 ```
@@ -265,7 +263,7 @@ Follow the Communication Standards in the shared toolkit. Additionally:
 - **Specific.** Name the tasks, dates. Not "some tasks are at risk."
 
 ### Toolkit Compliance Check
-When quality-checking other agents (Step 2a), also verify they follow the shared toolkit patterns — queue-first writes, correct Slack formatting, proper Agent Signals protocols, anti-hallucination validation, and token usage logging. Flag deviations to Abhinav via DM.
+When quality-checking other agents (Step 2a), also verify they follow the shared toolkit patterns — queue-first writes, correct Slack formatting, task-graph coordination (not the retired Agent Signals / direct-message path), anti-hallucination validation, and token usage logging. Flag deviations to Abhinav via DM.
 
 ## Workshop mode (agent-memory scope + ⚙ DM marker + journal)
 

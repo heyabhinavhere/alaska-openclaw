@@ -83,14 +83,23 @@ else
 fi
 
 # Mirror-sync skills from git to volume on every deploy.
-# Skills are git-canonical (no runtime edits), so the volume should EXACTLY match
-# /opt/default-skills/. Previous behavior used `cp -r` which added new files but
-# never removed deleted ones — that left orphan skills on the volume after the
-# v2.2 stabilization (system-health/, daily-standup/). Wipe-and-recopy fixes that.
+# Skills are git-canonical (no runtime edits), so the volume should match /opt/default-skills/.
+# Wipe-and-recopy removes orphans (e.g. system-health/, daily-standup/ after v2.2).
+# Deprecated skills (frontmatter `deprecated: true`) are SKIPPED so retired paths
+# (report-health, proposal-loop, whatsapp-send) stop being synced/discoverable —
+# enforceable deprecation, not just a banner.
 mkdir -p /data/skills
 find /data/skills -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-cp -r /opt/default-skills/. /data/skills/
-echo "[alaska] Skills mirror-synced from git to /data/skills/ ($(ls /data/skills | wc -l | tr -d ' ') skills present)"
+_skipped=""
+for entry in /opt/default-skills/*/; do
+  [ -f "$entry/SKILL.md" ] || continue   # only real skills (a dir with a SKILL.md); skips .gitkeep / non-skill artifacts
+  if grep -qE '^[[:space:]]*deprecated:[[:space:]]*true[[:space:]]*$' "$entry/SKILL.md"; then
+    _skipped="$_skipped $(basename "$entry")"
+    continue
+  fi
+  cp -r "$entry" /data/skills/
+done
+echo "[alaska] Skills mirror-synced from git to /data/skills/ ($(find /data/skills -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ') present; skipped deprecated:${_skipped:- none})"
 
 # Workspace persistence (Issue H fix).
 # The workspace now lives on the PERSISTENT /data volume so runtime STATE
