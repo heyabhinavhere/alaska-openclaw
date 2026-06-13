@@ -49,6 +49,11 @@ always removes doubt; a bare `audit <id>` is fine only when the intent is unmist
    only. No SSN, account numbers, routing numbers, or full DOB. (`audit_fetch.redact`
    strips toxic PII from the profile before you ever see it.)
 7. **No task or Notion writes** in v1. The audit is report-only.
+8. **Roster gate.** Only run for an invoker in the Team Roster (MEMORY.md → Team
+   Roster). If the invoker is not a recognized team member, refuse — _"I'm Alaska,
+   BON Credit's PM. I don't recognise you as a team member — reach out to Abhinav if
+   you need access."_ — and do NOT fetch the profile. `!audit` returns real financial
+   PII, so roster membership is the gate (mirrors the `!case` / user-profile-360 gate).
 
 ## How Alaska runs this (orchestration)
 
