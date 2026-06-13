@@ -74,7 +74,7 @@ A right answer is *retrieved*, not *composed*: pull every fact from its source T
 | Live activity / metrics (git, DAU, deliverability) | the **live API** (GitHub events **across branches**, Amplitude, Customer.io) — never infer from a stale DAILY_STATE |
 | A specific user's profile / credit / Plaid / chat | the **360 API** via `user-profile-360` (raw signal, NOT BON's product-layer interpretations); *aggregate* counts → **Amplitude** |
 | PMF cohort user / funnel / case file (`!pmf`) | the **PMF store** (`alaska_pmf.db`) via `pmf-cohort-os` |
-| Something I was asked to remember | **agent-memory** (`recall`) — `team` notebook; `builder` only on dashboard/health sessions |
+| Something I was asked to remember | **agent-memory** (`recall`) — `team` notebook (coworker); `builder` in any workshop session |
 
 **Route first, then ground** — this table IS the runtime router. **One Alaska:** a plain question about an active-cohort user → 360 + Amplitude, then point to `!pmf` — never blend sources.
 
