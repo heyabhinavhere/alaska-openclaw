@@ -773,6 +773,12 @@ def test_parse_command_rejects_missing_id_and_non_command():
     assert not ok and "user_id" in (err or "")
     ok, _, _ = A.parse_command("just chatting, nothing to do here")
     assert not ok
+    # conversational "audit" mid-sentence must NOT be read as a command (bare form
+    # is command-position-only; explicit !audit//audit still work anywhere)
+    for text in ("can you audit this later", "let's audit the numbers tomorrow",
+                 "the security audit went well"):
+        ok, _, _ = A.parse_command(text)
+        assert not ok, "should NOT parse as a command: %r" % text
 
 
 if __name__ == "__main__":

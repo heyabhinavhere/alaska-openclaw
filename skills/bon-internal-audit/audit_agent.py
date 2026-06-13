@@ -42,18 +42,23 @@ DEFAULT_ARTIFACT_ROOT = os.environ.get("AUDIT_ARTIFACT_ROOT", "/data/workspace/a
 # command parsing
 # --------------------------------------------------------------------------
 
-_AUDIT_CMD_RE = re.compile(r"(?:^|\s)[!/]?audit\b[\s:]*(\S+)?", re.IGNORECASE)
+# Explicit markers (!audit / /audit) are unambiguous and may appear anywhere
+# (e.g. "hey @alaska !audit 1414"). A BARE "audit" is only a command at the start
+# of the message (after an optional @mention) — so conversational use like
+# "can you audit this later" is NOT misread as a command.
+_AUDIT_EXPLICIT_RE = re.compile(r"[!/]audit\b[\s:]*(\S+)?", re.IGNORECASE)
+_AUDIT_BARE_RE = re.compile(r"^\s*(?:<@[A-Za-z0-9]+>\s*)?audit\b[\s:]*(\S+)?", re.IGNORECASE)
 
 
 def parse_command(text):
     """Parse a Slack message like 'hey @alaska !audit 1414' into a user_id.
-    Accepts the canonical `!audit`, the legacy `/audit` alias, and a leading
-    bare `audit` — taking the first token after it as the user_id.
+    Accepts the canonical `!audit`, the legacy `/audit` alias (both anywhere),
+    and a bare `audit` only at command position (message start / after a mention).
     Returns (ok, user_id:int|None, error:str|None). Fails safely on anything
     that is not a well-formed audit command."""
     if not text:
         return False, None, "not an audit command"
-    m = _AUDIT_CMD_RE.search(text)
+    m = _AUDIT_EXPLICIT_RE.search(text) or _AUDIT_BARE_RE.match(text)
     if not m:
         return False, None, "not an audit command"
     token = m.group(1)

@@ -73,7 +73,7 @@ these generically — it does not import workstream code (a test asserts this).
 
 ## What is intentionally NOT done
 
-- **SUPERSEDED:** the `!`-command layer IS live — `!case`/`!help`/`!ping` via the deterministic gateway, `!audit`/`!pmf` via STEP-0 model routing. `!case` writes `command_audit` (migration 0007) and generates+delivers DOCX artifacts.
+- **SUPERSEDED:** the `!`-command layer IS live — `!case`/`!help`/`!ping` via the deterministic gateway, `!audit`/`!pmf` via STEP-0 model routing. `!case` writes `command_audit` (migration 0007) and generates a DOCX (delivered when run in a channel context + the Slack upload succeeds; otherwise generated-not-delivered).
 - **SUPERSEDED:** `!audit` is live (the `bon-internal-audit` skill); the real 360 fetch is still gated behind `--live` + the required env vars.
 - **SUPERSEDED:** the gateway writes `command_audit`; PMF/cohort writes remain gated (no active cohort). Customer.io / SMS / email still gated.
 
