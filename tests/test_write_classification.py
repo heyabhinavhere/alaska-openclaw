@@ -166,7 +166,7 @@ def test_defaults_for_missing_optional_fields():
 
 def test_multiple_rows():
     db = _make_db(seed=3)
-    written = write_classification.write_rows(
+    written, skipped = write_classification.write_rows(
         [
             {"id": 1, "intent": "TASK_CREATE", "confidence": 0.9},
             {"id": 2, "intent": "STATUS_QUERY", "confidence": 0.7},
@@ -174,9 +174,25 @@ def test_multiple_rows():
         ],
         db,
     )
-    assert written == 3
+    assert (written, skipped) == (3, 0)
     assert all(_inbox(db, i)["processed"] == 1 for i in (1, 2, 3))
     assert len(_audit(db)) == 3
+
+
+def test_bad_row_skipped_good_rows_kept():
+    db = _make_db(seed=2)
+    written, skipped = write_classification.write_rows(
+        [
+            {"id": 1, "intent": "TASK_CREATE", "confidence": 0.9},
+            {"intent": "BROKEN_NO_ID", "confidence": 0.5},  # missing id -> skip, don't abort chunk
+            {"id": 2, "intent": "STATUS_QUERY", "confidence": 0.7},
+        ],
+        db,
+    )
+    assert (written, skipped) == (2, 1)
+    assert _inbox(db, 1)["processed"] == 1
+    assert _inbox(db, 2)["processed"] == 1
+    assert len(_audit(db)) == 2  # the bad row left no partial audit row
 
 
 if __name__ == "__main__":

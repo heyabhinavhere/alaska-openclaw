@@ -60,40 +60,57 @@ def _as_json_text(value, default):
 
 
 def write_rows(rows, db_path=DEFAULT_DB):
-    """Mark each classified row processed and write its audit record. Returns count."""
-    written = 0
+    """Mark each classified row processed and write its audit record.
+
+    Each row is written inside its own SAVEPOINT, so one malformed row (missing
+    ``id``, bad types, a constraint error) is skipped — and rolled back cleanly,
+    leaving no partial UPDATE-without-audit — without aborting the rest of the
+    chunk. This is the kill-safety property the 5-min cron depends on: a single
+    bad row must never re-wedge the whole queue. Returns ``(written, skipped)``.
+    """
+    written = skipped = 0
     con = sqlite3.connect(db_path)
     try:
         con.execute("PRAGMA foreign_keys=ON")
-        for row in rows:
-            rid = row["id"]
-            intent = clean(row["intent"])
-            confidence = float(row.get("confidence", 0.0))
-            classifier_output = clean(_as_json_text(row.get("classifier_output", row), "{}"))
-            con.execute(
-                "UPDATE intent_inbox SET processed=1, intent=?, confidence=?, "
-                "classifier_output=?, processed_at=CURRENT_TIMESTAMP WHERE id=?",
-                (intent, confidence, classifier_output, rid),
-            )
-            con.execute(
-                "INSERT INTO classifier_audit "
-                "(inbox_id, intent, secondary_intents, confidence, entities, reasoning, would_have_done) "
-                "VALUES (?,?,?,?,?,?,?)",
-                (
-                    rid,
-                    intent,
-                    clean(_as_json_text(row.get("secondary_intents", []), "[]")),
-                    confidence,
-                    clean(_as_json_text(row.get("entities", {}), "{}")),
-                    clean(row.get("reasoning", "")),
-                    clean(row.get("would_have_done", "")),
-                ),
-            )
-            written += 1
+        for i, row in enumerate(rows):
+            con.execute(f"SAVEPOINT cls_{i}")
+            try:
+                rid = row["id"]
+                intent = clean(row["intent"])
+                confidence = float(row.get("confidence", 0.0))
+                classifier_output = clean(_as_json_text(row.get("classifier_output", row), "{}"))
+                con.execute(
+                    "UPDATE intent_inbox SET processed=1, intent=?, confidence=?, "
+                    "classifier_output=?, processed_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (intent, confidence, classifier_output, rid),
+                )
+                con.execute(
+                    "INSERT INTO classifier_audit "
+                    "(inbox_id, intent, secondary_intents, confidence, entities, reasoning, would_have_done) "
+                    "VALUES (?,?,?,?,?,?,?)",
+                    (
+                        rid,
+                        intent,
+                        clean(_as_json_text(row.get("secondary_intents", []), "[]")),
+                        confidence,
+                        clean(_as_json_text(row.get("entities", {}), "{}")),
+                        clean(row.get("reasoning", "")),
+                        clean(row.get("would_have_done", "")),
+                    ),
+                )
+                con.execute(f"RELEASE cls_{i}")
+                written += 1
+            except (KeyError, TypeError, ValueError, sqlite3.Error) as exc:
+                con.execute(f"ROLLBACK TO cls_{i}")
+                con.execute(f"RELEASE cls_{i}")
+                skipped += 1
+                sys.stderr.write(
+                    f"write_classification: skipped row {i} ({type(exc).__name__}: {exc})\n"
+                )
         con.commit()
     finally:
         con.close()
-    return written
+    return written, skipped
 
 
 def main(argv):
@@ -101,8 +118,8 @@ def main(argv):
     payload = json.load(sys.stdin)
     if isinstance(payload, dict):
         payload = [payload]
-    written = write_rows(payload, db_path)
-    print(f"write_classification: wrote {written} rows")
+    written, skipped = write_rows(payload, db_path)
+    print(f"write_classification: wrote {written} rows, skipped {skipped}")
     return 0
 
 
