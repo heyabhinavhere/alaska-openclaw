@@ -238,7 +238,7 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
   "payload": {
     "kind": "agentTurn",
     "message": "Run /data/skills/watcher-dispatcher/SKILL.md procedure for watcher_id=W-N.",
-    "timeoutSeconds": 300
+    "timeoutSeconds": 600
   },
   "delivery": {"mode": "none"}
 }
@@ -249,6 +249,7 @@ Non-negotiable fields:
 - ALWAYS include `agentId` / `sessionKey` / `sessionTarget` / `wakeMode`.
 - ALWAYS include `"delivery": {"mode": "none"}` (bare — do NOT add `"channel"`). `mode:"none"` SUPPRESSES OpenClaw's default delivery so the dispatcher posts its OWN Slack messages. Omitting the block lets OpenClaw auto-post the raw turn; adding `"channel":"slack"` has triggered a failing default-delivery attempt ("Message failed", climbing `consecutiveErrors`) even though the dispatcher's own DM succeeds — so use the bare `{"mode":"none"}` that the live infra crons use.
 - ALWAYS pass `"enabled": true` — without it OpenClaw stores `enabled=undefined` (falsy) and the job is created but NEVER fires (issue #8557).
+- `timeoutSeconds` is **600**, not 300. A watcher action_chain that loads KB files + hits an external API (Amplitude / user-profile-360 / Plaid) + sends ≥1 message does not reliably finish in 300s — that's what wedged **W-2** (the sub-600 PII signup scan) into repeated `model-call-started` timeouts. Use ≥600 for any enrichment-heavy or external-API watcher.
 
 For a **time-bounded** watcher (`expires_at` set), OpenClaw `kind:"cron"` has no native expiry — also `cron.add` a `kind:"at"` one-shot at `expires_at` (`{"kind":"at","atMs":<epoch_ms>}`, `deleteAfterRun:true`) whose message tells the dispatcher to `expire watcher W-N` (it removes the main cron + sets `status='expired'`).
 

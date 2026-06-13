@@ -50,7 +50,7 @@ For each message:
    - **Emoji-only or punctuation-only messages:** Skip if message strips to empty after removing emojis and punctuation. Mark as `NON_WORK_CHAT`.
    - **Commands are handled upstream — you never see them.** `!`-commands, their legacy `/pmf`/`/audit`/`/alaska` aliases, AND a clear unambiguous bare verb (`audit 1453`, `case 2762`) are intercepted by `SOUL.md` → "STEP 0 — Command Router" *before* any classification. What reaches you is genuinely non-command text. A sentence that merely *mentions* audit/pmf/case ("can you audit user 1453", "what does an audit show") is NOT a command — classify it on its merits (usually `STATUS_QUERY` / `AMBIGUOUS`); do NOT route it to the audit/pmf/case skill.
 
-2. **Classify with LLM:** for the rest, call Claude Sonnet 4.6 with this exact prompt structure:
+2. **Classify with LLM:** for the rest, call Claude Sonnet 4.6. On the **DM path** that's one call for the one message; in the **5-min cron** it's a SINGLE batched call over the whole queue slice (array in → array out — see "Cron behavior (batched mode)" below), where the shape below is what each array element follows. Prompt structure:
 
 ```
 You are classifying Slack messages from BON Credit team members for the Alaska
@@ -176,19 +176,19 @@ sqlite3 /data/queue/alaska.db "
   FROM intent_inbox
   WHERE processed = 0
   ORDER BY created_at ASC
-  LIMIT 50;
+  LIMIT 20;
 "
 ```
 
-For each row, BEFORE invoking Claude:
-1. Look up channel name from `/root/.openclaw/workspace/TOOLS.md` channel mapping (substitute into prompt).
-2. Look up author first name from `/root/.openclaw/workspace/MEMORY.md` → Team Roster (substitute into prompt).
-3. Read the full team roster from `MEMORY.md` and format as a markdown list of `slack_id → first_name` pairs. Substitute it in place of the `[Resolve from /root/.openclaw/workspace/MEMORY.md → Team Roster]` placeholder in the prompt template. The LLM sees the actual roster, not the placeholder.
-4. Substitute the message text, channel name, author name, and ISO timestamp into the corresponding placeholders.
-5. Invoke Claude Sonnet 4.6 with the now-fully-substituted prompt.
-6. Write results per "Write classification result" above.
+**Classify the whole batch in ONE Claude call — do NOT loop one call per message.** One call per row is exactly what wedged this cron: ~50 sequential model calls + reads blew past the 300s cron timeout, *nothing* committed before the kill, and the identical backlog retried every 5 min forever. The fix is: batch the call, lower the cap, and commit incrementally.
 
-Cap at 50 messages per run to bound token cost. If queue grows >200, alert Abhinav.
+1. **Once per run** (not per message), read the shared context: the channel-name map from `/root/.openclaw/workspace/TOOLS.md` and the full team roster (`slack_id → first_name`) from `/root/.openclaw/workspace/MEMORY.md`.
+2. **Pre-filter** the rows with the fast no-LLM bypasses above (bot self-messages, trivially short, emoji/punct-only). Mark each `processed=1` with its trivial intent immediately — they never reach the LLM.
+3. **One batched LLM call** for the rest: pass them as a numbered JSON array `[{id, message_text, channel, author, ts}, …]` and instruct Claude to return a JSON **array** — one object per input `id`, each in the exact single-message shape above (echo each `id` back). Same rules, just vectorized over the batch; substitute the roster once.
+4. **Write + mark INCREMENTALLY, per returned row:** as each result is parsed, write its `classifier_audit` row and `UPDATE intent_inbox SET processed=1, …` for that `id` — row by row, not all-at-once at the end. A mid-run kill (timeout, redeploy) then never loses progress or re-loops the same backlog.
+5. Run the gated action step (task-handler / DECISION_RECORDED) per freshly-classified row, as above.
+
+`LIMIT 20` keeps each run well under the 300s budget; the queue drains across runs and incremental marking guarantees forward progress. If the queue grows >200, alert Abhinav.
 
 ## DM handling (synchronous mode) — LIVE action path
 
