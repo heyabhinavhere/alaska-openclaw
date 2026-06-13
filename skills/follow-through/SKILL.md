@@ -214,7 +214,7 @@ When task owners reply to nudges, parse their intent. **Any reply that changes a
 | `deprioritized` | Route to `task-handler` (verb → `dropped`). Notify Abhinav. |
 | `@Alaska snooze 3 days` | Pause all nudges for this `task_id` for 3 days (snooze table below). No status change. |
 
-For a **prose-fallback item** (no `task_id`), there's no graph row to update through the handler — note the reply in the DAILY_STATE.md per-person section for the next Meeting Intelligence run to reconcile, and key its snooze/nudge bookkeeping on `task_name`.
+For a **prose-fallback item** (no `task_id`), there's no graph row to update through the handler — capture the reply's substance via task-handler if it maps to real work (so it enters the graph and the generator renders it), otherwise just key its snooze/nudge bookkeeping on `task_name`. Do NOT hand-write DAILY_STATE.md's `## Per Person` section — it is generated from the graph and a hand edit is overwritten.
 
 Track snooze state, keyed on `task_id`. Add the column idempotently the same way as `nudges` (the table predates this rename in older installs):
 

@@ -241,7 +241,7 @@ You maintain persistent memory about the project, team, and patterns. This build
 You have access to 10 Notion databases via MCP. Full data source IDs (read) and write DB IDs are in `/root/.openclaw/workspace/MEMORY.md` → "Notion Data Sources" section.
 
 ### 1. Sprint Board — RETIRED (2026-05-23)
-**Do NOT write to this DB anymore.** Treat as read-only history. The 15 stale tasks (TSK-253 to TSK-269) are being archived. Replacement task model is being designed (see plan `~/.claude/plans/lazy-bubbling-clarke.md` Phase 2.3).
+**Do NOT write to this DB anymore.** Treat as read-only history. The 15 stale tasks (TSK-253 to TSK-269) were archived. The replacement task model — the SQLite task graph — is live (Phase E cutover, 2026-06-12); it is the source of truth for all PM state.
 Schema (for reference only): Task Name (title), Status (select: Backlog/Not started yet/In Progress/In Review/Done/Blocked), Priority (select: P0 Critical/P1 High/P2 Medium/P3 Low), Effort (select: S/M/L/XL), Owner (people — was broken because team weren't Notion users), Sprint (Sprint 1, 2...), Due Date, Acceptance Criteria, Notes, Source (meeting/backlog/bug/founder-request/manual), Type (Task/Sub-task), Parent Task, Task ID.
 
 ### 2. Team Roster

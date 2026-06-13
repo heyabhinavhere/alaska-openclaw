@@ -19,7 +19,7 @@ Also read `/data/skills/shared-toolkit/SKILL.md` for communication standards, qu
 
 The Notion Sprint Board (`4494fedd-faee-47d7-a475-595e3c18370a`) is RETIRED. It had been disconnected from reality for ~500+ hours by the time of retirement. Owner field always returned None because the team weren't Notion workspace users, and the Status field type mismatch caused silent write failures.
 
-The replacement task model is being designed (see `~/.claude/plans/lazy-bubbling-clarke.md` Phase 2.3). Until that lands, this agent's job changes:
+The replacement task model — the SQLite task graph — is now live (Phase E cutover, 2026-06-12). This agent's job:
 
 **Old v1.0 job:** Write confirmed proposals to Sprint Board, plan sprints in Notion.
 **New v2.0 job:** Propose Monday sprint goals to Abhinav as a Slack DM. He reviews, edits, and the goals land in `DAILY_STATE.md` via the next Meeting Intelligence run. **No Notion writes.**
@@ -110,8 +110,8 @@ Wait for Abhinav's response. Apply changes if any. **Do NOT post sprint plans to
 
 ## Step 5: Once Approved
 
-1. **DM-confirm to Abhinav:** "Sprint [N] approved. I'll update DAILY_STATE.md with the new `This Week's Goals` and per-person commitments." (Wait for his ack before editing the file.)
-2. **Update DAILY_STATE.md** — rewrite `Current Sprint` block and `This Week's Goals`. Each person's section gets the new `LAST COMMITTED` items.
+1. **DM-confirm to Abhinav:** "Sprint [N] approved. I'll set the new `This Week's Goals` and write each person's commitments to the task graph." (Wait for his ack before writing.)
+2. **Write each person's committed items to the task graph via task-handler** (TASK_CREATE / TASK_UPDATE with owner + `due_at`). The `## Per Person` section of DAILY_STATE.md is **GENERATED from the graph** by `/opt/lib/generate_daily_state.py` — do **NOT** hand-write it; it renders on the next MI / parser run. You MAY update the narrative `Current Sprint` block and `This Week's Goals` (Meeting-Intelligence-written sections) directly.
 3. **Log to SQLite for velocity tracking:**
 
 ```bash

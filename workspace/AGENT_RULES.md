@@ -2,19 +2,19 @@
 
 Every isolated agent session MUST read this file before doing anything else.
 
-**Last updated:** 2026-05-23 (v2.2 stabilization)
+**Last updated:** 2026-06-12 (Phase E cutover — the task graph is the source of truth)
 **Living document:** refresh on major architecture changes only — not per sprint.
 
 ---
 
 ## Source of Truth
 
-- **Operational state (current sprint, per-person tasks, blockers, decisions, metrics):** `/root/.openclaw/workspace/DAILY_STATE.md`. Written by Meeting Intelligence after every team call. Read by every agent before acting.
+- **Operational state (per-person tasks, blockers, availability):** the **SQLite task graph** — `tasks` / `blockers` / `person_status` on `/data/queue/alaska.db`. ✅ **Source of truth since the Phase E cutover (2026-06-12).** Written ONLY via task-handler (+ the person_status write-paths). For a convenient summary, read the view `/root/.openclaw/workspace/DAILY_STATE.md` — a **hybrid**: its `## Per Person` + `## Active Blockers` are **GENERATED from the graph** by `/opt/lib/generate_daily_state.py`; the narrative sections (Current Sprint, Goals, Decisions, Metrics) are Meeting-Intelligence-written. **Never hand-write the generated sections — a hand edit is overwritten on the next run. On any disagreement, the graph wins.**
 - **Long-term memory (team roster, Slack/Notion IDs, project history, architecture decisions):** `/root/.openclaw/workspace/MEMORY.md`.
 - **Personality + security guardrails:** `/root/.openclaw/workspace/SOUL.md` and `/data/skills/alaska-core/SKILL.md`.
 - **API access patterns + Slack channel IDs:** `/root/.openclaw/workspace/TOOLS.md`.
 
-There is no "Sprint Board source of truth" anymore. The Notion Sprint Board DB is retired (see MEMORY.md → v2.2). Trust DAILY_STATE.md.
+There is no "Sprint Board source of truth" anymore. The Notion Sprint Board DB is retired (2026-05-23). The replacement is the SQLite task graph above.
 
 ---
 
@@ -33,17 +33,17 @@ Architecture / V2 / Plaid / CredGPT tasks → **Sandeep**. Ads / YouTube / Play 
 
 ---
 
-## Board vs Reality — CRITICAL RULE
+## Source of Truth in Practice — the task graph won (Phase E cutover, 2026-06-12)
 
-Historical context: the Sprint Board was disconnected from reality for ~3 sprints leading up to v2.2. As of 2026-05-23 the board is **retired** and agents no longer write to it. The replacement task model is being designed (see plan `lazy-bubbling-clarke.md` Phase 2.3).
+The SQLite task graph is the authoritative operational state. The Notion Sprint Board (retired 2026-05-23) and any single state *file* are no longer the truth — the graph is.
 
-In the meantime:
-1. **Read DAILY_STATE.md first** — it has the real per-person focus and recent decisions.
-2. **Cross-reference with recent meeting summaries** in #project-management (last few messages).
-3. **Cross-reference with Git** if a code task is in question — commits and PRs are ground truth for engineering work.
-4. **If meetings + Git disagree with what someone said in Slack chat → trust meetings + Git.**
+When answering any question about operational state (who owns what, what's blocking, what's due, who's on leave):
+1. **Retrieve from the graph first** — `tasks` / `blockers` / `person_status` on `/data/queue/alaska.db` (read via the patterns in `task-handler` / `slack-commands`). DAILY_STATE.md is a convenient summary, not the authority.
+2. **Cross-reference recent meeting summaries** in #project-management (last few messages) for narrative context.
+3. **Cross-reference Git** for engineering work — commits and PRs across all branches are ground truth for code tasks.
+4. **If the graph + meetings + Git disagree with something said in Slack chat → trust the graph + meetings + Git.**
 
-Do NOT create or update tasks in the Notion Sprint Board (DB `4494fedd-faee-47d7-a475-595e3c18370a`). Treat that DB as read-only history.
+Do NOT create or update tasks in the Notion Sprint Board (DB `4494fedd-faee-47d7-a475-595e3c18370a`). Treat that DB as read-only history. Do NOT hand-write DAILY_STATE.md's `## Per Person` or `## Active Blockers` — they are generated from the graph.
 
 ---
 

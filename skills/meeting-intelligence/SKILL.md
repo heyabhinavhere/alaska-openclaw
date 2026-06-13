@@ -234,7 +234,7 @@ For every commitment whose extraction names a recipient:
 
 ## Step 6: Write to Notion
 
-The Notion Sprint Board is RETIRED as of 2026-05-23 — do NOT create or update Sprint Board entries. Replacement task model is being designed (see plan `~/.claude/plans/lazy-bubbling-clarke.md` Phase 2.3).
+The Notion Sprint Board is RETIRED as of 2026-05-23 — do NOT create or update Sprint Board entries. The replacement task model — the SQLite task graph — is live (Phase E cutover, 2026-06-12); route extracted tasks/blockers through task-handler.
 
 You still write to these Notion databases:
 
@@ -254,8 +254,8 @@ One entry per decision with: decision, category, made by, context, affects, stat
 ### 6d. Blockers Database
 New blockers or status updates to existing ones. **The SQLite `blockers` write goes through shared-toolkit §1.7's dedup guard** — a re-mentioned impediment across days is the SAME blocker, so reaffirm an existing active blocker on the same task (or same subject, for unowned) rather than inserting a duplicate. Set the Owner (people) field using the blocker owner's Notion User ID from MEMORY.md → Team Roster (see shared-toolkit "Owner field — enabled"). If the owner has no Notion ID (external/unmatched), fall back to first-name-in-Notes.
 
-### 6e. Proposals Database (only for genuinely new work that needs team confirmation)
-Only create proposals for truly new commitments that weren't already discussed. If the meeting just discussed existing work, no proposal needed — just update DAILY_STATE.md.
+### 6e. Genuinely new work that needs team confirmation
+For truly new commitments (not already-discussed work), create the task via **task-handler** with status `pending_acceptance` so the owner confirms it. The deprecated Proposals DB / Proposal Loop is no longer used — new work routes through the task graph. If the meeting just discussed existing work, no new task needed.
 
 ## Step 7: Post Summary to Slack
 
@@ -296,7 +296,7 @@ _Blockers:_ [new or status-changed only]
 
 ## Step 8: Hand Off
 
-Signal Proposal Loop (Agent 2) via Agent Signals ONLY if there are genuinely new proposed tasks. If the meeting just discussed existing work, no handoff needed.
+No separate handoff — new work is already in the task graph (Step 5 via task-handler), and Daily Pulse / Follow-Through / pre-call briefs read the graph directly. The Proposal Loop (Agent 2) and the Agent Signals path are retired; do not signal them.
 
 ## Anti-Patterns
 

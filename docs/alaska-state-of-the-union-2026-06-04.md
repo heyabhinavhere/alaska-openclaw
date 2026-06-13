@@ -1,5 +1,7 @@
 # Alaska — State of the Union (2026-06-04)
 
+> ⚠️ **HISTORICAL — PRE-CUTOVER SNAPSHOT (2026-06-04).** This captured Alaska's state *before* the Phase E cutover landed (2026-06-12). Its "Phase E NOT done / source of truth is DAILY_STATE.md" statements are now superseded. **Current source-of-truth docs:** `docs/alaska-operating-model.md` §3, `workspace/MEMORY.md`, `workspace/AGENT_RULES.md`. Kept for the reasoning + risk register, not for current status.
+
 > **What this is:** the single, grounded source of truth for where Alaska stands — built from a 5-agent audit of the repo + docs + git history + PRs, **calibrated against verified-live state** (the 2026-06-03 live audit `docs/alaska-live-system-map.md` and live checks run this session). It exists because knowledge had fragmented across agents, conversations, and disagreeing docs, and we'd lost a clear picture.
 >
 > **Grounding tags used throughout:** ✅ **verified-live** · 📄 **repo/built only (unverified live)** · ⚠️ **drift (docs/live disagree)** · 🔴/🟡/🟢 risk.

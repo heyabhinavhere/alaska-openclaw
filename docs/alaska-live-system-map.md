@@ -1,5 +1,7 @@
 # Alaska Live System Map — VERIFIED ground truth
 
+> ⚠️ **HISTORICAL — PRE-CUTOVER LIVE AUDIT (2026-06-03).** Verified-live on its date, but predates the Phase E cutover (2026-06-12). Two findings are superseded (corrected inline below): DAILY_STATE.md's Per Person/Blockers are now GENERATED from the graph (the graph is the source of truth, not a single MI writer), and the Standup-Reply Parser cron is LIVE. **Current source-of-truth docs:** `docs/alaska-operating-model.md` §3, `workspace/AGENT_RULES.md`.
+
 > **What this is:** the first description of Alaska built from the **actual live system**, not from the repo/docs/assumptions. Produced 2026-06-03 from a ground-truth audit Alaska ran in the live container (`cron.list`, live `/data/skills`, live `/root/.openclaw/workspace`, live `/data/queue/alaska.db`).
 >
 > **Why it exists:** we repeatedly shipped to the repo and *assumed* it was live. It wasn't always — the live **cron** layer drifts from the repo because it's hand-maintained on the OpenClaw dashboard and nothing reconciles it. This doc is the reconciliation. **When this doc and a repo snapshot disagree, this doc (or a fresh `cron.list`) wins.**
@@ -52,13 +54,13 @@ All enabled, all `delivery.mode = none` (agents post via explicit `action=send`;
 
 ## 3. The write-path reality (corrected)
 
-**`DAILY_STATE.md` has exactly ONE writer: Meeting Intelligence, from Fireflies transcripts.** No other path updates it. → If Fireflies misses a call (or there's no call), `DAILY_STATE.md` does not update, full stop. This is the chronic-staleness root and the single biggest fragility (Phase E — graph as source of truth — is the structural fix).
+**Post-cutover (2026-06-12): `DAILY_STATE.md` is a generated view of the task graph.** Its `## Per Person` / `## Active Blockers` are rendered by `generate_daily_state.py` from the `tasks`/`blockers` graph (fed via task-handler from MI, standup replies, the channel classifier, and DM commands); MI writes only the narrative sections. The old "single MI writer → chronic staleness" fragility is **resolved** — the graph is the source of truth, so a missed call no longer freezes per-person state.
 
 **The task graph (`tasks`/`blockers`) is written by `task-handler`, fed by:**
 - Meeting Intelligence Step 5b (from transcripts) ✅
 - intent-classifier gated channel→task (≥0.85 + resolved owner, from `intent_inbox`) ✅
 - slack-commands DM handlers ✅
-- pre-call-brief reply parser (`source=standup_reply`) — **DORMANT: built in the SKILL, but NO cron triggers it** ⚠️
+- pre-call-brief reply parser (`source=standup_reply`) — ✅ **LIVE** (Standup-Reply Parser cron, `0 3,16 UTC` — two passes; built #102, cron wired post-#104)
 
 **`intent_inbox` is fed by the Thinker's hourly `users.conversations` sweep** of all 12 channels + DMs + MPIMs (711 rows, growing).
 
