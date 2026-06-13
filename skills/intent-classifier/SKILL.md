@@ -170,9 +170,22 @@ For a `TASK_CREATE` / `TASK_UPDATE` / `TASK_BLOCKER` row that passes the gate, i
 Triggered every 5 min via OpenClaw cron. Read up to a slice of the queue:
 
 ```bash
+# Emit each row as a CLEAN JSON object — never raw columns. json_object()
+# escapes the newlines, `|`, quotes and <@mentions> that live in real Slack
+# message_text. Reading the default pipe-delimited output was the wedge:
+# embedded newlines/pipes shatter the column format, so the model burns ~85s
+# reconstructing rows before it can classify (measured: a clean-JSON classify
+# call is ~17s; the raw-output one stalls past the 300s wall, zero rows
+# drained). Do NOT "simplify" this back to bare columns.
 sqlite3 /data/queue/alaska.db "
   PRAGMA foreign_keys = ON;
-  SELECT id, channel_id, author_slack_id, message_text, message_ts
+  SELECT json_object(
+    'id', id,
+    'channel_id', channel_id,
+    'author_slack_id', author_slack_id,
+    'message_text', message_text,
+    'message_ts', message_ts
+  )
   FROM intent_inbox
   WHERE processed = 0
   ORDER BY created_at ASC
@@ -180,11 +193,13 @@ sqlite3 /data/queue/alaska.db "
 "
 ```
 
+Each output line is now one self-contained, properly-escaped JSON object = one row.
+
 **Classify in SMALL sub-batches and commit after EACH — never one giant call, never one-per-message.** Both extremes wedge this cron: one call per message = ~50 sequential calls that blow the 300s budget; one call for all 20 = a single heavy call that hangs past 300s and — worst of all — returns nothing, so **zero** rows get marked and the identical backlog retries forever (this is what kept it failing even after the per-message loop was removed). The fix is sub-batching with per-chunk commits.
 
 1. **Once per run** (not per message), read the shared context: the channel-name map from `/root/.openclaw/workspace/TOOLS.md` and the team roster (`slack_id → first_name`) from `/root/.openclaw/workspace/MEMORY.md`.
 2. **Pre-filter** the rows with the fast no-LLM bypasses above (bot self-messages, trivially short, emoji/punct-only). Mark each `processed=1` with its trivial intent immediately — they never reach the LLM.
-3. **Classify in chunks of ≤5.** Split the remaining rows into sub-batches of at most **5**. For each chunk, make ONE classification call: pass the ≤5 rows as a numbered JSON array `[{id, message_text, channel, author, ts}, …]` and require the model to return a JSON array where **each object = the single-message JSON shape above PLUS an explicit top-level `"id": <the intent_inbox row id>` echoed verbatim from the input.** That `id` is the join key — map each result back to its row by `id`, write only rows whose `id` was in the chunk you sent, and if the model omits or invents an `id`, skip that result (leave the row `processed=0`) rather than guess. A 5-message call returns in seconds, comfortably inside the budget even under model/network latency.
+3. **Classify in chunks of ≤5.** The query above already hands you clean JSON objects (one per line) — group them into sub-batches of at most **5**; never reconstruct rows from raw column output. For each chunk, make ONE classification call: pass the ≤5 row objects as a JSON array and require the model to return a JSON array where **each object = the single-message JSON shape above PLUS an explicit top-level `"id": <the intent_inbox row id>` echoed verbatim from the input.** That `id` is the join key — map each result back to its row by `id`, write only rows whose `id` was in the chunk you sent, and if the model omits or invents an `id`, skip that result (leave the row `processed=0`) rather than guess. A 5-message call returns in seconds, comfortably inside the budget even under model/network latency.
 4. **Commit after EVERY chunk, before starting the next:** write each row's `classifier_audit` row and `UPDATE intent_inbox SET processed=1, …`, then run the gated action step (task-handler / DECISION_RECORDED) for that chunk. Only then move to the next chunk. **This is the kill-safety guarantee** — a mid-run timeout loses at most the one in-flight chunk of 5, never the whole run, and the queue strictly drains.
 5. **Soft time budget:** if more than ~200s have elapsed this run, stop and leave the rest for the next 5-min fire (they stay `processed=0`). Never start a chunk you can't finish inside the 300s wall.
 
