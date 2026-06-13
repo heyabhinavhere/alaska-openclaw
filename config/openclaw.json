@@ -19,7 +19,14 @@
       },
       "bootstrapMaxChars": 20000,
       "bootstrapTotalMaxChars": 80000,
-      "bootstrapPromptTruncationWarning": "always"
+      "bootstrapPromptTruncationWarning": "always",
+      "memorySearch": {
+        "enabled": true,
+        "provider": "openai",
+        "remote": {
+          "apiKey": "${OPENAI_API_KEY}"
+        }
+      }
     }
   },
   "plugins": {

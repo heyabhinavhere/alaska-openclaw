@@ -1,7 +1,7 @@
 ---
 name: agent-memory
 description: Alaska's private working memory — her own self-tasks plus notes/references she's been asked to remember. A SIBLING store to the team task graph and the BON KB, not a route through either. Self-managed: Alaska creates, recalls, completes, and archives these rows herself. Private by construction — team-facing readers (Daily Pulse, Follow-Through, Risk Radar, "what's X working on") NEVER query this table. Writes to the `agent_memory` table per migration 0006. Two scopes (migration 0009) split team-facing memory (`team`) from Alaska-internal/workshop memory (`builder`); coworker-mode sessions (Slack, team crons) read/write `team` only.
-version: 2.0.0
+version: 2.1.0
 metadata:
   openclaw:
     requires:
@@ -60,6 +60,8 @@ Every row carries a `scope` (migration 0009): **`team`** or **`builder`** — tw
 - WRITES about Alaska's own internals default to `builder`. ⚠️ The COLUMN default is `team`, so a workshop write that *omits* scope silently misfiles a builder fact into the team notebook — the one leak path. In any workshop write, set `scope='builder'` **explicitly**; never lean on the default.
 
 **Delivery is NEVER gated by scope.** The partition governs what is *stored and recalled*, not who gets *messaged* — workshop crons still DM Abhinav in Slack exactly as before. So an Abhinav reply can continue a workshop conversation, **every workshop DM to Abhinav ends with a final line containing the marker ⚙**; a reply threaded under a ⚙-rooted DM is workshop mode. To detect it: when replying inside an Abhinav DM thread, read the thread's root message — if Alaska posted it AND its last line is the marker, this thread is workshop mode. (One marker, defined here: `⚙`. If a Slack client is ever seen to strip it on round-trip, fall back to the literal `[ws]`.)
+
+**The file-level companion (matters because of memory search).** OpenClaw's native memory search indexes `MEMORY.md` + `memory/*.md` — and that index is NOT scope-aware. So a *builder* breadcrumb written into a `memory/` daily log could be semantically surfaced in a coworker-mode session, re-opening the boundary at the file level. Keep the file surface clean: **builder breadcrumbs go to `/data/workspace/workbench/journal/` (NOT indexed), `memory/` daily logs stay team/operational.** workbench is the file companion to the `builder` notebook, exactly as `memory/` pairs with `team`.
 
 ---
 

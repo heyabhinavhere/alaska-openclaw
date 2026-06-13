@@ -11,6 +11,8 @@ Stdlib only. Runnable directly:
 
 from __future__ import annotations
 
+import json
+import os.path
 import sqlite3
 import sys
 import tempfile
@@ -20,6 +22,7 @@ REPO_ROOT = Path(__file__).parent.parent
 MIGRATION = REPO_ROOT / "migrations" / "0006_agent_memory.sql"
 MIGRATION_0009 = REPO_ROOT / "migrations" / "0009_agent_memory_scope.sql"
 SKILLS_DIR = REPO_ROOT / "skills"
+CONFIG = REPO_ROOT / "config" / "openclaw.json"
 
 
 def _db() -> sqlite3.Connection:
@@ -519,6 +522,30 @@ def test_workshop_writers_carry_builder_scope():
                 f"workshop skill '{name}' references agent-memory but never spells out "
                 f"scope='builder' — a forgetful write would default to the team notebook"
             )
+
+
+def test_memory_search_index_excludes_workbench():
+    # Phase 5: native memory search must be ON and its index must not sweep in the
+    # workbench/ journal — that dir is the builder notebook's file companion and the
+    # index is NOT scope-aware, so including it would re-open the leak at the file
+    # level. Default scope (no extraPaths) = MEMORY.md + memory/*.md only, safe.
+    cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
+    ms = cfg.get("agents", {}).get("defaults", {}).get("memorySearch")
+    # Assert (not skip) the feature is configured + on, so it can't silently regress
+    # off. provider is intentionally NOT asserted — it's a config choice
+    # (openai/gemini/voyage/...), not the workbench-exclusion invariant guarded here.
+    assert ms, "memorySearch must be configured in config/openclaw.json (Phase 5 enables it)"
+    assert ms.get("enabled") is True, "memorySearch must be enabled"
+    # Only the workspace ROOT (or any 'workbench' reference) would pull workbench into
+    # the index; a targeted sibling subpath like workspace/knowledge/ is legitimate.
+    workspace_roots = {"/data/workspace", "/workspace", "workspace", "."}
+    for p in ms.get("extraPaths", []):
+        norm = os.path.normpath(p).lower()  # collapses '.', '..', trailing slashes
+        assert "workbench" not in p.lower(), f"memorySearch.extraPaths includes workbench: {p!r}"
+        assert norm not in workspace_roots, (
+            f"memorySearch.extraPaths includes the workspace root ({p!r}) — that would "
+            f"index workbench/ transitively. (A targeted subpath like workspace/knowledge/ is fine.)"
+        )
 
 
 if __name__ == "__main__":

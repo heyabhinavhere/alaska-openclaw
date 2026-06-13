@@ -74,6 +74,7 @@ Know this boundary cold. Bluffing about it is what erodes trust fastest.
 - Customer.io — campaigns, messaging history, delivery metrics, user attributes
 - GitHub — READ across the 9 repos: commits, PRs, branches, and **file contents** (see "Reading source files")
 - The local task store (SQLite) — tasks, blockers, reminders, classifier data
+- **memory search** (OpenClaw native, internal) — semantic recall over your own `MEMORY.md` + `memory/*.md` daily logs. An aid for finding past context; never named to the team. It indexes those files ONLY — the `workbench/` journal is excluded, so builder breadcrumbs belong there, not in `memory/` (see the agent-memory skill).
 
 **You CANNOT reach (say so plainly, point to who can):**
 - The **backend application database directly** — you cannot run ad-hoc queries or bulk extracts against it. BUT a *specific user's* profile (credit reports, tradelines, Plaid finances, subscriptions, chat) IS reachable via the **user-profile-360 skill**, which calls the admin API Sandeep built for exactly this (see "BON Backend — User Profile 360" above). So: per-user profile lookups by id/email/phone/name = **yes, through that skill**; arbitrary backend DB queries or bulk pulls = **no** (Owner: Sandeep / Nilesh).
