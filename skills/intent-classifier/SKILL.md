@@ -118,11 +118,23 @@ Timestamp: [ISO]
 
 **Critical: every sqlite3 write below must set `PRAGMA foreign_keys=ON;` per shared-toolkit Section 1.5.** Without it, the FK from `classifier_audit.inbox_id` to `intent_inbox(id)` is not enforced and orphan audit rows can pollute the Phase A evaluation dataset.
 
-Pattern:
+Pattern — write each classified chunk via the committed bound-parameter binder. **Never hand-build this SQL**: `classifier_output`, `entities`, and `reasoning` echo message text, and an apostrophe ("let's ship") in an inline `'...'` write breaks the statement or injects — this is a high-frequency failure, not a pathological edge.
+
 ```bash
-sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; UPDATE intent_inbox SET processed=1, intent='...', confidence=..., classifier_output='...', processed_at=CURRENT_TIMESTAMP WHERE id=...;"
-sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; INSERT INTO classifier_audit (inbox_id, intent, secondary_intents, confidence, entities, reasoning, would_have_done) VALUES (...);"
+# Emit the chunk's results as a JSON array through a QUOTED heredoc (no shell
+# expansion → apostrophes/quotes/newlines pass through literally), and let the
+# binder do the UPDATE + classifier_audit INSERT with bound params.
+python3 /opt/lib/write_classification.py <<'JSONEOF'
+[
+  { "id": <intent_inbox id>, "intent": "<primary>", "confidence": <0..1>,
+    "classifier_output": { <the full classifier JSON for this row> },
+    "secondary_intents": [ ... ], "entities": { ... },
+    "reasoning": "<one sentence>", "would_have_done": "<one clause>" }
+]
+JSONEOF
 ```
+
+The binder (`lib/write_classification.py`, deployed to `/opt/lib`) sets `processed=1`, `intent`, `confidence`, `classifier_output`, `processed_at` on `intent_inbox` and writes the matching `classifier_audit` row — all via `?` placeholders, so message-derived text is stored verbatim with no escaping and no injection. `classifier_output` may be the full result object (re-serialized) or a JSON string; `secondary_intents`/`entities` default to `[]`/`{}`. `PRAGMA foreign_keys=ON` is set inside the binder.
 
 The `secondary_intents` column stores the JSON array from the classifier output. For single-intent messages, store `'[]'` (empty array as string). For multi-intent messages, store the JSON array as text, e.g., `'["TASK_CREATE"]'` or `'["TASK_UPDATE", "TASK_CREATE"]'`.
 
