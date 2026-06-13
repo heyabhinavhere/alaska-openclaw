@@ -65,6 +65,11 @@ python3 /data/skills/bon-internal-audit/audit_agent.py parse "<the full slack me
 If `ok` is false, reply to the invoker with the error (e.g. "Usage: !audit <user_id>")
 and stop.
 
+> Routing-visibility for `!audit` in `command_audit` is **deferred to a code-level
+> implementation** — logging it via a model-built shell command would interpolate
+> raw Slack text into a shell invocation (injection risk). Track it with the separate
+> "command_audit silent since Jun 5" live check, and wire it in Python (no shell).
+
 **Step 1 - Fetch the profile (live, gated).** Only with the env vars set:
 ```
 python3 /data/skills/bon-internal-audit/audit_agent.py fetch-profile --user-id <id> --live

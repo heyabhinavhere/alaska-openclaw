@@ -23,6 +23,7 @@ import argparse
 import datetime as _dt
 import json
 import os
+import re
 import sqlite3
 import sys
 
@@ -41,16 +42,28 @@ DEFAULT_ARTIFACT_ROOT = os.environ.get("AUDIT_ARTIFACT_ROOT", "/data/workspace/a
 # command parsing
 # --------------------------------------------------------------------------
 
+# Explicit markers (!audit / /audit) are unambiguous and may appear anywhere
+# (e.g. "hey @alaska !audit 1414"). A BARE "audit" is only a command at the start
+# of the message (after an optional @mention) — so conversational use like
+# "can you audit this later" is NOT misread as a command.
+_AUDIT_EXPLICIT_RE = re.compile(r"[!/]audit\b[\s:]*(\S+)?", re.IGNORECASE)
+_AUDIT_BARE_RE = re.compile(r"^\s*(?:<@[A-Za-z0-9]+>\s*)?audit\b[\s:]*(\S+)?", re.IGNORECASE)
+
+
 def parse_command(text):
-    """Parse a Slack message like 'hey @alaska /audit 1414' into a user_id.
+    """Parse a Slack message like 'hey @alaska !audit 1414' into a user_id.
+    Accepts the canonical `!audit`, the legacy `/audit` alias (both anywhere),
+    and a bare `audit` only at command position (message start / after a mention).
     Returns (ok, user_id:int|None, error:str|None). Fails safely on anything
-    that is not a well-formed /audit command."""
-    if not text or "/audit" not in text:
-        return False, None, "not an /audit command"
-    after = text.split("/audit", 1)[1].strip()
-    if not after:
-        return False, None, "missing user_id (usage: /audit <user_id>)"
-    token = after.split()[0]
+    that is not a well-formed audit command."""
+    if not text:
+        return False, None, "not an audit command"
+    m = _AUDIT_EXPLICIT_RE.search(text) or _AUDIT_BARE_RE.match(text)
+    if not m:
+        return False, None, "not an audit command"
+    token = m.group(1)
+    if not token:
+        return False, None, "missing user_id (usage: !audit <user_id>)"
     ok, uid, err = audit_fetch.validate_user_id(token)
     if not ok:
         return False, None, err
