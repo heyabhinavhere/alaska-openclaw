@@ -760,6 +760,21 @@ def test_audit_modules_never_import_v4_v5_internals():
         assert "/data/queue/alaska.db" not in src, "%s references the V4 task db" % py.name
 
 
+def test_parse_command_accepts_bang_slash_and_bare():
+    # canonical !audit, legacy /audit, and bare audit all parse the user_id
+    for text in ("!audit 1414", "/audit 1414", "audit 1414",
+                 "hey @alaska !audit 1453", "Alaska, /audit 2762 please"):
+        ok, uid, err = A.parse_command(text)
+        assert ok and uid is not None, "should parse %r (err=%s)" % (text, err)
+
+
+def test_parse_command_rejects_missing_id_and_non_command():
+    ok, _, err = A.parse_command("!audit")
+    assert not ok and "user_id" in (err or "")
+    ok, _, _ = A.parse_command("just chatting, nothing to do here")
+    assert not ok
+
+
 if __name__ == "__main__":
     import subprocess
     raise SystemExit(subprocess.call(["python3", "-m", "pytest", __file__, "-q"]))

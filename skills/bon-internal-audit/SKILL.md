@@ -63,7 +63,13 @@ from the script's own directory, and default DB/artifact/template paths are abso
 python3 /data/skills/bon-internal-audit/audit_agent.py parse "<the full slack message>"
 ```
 If `ok` is false, reply to the invoker with the error (e.g. "Usage: !audit <user_id>")
-and stop.
+and stop. If `ok`, log the routing so `!audit` is visible to the command-routing
+measurement program (best-effort — it no-ops off-box and never blocks the run):
+```
+python3 -m alaska_command_gateway.audit --matched fallthrough --verb audit \
+  --raw-text "<the full slack message>" --invoker "<invoker_slack_id>" \
+  --channel "<channel_id>" --channel-type "<dm|channel>" || true
+```
 
 **Step 1 - Fetch the profile (live, gated).** Only with the env vars set:
 ```

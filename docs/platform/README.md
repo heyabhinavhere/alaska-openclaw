@@ -1,5 +1,7 @@
 # Alaska Platform Layer — Command Gateway + Artifact Service
 
+> ⚠️ **STALE / HISTORICAL (P0-era design doc).** This describes the pre-OM-4, pre-upgrade plan — a single native `/alaska` slash command on OpenClaw 2026.3.13. **Live reality (2026-06):** the surface is the **`!`-command layer** (`!case !audit !pmf !help !ping`) on **OpenClaw 2026.5.28**; `!case`/`!help`/`!ping` route via the deterministic gateway and `!case` writes `command_audit` (migration 0007) + generates/delivers DOCX artifacts; `!audit`/`!pmf` route via SOUL STEP 0. Current model: [`command-gateway.md`](command-gateway.md) (carries the Jun-5 banner), `docs/alaska-operating-model.md` §1.5, SOUL STEP 0. The reusable **primitives/architecture** below are still accurate; the **command-surface, version, and "not wired" claims are not.**
+
 Two reusable platform primitives that future Alaska capabilities depend on:
 
 1. **Command Gateway** — one native Slack command, `/alaska`, with subcommands
@@ -27,7 +29,7 @@ docs/platform/                this folder
 
 ## Research memo (verified findings)
 
-**Runtime.** OpenClaw `1panel/openclaw:2026.3.13`, a single process
+**Runtime.** OpenClaw `1panel/openclaw:2026.5.28` (upgraded from 2026.3.13 — see banner), a single process
 (`exec openclaw gateway run --port 18789`). Railway routes public traffic to that
 one port. Python 3.9.6. The image is deliberately **slim** — `sqlite3, curl,
 python3-dateutil` only; **no** LibreOffice/poppler/python-docx/reportlab/
@@ -71,11 +73,9 @@ these generically — it does not import workstream code (a test asserts this).
 
 ## What is intentionally NOT done
 
-- `/alaska` is **not** wired into the live runtime. No edits to `entrypoint.sh`,
-  `Dockerfile`, `config/openclaw.json`, or any migration.
-- `audit` is **dry-run** — no live audit runs until a later, approved PR connects
-  the `bon-internal-audit` skill.
-- No DB writes (no `alaska.db` / `alaska_pmf.db`). No Customer.io / SMS / email.
+- **SUPERSEDED:** the `!`-command layer IS live — `!case`/`!help`/`!ping` via the deterministic gateway, `!audit`/`!pmf` via STEP-0 model routing. `!case` writes `command_audit` (migration 0007) and generates+delivers DOCX artifacts.
+- **SUPERSEDED:** `!audit` is live (the `bon-internal-audit` skill); the real 360 fetch is still gated behind `--live` + the required env vars.
+- **SUPERSEDED:** the gateway writes `command_audit`; PMF/cohort writes remain gated (no active cohort). Customer.io / SMS / email still gated.
 
 ## Do-not-touch (respected)
 

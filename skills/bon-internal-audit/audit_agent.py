@@ -23,6 +23,7 @@ import argparse
 import datetime as _dt
 import json
 import os
+import re
 import sqlite3
 import sys
 
@@ -41,16 +42,23 @@ DEFAULT_ARTIFACT_ROOT = os.environ.get("AUDIT_ARTIFACT_ROOT", "/data/workspace/a
 # command parsing
 # --------------------------------------------------------------------------
 
+_AUDIT_CMD_RE = re.compile(r"(?:^|\s)[!/]?audit\b[\s:]*(\S+)?", re.IGNORECASE)
+
+
 def parse_command(text):
-    """Parse a Slack message like 'hey @alaska /audit 1414' into a user_id.
+    """Parse a Slack message like 'hey @alaska !audit 1414' into a user_id.
+    Accepts the canonical `!audit`, the legacy `/audit` alias, and a leading
+    bare `audit` — taking the first token after it as the user_id.
     Returns (ok, user_id:int|None, error:str|None). Fails safely on anything
-    that is not a well-formed /audit command."""
-    if not text or "/audit" not in text:
-        return False, None, "not an /audit command"
-    after = text.split("/audit", 1)[1].strip()
-    if not after:
-        return False, None, "missing user_id (usage: /audit <user_id>)"
-    token = after.split()[0]
+    that is not a well-formed audit command."""
+    if not text:
+        return False, None, "not an audit command"
+    m = _AUDIT_CMD_RE.search(text)
+    if not m:
+        return False, None, "not an audit command"
+    token = m.group(1)
+    if not token:
+        return False, None, "missing user_id (usage: !audit <user_id>)"
     ok, uid, err = audit_fetch.validate_user_id(token)
     if not ok:
         return False, None, err
