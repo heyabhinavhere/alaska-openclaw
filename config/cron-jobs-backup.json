@@ -1,13 +1,13 @@
 {
   "_snapshot": {
-    "generated": "2026-06-14",
+    "generated": "2026-06-14T00:00:00Z",
     "openclaw_version": "2026.5.28",
     "source_of_truth": "the LIVE OpenClaw dashboard (`cron.list`). This file is a periodically-regenerated MIRROR for human reference + drift-detection — it is NOT authoritative and is NOT auto-consumed by any code.",
     "level": "metadata mirror — schedule / timezone / session / timeout / model / payload-kind / sessionKey for every live job. It intentionally does NOT carry full UUIDs (8-char prefixes shown) or verbatim payload.message bodies; thin crons defer to the named SKILL (in git), fat crons carry inline prompts (authoritative copy in cron.list).",
     "regen_procedure": "1) ask Alaska to dump `cron.list` (all jobs, all fields incl. sessionKey). 2) rebuild this file from it. 3) commit. REGENERATE AFTER ANY cron add/edit.",
     "count": 25,
     "notes": [
-      "Regenerated 2026-06-14 from a live cron.list dump. Drift vs the 2026-06-05 snapshot: old classifier 0814f554 DELETED → recreated clean as 81fe0a92 (no sessionKey); added Agent Memory Morning Review (79e0faaa) and the rogue Nilesh reminder (cb320e7c); W-1 daily (b25237a7) + the two ephemeral 'at' jobs (1ccbdd4e self-check, e7f37981 W-1 expiry) are gone (expired/self-deleted); several timeouts raised (W-2 300→600, Pre-Call Brief 240→600 + thinned, Meeting Intelligence 600→900).",
+      "Regenerated 2026-06-14 (UTC) from a live cron.list dump. Drift vs the 2026-06-05 snapshot: old classifier 0814f554 DELETED → recreated clean as 81fe0a92 (no sessionKey); added Agent Memory Morning Review (79e0faaa) and the rogue Nilesh reminder (cb320e7c); W-1 daily (b25237a7) + the two ephemeral 'at' jobs (1ccbdd4e self-check, e7f37981 W-1 expiry) are gone (expired/self-deleted); several timeouts raised (W-2 300→600, Pre-Call Brief 240→600 + thinned, Meeting Intelligence 600→900).",
       "SESSIONKEY: 21 of 25 jobs carry `sessionKey:\"agent:main:main\"` (or, for cb320e7c, a thread-scoped variant). This is PROVEN HARMLESS on isolated crons (A/B 2026-06-13: trivial cron WITH key = 2.4s vs WITHOUT = 3.2s; Event Pollers run 14-23s on the key all day). It does NOT load the main session. DO NOT mass-recreate these — the classifier's hang was data corruption, not the sessionKey. The 4 clean (no-sessionKey) jobs: e848ce6f, 81fe0a92, 79e0faaa, 04edf01e.",
       "CLASSIFIER FIX (#170-#173, merged 2026-06-13): the corruption was at ingestion (no committed parser → model improvised a tab-split). Now committed parsers lib/ingest_messages.py + lib/write_classification.py (json.loads + bound params + NUL sanitizer) write intent_inbox; the classifier SKILL reads via json_object() and caps per-row output. 81fe0a92 verified at 10.2s/run.",
       "W-2 (ec763489): timeout raised 300→600 as a STOPGAP. Root cause of its 150s→300s climb is output volume (its weekly signup table grows with the userbase), NOT the sessionKey — same output-explosion pattern as the classifier. Durable fix = assemble the table in code, not one model generation. Confirm on its next Monday run.",
