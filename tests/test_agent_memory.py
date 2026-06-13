@@ -11,6 +11,7 @@ Stdlib only. Runnable directly:
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import sys
 import tempfile
@@ -20,6 +21,7 @@ REPO_ROOT = Path(__file__).parent.parent
 MIGRATION = REPO_ROOT / "migrations" / "0006_agent_memory.sql"
 MIGRATION_0009 = REPO_ROOT / "migrations" / "0009_agent_memory_scope.sql"
 SKILLS_DIR = REPO_ROOT / "skills"
+CONFIG = REPO_ROOT / "config" / "openclaw.json"
 
 
 def _db() -> sqlite3.Connection:
@@ -519,6 +521,24 @@ def test_workshop_writers_carry_builder_scope():
                 f"workshop skill '{name}' references agent-memory but never spells out "
                 f"scope='builder' — a forgetful write would default to the team notebook"
             )
+
+
+def test_memory_search_index_excludes_workbench():
+    # If native memory search is configured (Phase 5), its index must not sweep in
+    # the workbench/ journal — that dir is the builder notebook's file companion and
+    # the index is NOT scope-aware, so including it would re-open the leak at the
+    # file level. Default scope (no extraPaths) = MEMORY.md + memory/*.md only, safe.
+    cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
+    ms = cfg.get("agents", {}).get("defaults", {}).get("memorySearch")
+    if not ms:
+        return  # not configured — nothing to guard
+    for p in ms.get("extraPaths", []):
+        low = p.lower()
+        assert "workbench" not in low, f"memorySearch.extraPaths includes workbench: {p!r}"
+        assert low.rstrip("/") not in ("/data/workspace", "workspace", "."), (
+            f"memorySearch.extraPaths includes the workspace root ({p!r}) — that would "
+            f"index workbench/ transitively"
+        )
 
 
 if __name__ == "__main__":
