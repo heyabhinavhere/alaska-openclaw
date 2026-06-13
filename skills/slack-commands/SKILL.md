@@ -237,10 +237,17 @@ Suggested focus: [highest priority or nearest deadline item]
 
 **Triggers:** "help", "what can you do?", "commands"
 
-**Response:**
+**Response:** (keep this in sync with `!help` — same verb list)
 ```
 Here's what you can ask me:
 
+*Quick commands* — type the `!` form (a bare unambiguous verb works too):
+• `!case <user_id>` — a user's 360 case file (DOCX)
+• `!audit <user_id>` — internal financial audit report
+• `!pmf <question>` — PMF launch-cohort status (when a cohort is active)
+• `!help` — this list   ·   `!ping` — health check
+
+*Or ask in plain language:*
 • *status of [feature]* — current task status
 • *who's blocked?* — active blockers
 • *what shipped this week?* — recent changelog
@@ -250,7 +257,7 @@ Here's what you can ask me:
 • *plan next sprint* — trigger sprint planning
 • *process latest meeting* — run Meeting Intelligence on newest transcript
 
-Or just ask me anything about the project — I'll pull from Notion, Fireflies, and sprint data to answer.
+Or just ask me anything about the project — I'll pull from the task graph, Amplitude, Fireflies, and the BON knowledge base to answer.
 ```
 
 ## Analytics & Campaign Queries
@@ -427,6 +434,19 @@ For `describe_rrule` output, call the helper:
 ```bash
 DESC=$(python3 -c "from rrule_helper import describe_rrule; print(describe_rrule('$RRULE_STRING'))")
 ```
+
+### Cancel a reminder — `cancel SA-N`
+
+The confirmation above promises this affordance, so it must work. When the sender says `cancel SA-N` (the classifier routes a cancel-reminder request here):
+
+1. **Validate the id** matches exactly `SA-<digits>` (e.g. `SA-7`). If it doesn't, reply `To cancel, reply: cancel SA-<number>` and STOP — never run SQL with unvalidated text.
+2. Cancel only the sender's own reminder (Abhinav may cancel any), in one connection so `changes()` is meaningful:
+
+```bash
+sqlite3 /data/queue/alaska.db "UPDATE scheduled_actions SET status='cancelled' WHERE action_id='<validated_SA_N>' AND status NOT IN ('fired','cancelled') AND (created_by_slack_id='<sender_slack_id>' OR '<sender_slack_id>'='U07GKLVA9FE'); SELECT changes();"
+```
+
+3. If the output is `1`, confirm: `Cancelled <SA-N> — you won't get that reminder.` If `0` (wrong id, not yours, or already fired/cancelled), reply: `I don't see an active reminder <SA-N> owned by you.` — never reveal others' reminders.
 
 #### Step 4: Team scope — create routine_proposal (gated on Abhinav)
 
