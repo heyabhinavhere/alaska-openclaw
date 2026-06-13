@@ -239,13 +239,18 @@ Keep it to 2-3 lines. No raw data dumps.
 - Raw DAU numbers without actionable context
 
 **When you identify an actionable item for a SPECIFIC person:**
-Don't just observe — but don't message that person on your own initiative either (never loop in a third person unprompted). Surface it to **Abhinav via DM** with the context + a suggested action; if it's a concrete task, create it via `task-handler` so Follow-Through picks it up on its normal pass. (The old "signal Follow-Through via Agent Signals → it DMs the person" path is retired.)
+Don't just observe — queue a **proactive check-in** so Follow-Through DMs that person directly. (This is the rewired trigger; the old "signal Follow-Through via Agent Signals" path is retired. DMing someone about their OWN task is Follow-Through's job — not "looping in a third person.")
+
+Write a row to the `proactive_checkins` queue (created on-demand, like other skill-owned tables):
+```bash
+sqlite3 /data/queue/alaska.db "CREATE TABLE IF NOT EXISTS proactive_checkins (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_slack_id TEXT NOT NULL, topic TEXT, context TEXT, suggestion TEXT, status TEXT DEFAULT 'pending', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, handled_at DATETIME);"
+sqlite3 /data/queue/alaska.db "INSERT INTO proactive_checkins (owner_slack_id, topic, context, suggestion) VALUES ('<slack_id>', '<topic>', '<what you observed>', '<alternatives to offer>');"
+```
 
 Example — instead of posting in channel:
 > "Pankaj's last push was Apr 8. Play Store ticket due today. No update."
 
-Do this — DM Abhinav:
-> "Heads up: Pankaj's Play Store ticket is due today, no visible update since Apr 8. Want me to log a follow-up task, or will you nudge him? Angles worth offering: Google paid support, or a progressive rollout."
+Queue a check-in (owner = Pankaj): topic `Play Store ticket`, context `P0 due today, no visible update since Apr 8`, suggestion `Google paid support, or a progressive rollout`. Follow-Through DMs Pankaj on its next run. (For a system/agent issue rather than a person's task, DM Abhinav instead — see below.)
 
 **For agent quality issues, DM Abhinav:**
 ```

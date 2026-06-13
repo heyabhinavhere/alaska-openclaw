@@ -265,27 +265,28 @@ Every Friday at 6 PM IST, compile a private report for Abhinav (Slack DM, not ch
 
 **This report is PRIVATE to Abhinav only.** Never post individual performance data to the team channel. Public channel only gets positive updates (shipped items) and unresolved blockers.
 
-## Step 6: Handle Thinker Signals (Proactive Check-Ins)
+## Step 6: Handle Proactive Check-Ins (from the Thinker)
 
-Check Agent Signals for signals from the Thinker (Agent 8) with type "handoff" and subject containing "Proactive check-in needed". These are situations where the Thinker identified something actionable for a specific person but can't/shouldn't post publicly.
+The Thinker queues proactive per-person items in the `proactive_checkins` table (this replaced the retired Agent Signals path). On each run, drain pending rows and **DM the owner directly**:
 
-For each Thinker signal:
-1. Read the context and suggested message from the signal Details
-2. **Post in #project-management tagging the person** — not a DM. A public @mention feels like a normal team conversation, not surveillance.
-3. Include specific alternatives or suggestions from the Thinker's context
-4. Always end with a question — make it a dialogue, not a demand
+```bash
+sqlite3 /data/queue/alaska.db "SELECT id, owner_slack_id, topic, context, suggestion FROM proactive_checkins WHERE status='pending' ORDER BY created_at;"
+```
 
-Example Thinker signal: "Check in with Pankaj about Play Store ticket. P0 due today, no update. Suggest Google paid support or progressive rollout."
+For each row:
+1. **DM the owner** (not a public @mention) — DMing someone about their own task is normal and avoids an unprompted public call-out. Resolve `owner_slack_id` to a first name via MEMORY.md → Team Roster.
+2. Lead with the topic + context, include the suggested alternatives, and **end with a question** — a dialogue, not a demand.
+3. Mark it handled: `sqlite3 /data/queue/alaska.db "UPDATE proactive_checkins SET status='sent', handled_at=CURRENT_TIMESTAMP WHERE id=<id>;"`
 
-Your message in #project-management:
-"@Pankaj any update on the Play Store ticket? It's due today. If the review is still stuck, would it be worth escalating through Google's paid support or trying a progressive rollout? What do you think?"
+Example DM to Pankaj:
+"Hey Pankaj — any update on the Play Store ticket? It's due today and I don't see movement since Apr 8. If the review's stuck, would Google's paid support or a progressive rollout help? What do you think?"
 
-**Tone:** Helpful teammate asking in the open, not a monitoring system sending private nudges.
+**Tone:** a helpful teammate checking in privately — not a public monitoring system.
 
-## Step 7: Signal Other Agents
+## Step 7: Downstream Agents (no signaling needed)
 
-- When a reply transitions a task to `blocked` or `done`, `task-handler` (Step 4/5) already creates the blocker row and signals Doc Keeper for the Changelog — don't duplicate those signals here.
-- If multiple tasks are overdue → signal Risk Radar (Agent 7) with a capacity risk alert via Agent Signals (this is Follow-Through's own cross-cutting signal, not a per-task side-effect).
+- When a reply transitions a task to `blocked` or `done`, `task-handler` (Step 4/5) writes it to the graph; Doc Keeper picks up done tasks from the graph on its own poll — don't duplicate or signal it.
+- If multiple tasks are overdue, that capacity risk surfaces on Risk Radar's own daily assessment (it reads the graph's overdue/blocked tasks directly). The Agent Signals path is retired — no cross-agent signal needed.
 
 Follow the Communication Standards in the shared toolkit. Additionally:
 - **DMs for nudges, not channel.** Nobody likes being called out publicly.
