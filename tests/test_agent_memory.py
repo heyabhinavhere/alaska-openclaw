@@ -18,13 +18,15 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
 MIGRATION = REPO_ROOT / "migrations" / "0006_agent_memory.sql"
+MIGRATION_0009 = REPO_ROOT / "migrations" / "0009_agent_memory_scope.sql"
 SKILLS_DIR = REPO_ROOT / "skills"
 
 
 def _db() -> sqlite3.Connection:
-    """Apply migration 0006 to a fresh in-memory DB and return the connection."""
+    """Apply migrations 0006 + 0009 to a fresh in-memory DB (the live schema)."""
     conn = sqlite3.connect(":memory:")
     conn.executescript(MIGRATION.read_text(encoding="utf-8"))
+    conn.executescript(MIGRATION_0009.read_text(encoding="utf-8"))
     conn.commit()
     return conn
 
@@ -46,14 +48,15 @@ def _remember(
     recall_cue: str = "",
     source: str = "self",
     due_at=None,
+    scope: str = "team",
 ) -> str:
     """Mirror the skill's `remember` INSERT; return the new mem_id."""
     mem_id = _next_mem_id(conn)
     conn.execute(
         "INSERT INTO agent_memory "
-        "(mem_id, kind, title, content, recall_cue, status, source, source_ref, due_at) "
-        "VALUES (?, ?, ?, ?, ?, 'open', ?, NULL, ?);",
-        (mem_id, kind, title, content, recall_cue, source, due_at),
+        "(mem_id, kind, title, content, recall_cue, status, source, source_ref, due_at, scope) "
+        "VALUES (?, ?, ?, ?, ?, 'open', ?, NULL, ?, ?);",
+        (mem_id, kind, title, content, recall_cue, source, due_at, scope),
     )
     conn.commit()
     return mem_id
@@ -408,6 +411,114 @@ def test_agent_memory_skill_does_own_the_table():
     # itself genuinely owns/references the table.
     text = (SKILLS_DIR / "agent-memory" / "SKILL.md").read_text(encoding="utf-8")
     assert "agent_memory" in text
+
+
+# --- SCOPE PARTITION (migration 0009 — the two notebooks) -------------------
+
+def _recall_team(conn: sqlite3.Connection, kw: str):
+    """Coworker-mode recall: the verified shape PLUS the `scope='team'` filter."""
+    return conn.execute(
+        "SELECT mem_id,kind,title,content FROM agent_memory "
+        "WHERE status!='archived' AND scope='team' "
+        "AND (recall_cue LIKE ? OR title LIKE ? OR content LIKE ?) "
+        "ORDER BY updated_at DESC;",
+        (f"%{kw}%", f"%{kw}%", f"%{kw}%"),
+    ).fetchall()
+
+
+def test_scope_backfills_existing_rows_to_team():
+    # A row written under the pre-partition schema (0006 only) must land in the
+    # `team` notebook when 0009 adds the column — never silently `builder`.
+    conn = sqlite3.connect(":memory:")
+    conn.executescript(MIGRATION.read_text(encoding="utf-8"))
+    conn.execute("INSERT INTO agent_memory (mem_id,kind,title,content) VALUES ('M-1','note','t','c');")
+    conn.executescript(MIGRATION_0009.read_text(encoding="utf-8"))
+    conn.commit()
+    assert conn.execute("SELECT scope FROM agent_memory WHERE mem_id='M-1';").fetchone() == ("team",)
+
+
+def test_scope_defaults_to_team_on_insert_without_scope():
+    # The leak-path guard's flip side: an INSERT that omits scope defaults to
+    # `team` (so a forgetful TEAM write is safe; a forgetful WORKSHOP write is the
+    # documented hazard — the skill mandates explicit scope='builder' there).
+    conn = _db()
+    conn.execute("INSERT INTO agent_memory (mem_id,kind,title,content) VALUES ('M-1','note','t','c');")
+    conn.commit()
+    assert conn.execute("SELECT scope FROM agent_memory WHERE mem_id='M-1';").fetchone() == ("team",)
+
+
+def test_scope_check_rejects_invalid():
+    conn = _db()
+    try:
+        conn.execute(
+            "INSERT INTO agent_memory (mem_id,kind,title,content,scope) "
+            "VALUES ('M-1','note','t','c','workshop');"  # 'workshop' is not a valid scope
+        )
+        raise AssertionError("invalid scope was accepted")
+    except sqlite3.IntegrityError:
+        pass
+
+
+def test_scope_index_exists():
+    conn = _db()
+    found = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE name='idx_agent_memory_scope_kind_status';"
+    ).fetchone()
+    assert found, "missing covering index idx_agent_memory_scope_kind_status (migration 0009)"
+
+
+def test_coworker_recall_excludes_builder():
+    # The whole point: a Slack/team-cron (coworker-mode) recall must NEVER surface
+    # a builder row, even when the keyword matches it.
+    conn = _db()
+    team = _remember(conn, "reference", "CTA list", "body", "cta", scope="team")
+    _remember(conn, "note", "janitor false-positive pattern", "cta-ish body", "cta", scope="builder")
+    rows = _recall_team(conn, "cta")
+    assert [r[0] for r in rows] == [team], rows
+
+
+def test_workshop_recall_sees_both_scopes():
+    # Workshop mode drops the scope filter — it reads both notebooks.
+    conn = _db()
+    team = _remember(conn, "reference", "CTA list", "body", "cta", scope="team")
+    builder = _remember(conn, "note", "internal cta note", "body", "cta", scope="builder")
+    rows = _recall(conn, "cta")  # no scope filter == workshop mode
+    assert {r[0] for r in rows} == {team, builder}, rows
+
+
+# --- SCOPE STATIC INVARIANTS (workshop/team skill boundaries) ---------------
+
+# The workshop-side skills: the only skills allowed to reference the workbench
+# directory, and (if they write agent-memory) the ones that must do so as builder.
+WORKSHOP_SKILLS = ["agent-memory", "watcher-janitor", "thinker", "report-health"]
+
+
+def test_only_workshop_skills_reference_workbench():
+    # workbench/ is workshop-scope by construction. A team-facing skill mentioning
+    # it would be a design leak — fail loudly.
+    for skill_dir in sorted(p for p in SKILLS_DIR.iterdir() if (p / "SKILL.md").exists()):
+        name = skill_dir.name
+        if name in WORKSHOP_SKILLS:
+            continue
+        text = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+        assert "workbench" not in text, (
+            f"SCOPE LEAK: team-facing skill '{name}' references workbench/ "
+            f"— that directory is workshop-scope only"
+        )
+
+
+def test_workshop_writers_carry_builder_scope():
+    # A workshop skill that writes agent-memory must do so with scope='builder'
+    # spelled out — relying on the column default ('team') is the one leak path.
+    for name in WORKSHOP_SKILLS:
+        if name == "agent-memory":
+            continue  # the owner skill defines the rule; it isn't a "writer" cron
+        text = (SKILLS_DIR / name / "SKILL.md").read_text(encoding="utf-8")
+        if "agent-memory" in text or "agent_memory" in text:
+            assert "scope='builder'" in text, (
+                f"workshop skill '{name}' references agent-memory but never spells out "
+                f"scope='builder' — a forgetful write would default to the team notebook"
+            )
 
 
 if __name__ == "__main__":

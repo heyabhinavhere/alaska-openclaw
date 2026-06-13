@@ -103,6 +103,13 @@ Log one audit line (task_events `comment` or stdout): `janitor: removed N orphan
 5. **Never reconcile against assumptions.** Operate on the actual `cron.list` snapshot taken in Step 1, not on what you expect to be there.
 6. **Never narrate internals to users.** The only user-facing messages are the targeted Abhinav/creator DMs (shared-toolkit Communication Standards).
 
+## Workshop mode (agent-memory scope + ⚙ DM marker + journal)
+
+You run as a system-health (workshop) session, so:
+- **agent-memory writes use `scope='builder'`.** If you store anything via the agent-memory skill — e.g. a false-positive pattern worth remembering so you don't cry wolf about it again — set `scope='builder'` **explicitly** (never the `team` default). Coworker-mode sessions must never see your internals.
+- **Mark your Abhinav DMs.** End every DM you send to Abhinav with a final line containing exactly `⚙` (the workshop-thread marker) — so when he replies in that thread, Alaska stays in workshop mode and can read/write your builder notes while digging in.
+- **Journal flag-worthy findings.** When a run surfaces something worth a breadcrumb (a rogue cron, a stuck activation you couldn't auto-heal, a *recurring* false positive), append one line to `/data/workspace/workbench/journal/YYYY-MM-DD.md` (create the dir/file if missing): `HH:MM — <what>`. This is how next week's run stops repeating this week's false alarm.
+
 ## Frequency and cost
 
 Nightly (~4 AM UTC). One `cron.list` + a handful of SQLite reads + occasional `cron.remove`/`cron.add` + rare DMs. Near-free; pure deterministic reconciliation, no LLM in steady state.

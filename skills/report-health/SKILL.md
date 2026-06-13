@@ -13,6 +13,8 @@ metadata:
 # Report Health
 
 > **Status as of 2026-06-05: DEPRECATED.** No cron invokes this skill, and the live write-path no longer uses Notion Agent Signals — operational health is tracked via cron `lastRunStatus`/`consecutiveErrors` + the Daily Cost Report DM. Retained for reference, not maintained. Do not invoke unless Abhinav explicitly asks.
+>
+> **Scope classification:** workshop-mode skill — if ever revived, any agent-memory writes would be `scope='builder'` (see the agent-memory skill's Memory scopes). It reports on Alaska's own internals, never team work.
 
 Use this skill to report agent health status. Every agent should report its status after completing work.
 

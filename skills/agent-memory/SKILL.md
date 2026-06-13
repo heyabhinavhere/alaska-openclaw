@@ -1,7 +1,7 @@
 ---
 name: agent-memory
-description: Alaska's private working memory — her own self-tasks plus notes/references she's been asked to remember. A SIBLING store to the team task graph and the BON KB, not a route through either. Self-managed: Alaska creates, recalls, completes, and archives these rows herself. Private by construction — team-facing readers (Daily Pulse, Follow-Through, Risk Radar, "what's X working on") NEVER query this table. Writes to the `agent_memory` table per migration 0006.
-version: 1.2.0
+description: Alaska's private working memory — her own self-tasks plus notes/references she's been asked to remember. A SIBLING store to the team task graph and the BON KB, not a route through either. Self-managed: Alaska creates, recalls, completes, and archives these rows herself. Private by construction — team-facing readers (Daily Pulse, Follow-Through, Risk Radar, "what's X working on") NEVER query this table. Writes to the `agent_memory` table per migration 0006. Two scopes (migration 0009) split team-facing memory (`team`) from Alaska-internal/workshop memory (`builder`); coworker-mode sessions (Slack, team crons) read/write `team` only.
+version: 2.0.0
 metadata:
   openclaw:
     requires:
@@ -46,6 +46,21 @@ If it isn't durable team-canonical knowledge and it isn't a teammate's work, but
 - **self_tasks and notes are private.** Alaska's own to-dos and observations are never listed, dumped, or announced to the team.
 - **A reference's CONTENT is recalled to ANSWER a relevant question — the store is never dumped.** When the recall cue fires (someone asks about CTAs), Alaska pulls the matching reference's `content` and uses it to answer. She surfaces *that one answer*, never a listing of "here's everything in my memory." The store is queried internally and read out as an answer, never exposed as a catalog.
 
+### Memory scopes — the two notebooks (decide this BEFORE any read or write)
+
+Every row carries a `scope` (migration 0009): **`team`** or **`builder`** — two notebooks in one table. Which notebook is open is decided by **where the session came from**, never by who is talking or what the topic is:
+
+- **Coworker mode → the `team` notebook ONLY.** The session arrived via Slack (any channel, any teammate's DM — there is a Slack channel/user envelope you're replying to) OR it's a team cron (Daily Pulse, Follow-Through, Risk Radar, Meeting Intelligence, Standup-Reply Parser, Pre-Call Brief, the watchers, reminder-dispatcher, intent-classifier, sprint-operator, doc-keeper). READ and WRITE `scope='team'` only. The `builder` notebook is **not visible here** — so an Alaska-internal note can never surface in a team answer, by construction (the privacy guard, one level finer).
+- **Workshop mode → BOTH notebooks.** The session is the OpenClaw dashboard / main session (Abhinav talking to you directly, no Slack envelope), OR a system-health cron (Watcher Janitor, Thinker, Daily Cost Report, the reminder self-checks, the Agent Memory morning review), OR an Abhinav DM thread whose root message is a gear-marked (⚙) workshop DM (see Delivery below). READ both scopes; WRITE `scope='builder'` **explicitly**. Pass `scope='team'` only when the fact is genuinely team-relevant (e.g. a BON domain reference a teammate gave you on the dashboard).
+
+**How to tell:** Slack envelope present → coworker. Cron → the list above says which kind. No Slack envelope, direct chat → dashboard/workshop.
+
+**Fail-safe asymmetry — when the mode is genuinely unclear:**
+- READS default to `team` only — never risk surfacing a builder note into a session that might be team-facing.
+- WRITES about Alaska's own internals default to `builder`. ⚠️ The COLUMN default is `team`, so a workshop write that *omits* scope silently misfiles a builder fact into the team notebook — the one leak path. In any workshop write, set `scope='builder'` **explicitly**; never lean on the default.
+
+**Delivery is NEVER gated by scope.** The partition governs what is *stored and recalled*, not who gets *messaged* — workshop crons still DM Abhinav in Slack exactly as before. So an Abhinav reply can continue a workshop conversation, **every workshop DM to Abhinav ends with a final line containing the marker ⚙**; a reply threaded under a ⚙-rooted DM is workshop mode. To detect it: when replying inside an Abhinav DM thread, read the thread's root message — if Alaska posted it AND its last line is the marker, this thread is workshop mode. (One marker, defined here: `⚙`. If a Slack client is ever seen to strip it on round-trip, fall back to the literal `[ws]`.)
+
 ---
 
 ## Operations
@@ -79,17 +94,17 @@ NEXT_ID=$(sqlite3 -cmd ".timeout 30000" /data/queue/alaska.db "PRAGMA foreign_ke
 
 (Two concurrent sessions can both compute the same `M-N`; the UNIQUE constraint makes the loser's INSERT fail loudly — regenerate the id and retry once. Same accepted race as task-handler's `T-N`; the 30s busy-timeout removes the lock-contention flavor of this failure.)
 
-Then INSERT. Set `kind` to one of `self_task` / `note` / `reference` (CHECK-constrained — never invent a value). `recall_cue` holds the retrieval keywords/tags (e.g. `'CTA, chat, agent'`); `due_at` is set only for a time-bound self_task, else pass `NULL` unquoted. `source` records origin (`'self'`, `'<person> DM'`, `'Abhinav'`, `'channel:<id>'`); `source_ref` is the deterministic message ref if applicable, else `NULL`. `status` defaults to `'open'`.
+Then INSERT. Set `kind` to one of `self_task` / `note` / `reference` (CHECK-constrained — never invent a value). `recall_cue` holds the retrieval keywords/tags (e.g. `'CTA, chat, agent'`); `due_at` is set only for a time-bound self_task, else pass `NULL` unquoted. `source` records origin (`'self'`, `'<person> DM'`, `'Abhinav'`, `'channel:<id>'`); `source_ref` is the deterministic message ref if applicable, else `NULL`. `status` defaults to `'open'`. Set `$scope` per the mode you're in (see **Memory scopes**): coworker → `'team'`; workshop → `'builder'`, set EXPLICITLY (the column default is `team`, so omitting it in a workshop write misfiles a builder fact into the team notebook). CHECK-constrained to `{team, builder}` — never invent a value.
 
 ```bash
 # free-text already escaped per the block above; $due_at_or_NULL is an ISO 'string' or unquoted NULL,
 # $source_ref_or_NULL is a 'string' or unquoted NULL.
 sqlite3 -cmd ".timeout 30000" /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
   INSERT INTO agent_memory ( \
-    mem_id, kind, title, content, recall_cue, status, source, source_ref, due_at \
+    mem_id, kind, title, content, recall_cue, status, source, source_ref, due_at, scope \
   ) VALUES ( \
     '$NEXT_ID', '$kind', '$title_esc', '$content_esc', '$recall_cue_esc', 'open', \
-    '$source_esc', $source_ref_or_NULL, $due_at_or_NULL \
+    '$source_esc', $source_ref_or_NULL, $due_at_or_NULL, '$scope' \
   );"
 ```
 
@@ -103,12 +118,14 @@ Filing a suggest-to-Abhinav KB proposal (boundary test #1 / anti-pattern #3)? Ma
 
 Derive **2–3 independent keywords** from the question — distinct stems, not phrases ("what CTAs do we show in chat?" → `cta`, `chat`). One keyword over-matches as the store grows; a phrase under-matches. Escape EACH keyword (derived keywords can contain apostrophes), OR them across all three columns:
 
+The query below is the **coworker-mode** form — it includes `AND scope='team'`, so a Slack/team-cron session can never recall a builder note. In **workshop mode**, drop that one clause to read both notebooks. (When in doubt, keep the clause — the fail-safe default is team-only reads.)
+
 ```bash
 k1_esc="${k1//$q/$qq}"; k2_esc="${k2//$q/$qq}"   # add k3_esc the same way if you derived 3
 
 sqlite3 -cmd ".timeout 30000" /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
   SELECT mem_id,kind,title,content FROM agent_memory \
-  WHERE status!='archived' AND ( \
+  WHERE status!='archived' AND scope='team' AND ( \
        recall_cue LIKE '%$k1_esc%' OR title LIKE '%$k1_esc%' OR content LIKE '%$k1_esc%' \
     OR recall_cue LIKE '%$k2_esc%' OR title LIKE '%$k2_esc%' OR content LIKE '%$k2_esc%' \
   ) ORDER BY updated_at DESC LIMIT 10;"
@@ -126,10 +143,12 @@ Read-only — the `PRAGMA foreign_keys=ON` is harmless on a SELECT (FKs aren't e
 
 **When to use:** Alaska reviews her own outstanding follow-ups (e.g. at the start of a work cycle, to act on commitments she made). This is for Alaska's *internal* use only — the result is NEVER posted to a team channel or report.
 
+Same scope rule as `recall`: the form below is coworker-mode (`scope='team'`); in workshop mode drop the `scope='team'` clause to see self-tasks in both notebooks.
+
 ```bash
 sqlite3 -cmd ".timeout 30000" /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
   SELECT mem_id,title,due_at FROM agent_memory \
-  WHERE kind='self_task' AND status='open' \
+  WHERE kind='self_task' AND status='open' AND scope='team' \
   ORDER BY COALESCE(due_at,created_at);"
 ```
 
@@ -139,11 +158,11 @@ Ordering puts dated follow-ups first (by `due_at`), falling back to creation ord
 
 **When to use:** the "Agent Memory — Morning Self-Task Review" cron, or Abhinav explicitly asking for a review. This is Alaska working through her own to-do list. Alaska-internal: the result is NEVER posted as a listing to any channel or person — the privacy guard applies in full.
 
-Pull every open self_task, due-first (dated before undated):
+The review runs in **workshop mode** (a system-health cron), so it intentionally sweeps **both notebooks** — there is no `scope` filter; Alaska acts on every open self-task regardless of scope, routing each via its proper channel. (Selecting `scope` lets you see which notebook each came from.) Pull every open self_task, due-first (dated before undated):
 
 ```bash
 sqlite3 -cmd ".timeout 30000" /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
-  SELECT mem_id, title, content, recall_cue, due_at, source FROM agent_memory \
+  SELECT mem_id, title, content, recall_cue, due_at, source, scope FROM agent_memory \
   WHERE kind='self_task' AND status='open' \
   ORDER BY (due_at IS NULL), due_at, created_at;"
 ```
@@ -197,3 +216,5 @@ The trigger bumps `updated_at` automatically.
 6. **Never fabricate a memory on recall.** If the recall query returns nothing, Alaska has no stored reference for that topic — answer from other knowledge or say she doesn't have it. Don't invent a remembered instruction or reference that was never stored.
 
 7. **Always escape free-text per Section 1.5, and never set timestamps manually.** Apostrophes in `title`/`content`/`recall_cue`/`source` will break the SQL if unescaped. `created_at`/`updated_at` are owned by the schema default and the update trigger — leave them alone.
+
+8. **Never write `builder` scope from a coworker-mode session, and never surface a `builder` row to anyone but Abhinav.** Coworker mode (Slack, team crons) reads and writes `team` only; the two-notebook partition (migration 0009) is the privacy guard one level finer, and it only holds if every op respects the mode. The single leak path is a workshop write that *forgets* `scope='builder'` and defaults to `team` — so in workshop mode, set the scope explicitly, every time.
