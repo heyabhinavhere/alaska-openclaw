@@ -10,7 +10,7 @@
 | Era | What it is | Status |
 |---|---|---|
 | **v1–v3** | The reactive PM era + the stabilization patches (v2.0 → v2.3). Alaska as a meeting/standup/follow-up bot. | History — see `memory/system-evolution.md` |
-| **V4** | **The proactive-coworker foundation.** Turns Alaska from reactive → ambient teammate. Built as Phases A→E. | 🟡 A–D built **+ activated (06-01)**; **E: generator done (#53), cutover ~Jun 4–5** |
+| **V4** | **The proactive-coworker foundation.** Turns Alaska from reactive → ambient teammate. Built as Phases A→E. | ✅ A–E complete; **E: CUTOVER COMPLETE (2026-06-12, PR #157)** — the task graph is the source of truth |
 | **V5** | **PMF Cohort Operating System.** The headline/current focus of the V5 era: Alaska becomes the active PMF cohort operator for BON's V2 launch cohort, inside the larger AI-coworker arc. | 🟡 foundation merged (#59); implementation phases in progress |
 
 **Naming rules (so we stay consistent):**
@@ -54,13 +54,13 @@ This is where "proactive ambient coworker" actually gets built. **Two sub-phases
   - Spec: `docs/superpowers/specs/2026-05-26-alaska-watchers-v1.md` (16 locked decisions). Plan: `docs/superpowers/plans/2026-05-27-alaska-watchers-v1.md` (reconciled in PR #26). Build = sub-phases W.0→W.4 inside D.2.
   - Status: ✅ shipped as **Watcher Gen 1** (PR #35); hardened — plain-English drafts + dates (#38), channel activation + PII guard (#39), read-state-not-assume (#40), timezone/delivery/janitor (#46). **W-1/W-2/W-3 running in prod** (tz-corrected 06-01). Skills: `watcher-creator`, `watcher-dispatcher`, `event-poller`, `watcher-janitor`. The **task-dependent templates** (`stale-task`, `cross-person-assign`) were **un-gated in V4 P3 (#52)** — handlers built (task-handler `query_stale`, follow-through `escalate_unacked_assignments`, the cross-person assign handshake). They produce results as the graph fills.
 
-### Phase E — Cutover 🟡 IN PROGRESS (the operating-model flip)
-- Flip SQLite to the **source of truth**; `DAILY_STATE.md` becomes a generated read-only view; retire direct MI writes to it. **P4.1 done (#53):** the read-only generator (`lib/generate_daily_state.py`) renders the per-person + blockers sections from the graph (13 tests). **Remaining, data-paced ~Jun 4–5:** P4.2 prove dual-write parity → P4.3 hard-cut + flip operating-model §2. Until then `DAILY_STATE.md` stays authoritative.
+### Phase E — Cutover ✅ COMPLETE (2026-06-12, the operating-model flip)
+- **DONE (PR #157):** SQLite is the **source of truth**; `DAILY_STATE.md` is a hybrid view (MI-written narrative + generated `## Per Person` / `## Active Blockers` via `lib/generate_daily_state.py`). MI no longer hand-writes the generated sections. Parity verified twice on 2026-06-12 (first run found 4 P0s, all fixed systemically; re-run clean). Rollback = revert #157 (MI resumes hand-writing).
 
 ### Deferred V4 capstone — KB self-maintenance watcher ⚪ GATED
 The watcher that keeps the BON Knowledge Base updated is a **V4 capstone**, not V5. Owner: **V4 track**. Build it only after both gates are true:
 - **Gate 1:** V4 validates in live end-to-end testing, including Ops-4 tasks-landing proof.
-- **Gate 2:** Phase E is activated, with SQLite as source of truth and `DAILY_STATE.md` generated/read-only.
+- **Gate 2:** ✅ MET (2026-06-12) — Phase E activated; SQLite is the source of truth and `DAILY_STATE.md` is generated/read-only for its Per Person / Blockers sections.
 
 Shape: a scheduled Watcher scans recent Slack, Meeting Intelligence, DMs, and product/system changes; diffs them against `workspace/knowledge/`; drafts proposed KB edits; and asks Abhinav for approval before any write. Keep this item visible so it is not lost, but do not route it through the V5/PMF track.
 
@@ -87,7 +87,7 @@ Readers (write nothing to tasks): Daily Pulse, Follow-Through, Risk Radar, Think
 | ID | Item | Status |
 |---|---|---|
 | Ops-1 | entrypoint config-corruption guard | ✅ merged (PR #24) |
-| Ops-2 | OpenClaw upgrade v2026.3.13 → v2026.5.26 (needs config pre-fix + `doctor --fix` pre-flight; crashed on Slack streaming schema) | ⚪ deferred (#48) |
+| Ops-2 | OpenClaw upgrade v2026.3.13 → **v2026.5.28** (5.26 crash-looped on the Slack streaming schema; 5.28 is the slack-plugin floor) | ✅ DONE — live at 2026.5.28 (Dockerfile pinned) |
 | Ops-3 | deploy hygiene: never `railway up` from local; branch off current main; GitHub→Railway is the deploy path | ✅ lesson locked |
 | Ops-4 | **verify Phase B fires in prod** (was 0-row/dormant — write path activated 06-01 via #50) | 🟡 write path live; **tasks-landing verification in progress** |
 | Ops-5 | MI extraction-quality validation (May 25–29 transcript replay): speaker attribution, implicit blockers, inferred-task flag, signal-weighting | ✅ done (#42, #43 + re-replay) |
@@ -132,15 +132,15 @@ Recommended next PR sequence after the artifact runtime slice is deployed and sm
 
 ---
 
-## Current status snapshot (2026-06-02)
+## Current status snapshot (updated 2026-06-12 — Phase E cutover landed)
 
 ```
-V4:  A ✅   B ✅ ACTIVATED 06-01 (graph populating)   C ✅   D.1 ✅   D.2 ✅ live (task-templates un-gated)   E 🟡 generator done (#53), cutover ~Jun 4–5
-Ops: Ops-1 ✅   Ops-2 ⚪ deferred(#48)   Ops-3 ✅   Ops-4 ✅ write path activated (#50; tasks-landing verify in progress)   Ops-5 ✅
+V4:  A ✅   B ✅ ACTIVATED 06-01 (graph populating)   C ✅   D.1 ✅   D.2 ✅ live (task-templates un-gated)   E ✅ CUTOVER COMPLETE 06-12 (#157)
+Ops: Ops-1 ✅   Ops-2 ✅ upgrade live (2026.5.28)   Ops-3 ✅   Ops-4 ✅ write path activated (#50)   Ops-5 ✅
 Build: V4 COMPLETE (A–E coded). P1–P4.1 = PRs #50/#51/#52/#53. Live-test hardening = #54 (channel TASK_ASSIGN) / #55 (DM action-honesty) / #56 (cross-session memory).
-Source of truth: still DAILY_STATE.md — Phase E cutover NOT done; the graph dual-writes in parallel. Do not state the graph as authoritative yet.
+Source of truth: the SQLite task graph (✅ authoritative since the Phase E cutover, 2026-06-12). DAILY_STATE.md is its generated view + MI narrative.
 Now: 24h E2E test. Verify tomorrow AM — tasks landing by source (real "B alive" proof), W-1 clean 9:30 fire, 6 PM pulse double-fire.
-Next: P4.2 parity (Jun 2–4) → P4.3 hard-cut (~Jun 4–5). Hold #48 until post-launch.
+Next: ✅ cutover shipped 2026-06-12 (#157); Ops-2 upgrade done (live 2026.5.28).
 ```
 
 ## Dependency chain (the critical path)
@@ -149,4 +149,4 @@ Next: P4.2 parity (Jun 2–4) → P4.3 hard-cut (~Jun 4–5). Hold #48 until pos
 V4 spine: D.1 ✅ ──→ D.2 ✅ ──→ [ Ops-4: does the prod task graph populate? ] ──→ E (cutover) + #49 (watcher task-actions) ──→ V4 capstone: KB self-maintenance watcher
 V5 spine: PMF Cohort Operating System, running as the current top-priority focus inside the larger AI-coworker arc
 ```
-**Ops-4 is now the gate.** Phase E (SQLite→source-of-truth) and the task-dependent watcher templates both need a populated graph. Everything non-task — the live reactive cadence, DM actions, channel/customer-signal watchers, reminders — is already running and does NOT wait on Ops-4.
+**Ops-4 cleared; Phase E shipped (2026-06-12).** The task graph populates and is the source of truth. Everything non-task — the live reactive cadence, DM actions, channel/customer-signal watchers, reminders — is already running.

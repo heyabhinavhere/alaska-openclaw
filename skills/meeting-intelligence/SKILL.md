@@ -111,7 +111,7 @@ Read `/data/skills/amplitude-analyst/SKILL.md` and `/data/skills/customerio-ops/
 - If the meeting discusses a metric ("DAU is recovering"), verify against Amplitude: query the actual DAU and confirm or correct
 - If the meeting discusses campaign performance ("push is working better"), check Customer.io delivery metrics
 - Include verified metrics in DAILY_STATE.md `Metrics` section: "Meeting said DAU recovering. Amplitude confirms: 7→9→12 (Apr 24-27)."
-- If a deploy/release is mentioned, signal Thinker via Agent Signals for deploy→metric impact analysis
+- If a deploy/release is mentioned, note it in the meeting summary — the Thinker's hourly observation reads the channels and will correlate deploy→metric impact (no Agent Signal needed; that path is retired)
 
 **Implicit signals:**
 - What should have been discussed but wasn't?
@@ -147,9 +147,9 @@ Keep the file under ~200 lines. Trim "What Changed" entries older than 2 weeks.
 
 NOW extract tasks/decisions/blockers — but contextually:
 - **Only act on NEWLY decided work** — not rehashed items from previous meetings.
-- **If something is already in DAILY_STATE.md per-person section, UPDATE it** — don't create a duplicate.
-- **If a feature was deprioritized, note it** in the relevant person's section — don't create new entries for it.
-- **If scope changed, adjust existing entries** — don't pile on.
+- **If the work is already an active task in the graph, UPDATE that task via task-handler** — don't create a duplicate.
+- **If a feature was deprioritized, route a status change via task-handler (→ `dropped`)** — don't create new entries for it.
+- **If scope changed, update the existing task via task-handler** — don't pile on.
 - **Respect capacity:** don't track more than 10 points worth of committed work per person per week.
 
 ### Task vs Subtask — DO NOT bloat
@@ -234,7 +234,7 @@ For every commitment whose extraction names a recipient:
 
 ## Step 6: Write to Notion
 
-The Notion Sprint Board is RETIRED as of 2026-05-23 — do NOT create or update Sprint Board entries. Replacement task model is being designed (see plan `~/.claude/plans/lazy-bubbling-clarke.md` Phase 2.3).
+The Notion Sprint Board is RETIRED as of 2026-05-23 — do NOT create or update Sprint Board entries. The replacement task model — the SQLite task graph — is live (Phase E cutover, 2026-06-12); route extracted tasks/blockers through task-handler.
 
 You still write to these Notion databases:
 
@@ -254,8 +254,8 @@ One entry per decision with: decision, category, made by, context, affects, stat
 ### 6d. Blockers Database
 New blockers or status updates to existing ones. **The SQLite `blockers` write goes through shared-toolkit §1.7's dedup guard** — a re-mentioned impediment across days is the SAME blocker, so reaffirm an existing active blocker on the same task (or same subject, for unowned) rather than inserting a duplicate. Set the Owner (people) field using the blocker owner's Notion User ID from MEMORY.md → Team Roster (see shared-toolkit "Owner field — enabled"). If the owner has no Notion ID (external/unmatched), fall back to first-name-in-Notes.
 
-### 6e. Proposals Database (only for genuinely new work that needs team confirmation)
-Only create proposals for truly new commitments that weren't already discussed. If the meeting just discussed existing work, no proposal needed — just update DAILY_STATE.md.
+### 6e. Genuinely new work that needs team confirmation
+For truly new commitments (not already-discussed work), create the task via **task-handler** with status `pending_acceptance` so the owner confirms it. The deprecated Proposals DB / Proposal Loop is no longer used — new work routes through the task graph. If the meeting just discussed existing work, no new task needed.
 
 ## Step 7: Post Summary to Slack
 
@@ -296,7 +296,7 @@ _Blockers:_ [new or status-changed only]
 
 ## Step 8: Hand Off
 
-Signal Proposal Loop (Agent 2) via Agent Signals ONLY if there are genuinely new proposed tasks. If the meeting just discussed existing work, no handoff needed.
+No separate handoff — new work is already in the task graph (Step 5 via task-handler), and Daily Pulse / Follow-Through / pre-call briefs read the graph directly. The Proposal Loop (Agent 2) and the Agent Signals path are retired; do not signal them.
 
 ## Anti-Patterns
 

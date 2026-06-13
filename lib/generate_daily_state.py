@@ -1,16 +1,15 @@
 """generate_daily_state.py — render DAILY_STATE.md sections from the task graph.
 
-Phase E groundwork: DAILY_STATE.md is becoming a *generated view* of the SQLite
-task graph rather than a hand-authored document. This module renders two of its
-sections — `## Per Person` and `## Active Blockers` — directly from the `tasks`
-and `blockers` tables, then splices them into the existing file, leaving the
-`# Last compiled:` header and every other section byte-for-byte intact.
+Phase E — CUTOVER COMPLETE (2026-06-12). DAILY_STATE.md is a *generated view* of
+the SQLite task graph, no longer a hand-authored document. This module renders two
+of its sections — `## Per Person` and `## Active Blockers` — directly from the
+`tasks` and `blockers` tables, then splices them into the existing file, leaving
+the `# Last compiled:` header and every other section byte-for-byte intact.
 
-IMPORTANT — parity / dry-run first. This tool SHIPS NOW but is intended to run in
-parity (`--dry-run`) mode while Meeting Intelligence still authors those sections.
-The cutover (MI stops authoring Per Person / Active Blockers and this generator
-becomes authoritative) is a SEPARATE later change. Shipping this module does NOT
-change any skill's behavior on its own — nothing invokes it yet.
+LIVE + AUTHORITATIVE. This generator is invoked in real (non-dry-run) mode at the
+end of every Meeting-Intelligence pipeline run (MI Step 4) and every Standup-Reply-
+Parser pass. MI no longer authors Per Person / Active Blockers — the graph owns
+them and this module renders them. A `--dry-run` flag remains for parity inspection.
 
 READ-ONLY against the graph. Every graph query here is a SELECT. This module never
 issues INSERT/UPDATE/DELETE against tasks, blockers, task_events, or any other
