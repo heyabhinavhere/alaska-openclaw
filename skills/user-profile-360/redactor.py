@@ -58,7 +58,9 @@ def _deep_strip(obj: Any) -> Any:
     return obj
 
 
-_SSN_VALUE_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+# Lookarounds (not \b) so token-adjacent SSNs are still caught (e.g. "SSN123-45-6789",
+# "123-45-6789X") while a longer digit run (4-2-4, 3-2-5) or a date is NOT matched.
+_SSN_VALUE_RE = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
 
 
 def _mask_ssn_values(obj: Any) -> Any:
