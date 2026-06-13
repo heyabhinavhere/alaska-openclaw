@@ -37,17 +37,12 @@ The quoted heredoc (``<<'JSONEOF'``) feeds the JSON to stdin literally, so the
 apostrophes/quotes/newlines in the payload never hit shell expansion either.
 """
 import sys
-import re
 import json
 import sqlite3
 
+from sanitize import clean  # strips NUL/C0 control bytes (would truncate the TEXT bind); keeps \t \n \r
+
 DEFAULT_DB = "/data/queue/alaska.db"
-
-_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")  # strip C0 controls incl NUL; keep \t \n \r
-
-
-def clean(value):
-    return value if value is None else _CTRL.sub("", value)
 
 
 def _as_json_text(value, default):

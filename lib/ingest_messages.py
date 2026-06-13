@@ -28,24 +28,12 @@ USAGE
 Reads the body on stdin; prints ``ingest_messages: inserted N of M`` on success.
 """
 import sys
-import os
-import re
 import json
 import sqlite3
 
+from sanitize import clean  # strips NUL/C0 control bytes (would truncate the TEXT bind); keeps \t \n \r
+
 DEFAULT_DB = "/data/queue/alaska.db"
-
-# Strip C0 control bytes that have no place in chat text. NUL (\x00) is the
-# critical one: SQLite's TEXT bind is C-string based and truncates the value at
-# the first NUL, so a message like "deploy blocked\x00<rest>" would silently
-# lose everything after the NUL. \t (09), \n (0a), \r (0d) are real in Slack
-# text and are preserved.
-_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
-
-
-def clean(value):
-    """Strip control bytes from a text field; pass ``None`` through untouched."""
-    return value if value is None else _CTRL.sub("", value)
 
 
 def ingest(body, channel_id, db_path=DEFAULT_DB):
