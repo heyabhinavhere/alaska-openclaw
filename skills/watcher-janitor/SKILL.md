@@ -1,7 +1,7 @@
 ---
 name: watcher-janitor
 description: Nightly reconciliation between OpenClaw's cron store and the watchers table. Removes orphan WATCHER crons (no live watcher row), self-heals watchers stuck mid-activation (write-ahead crashes), expires stale unapproved drafts, flags rogue off-pipeline crons (improvised instead of created via watcher-creator), and reports anything it can't auto-fix to Abhinav. Never auto-deletes anything outside the watcher pipeline.
-version: 1.1.0
+version: 1.2.0
 metadata:
   openclaw:
     requires:
@@ -28,6 +28,20 @@ A nightly cron (~4 AM UTC) fires: `Run /data/skills/watcher-janitor/SKILL.md pro
     "SELECT watcher_id, status, trigger_type, openclaw_cron_id, trigger_config, stagger_seconds, created_at \
      FROM watchers WHERE status IN ('active','paused','pending_cron_create','pending_approval','expired');"
   ```
+
+### Step 1.5: Snapshot integrity gate — validate BEFORE you reconcile
+
+The single cause of past false alarms (the W-2/W-3 cried-wolf) was reconciling against a **partial `cron.list` read** — e.g. a freshly-restarted gateway that served an incomplete snapshot. Every step below trusts the Step-1 snapshot, so a bad read manufactures false orphans and rogues. Gate it first.
+
+**The self-reference invariant (airtight):** this janitor is *running from* the `Watcher Janitor` cron, so a VALID snapshot MUST contain that **own cron**, and a healthy system shows many infra crons (Meeting Intelligence, Daily Pulse, the event-pollers, reminder-dispatcher, …). If the snapshot is empty, errored, **does NOT contain this janitor's own cron**, or is implausibly sparse (the infra crons you know fire daily are missing), the **READ is unreliable — not the cron store.** A real store wipe would have taken your own cron too, and then this session would not be running; *"only the Janitor in the list"* is a self-evident contradiction, never a real reset.
+
+When the snapshot looks unreliable:
+1. **Re-call `cron.list` once** — a transient partial read usually clears on retry.
+2. Still unreliable → **ABORT this run.** Do NOT flag orphans (Step 6), do NOT `cron.remove` (Steps 3/7), do NOT `cron.add` (Step 4 — a present cron would look absent and you'd create a duplicate). Reconciling against a bad read can only do harm.
+3. Journal one builder-scope line to `/data/workspace/workbench/journal/YYYY-MM-DD.md`: `HH:MM — cron.list snapshot unreliable (N crons, own cron <present|absent>) — skipped reconciliation`. Stay **silent** to the team — a transient blip is not worth a DM.
+4. **Escalate to Abhinav ONLY if the snapshot has been unreliable on 3+ consecutive runs.** You run nightly, so the prior runs live in *earlier* day-files — read recent journal lines **across day boundaries** (today + the prior 2 days' `YYYY-MM-DD.md`), not just today's, to count consecutiveness correctly. A persistently unreadable cron store is worth a DM (`cron.list has returned an unreliable snapshot for N runs — the cron store may need attention.` + ⚙); a one-night blip is not.
+
+Proceed to Step 2 only once the snapshot passes this gate.
 
 ### Step 2: Classify the crons (this is the safety boundary)
 
@@ -81,9 +95,14 @@ sqlite3 /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 
 DM the creator: `Your watcher draft W-N expired after 7 days with no approval. Recreate it when you're ready.` (Mirrors the routine_proposals 7-day expiry.)
 
-### Step 6: Flag orphan watchers (active cron-type, no cron)
+### Step 6: Orphan active watchers (active cron-type, no cron) — adopt BEFORE you alarm
 
-For each watcher `status='active' AND trigger_type='cron' AND openclaw_cron_id IS NULL` — a "silent dead watcher" (dispatcher anti-pattern #1) that Step 4 didn't cover. Do NOT auto-recreate (unexpected state deserves eyes): DM Abhinav the list: `Active cron-watcher(s) with no backing cron: W-N. Likely a lost cron — reply 'delete W-N' or ask me to recreate.` (Event watchers are exempt — NULL cron is correct for them.)
+For each watcher `status='active' AND trigger_type='cron' AND openclaw_cron_id IS NULL` — a "silent dead watcher" (dispatcher anti-pattern #1) Step 4 didn't cover. **Do NOT alarm first.** Check the validated Step-1 snapshot for a matching `Watcher W-N` cron, exactly like Step 4 does:
+
+- **found** → the cron exists; only the DB linkage was lost. **Adopt / re-link it** silently: `UPDATE watchers SET openclaw_cron_id='<that id>' WHERE watcher_id='W-N';` (status stays `active`). No DM — a lost *linkage* is not a lost *cron*.
+- **not found** → a genuine orphan. Do NOT auto-recreate (unexpected state deserves eyes). Collect it; after the loop, DM Abhinav the survivors: `Active cron-watcher(s) with no backing cron: W-N. Likely a lost cron — reply 'delete W-N' or ask me to recreate.` + ⚙
+
+(Event watchers are exempt — NULL cron is correct for them.) **Sanity check before sending:** if this run would flag *multiple* watchers as orphaned at once, that is the signature of a bad read, not several simultaneous losses — re-run the Step 1.5 gate and suppress the alarm if the snapshot is suspect. Genuine, independent cron losses do not arrive in batches.
 
 ### Step 7: Expired-watcher cron sweep
 
@@ -100,7 +119,7 @@ Log one audit line (task_events `comment` or stdout): `janitor: removed N orphan
 3. **Never auto-recreate an unexpected orphan.** Only the known mid-activation case (Step 4) self-heals; an active-with-NULL-cron (Step 6) gets human eyes, never a blind `cron.add`.
 3b. **Never auto-delete a flagged rogue cron (Step 3b).** It's a heuristic catch on an off-pipeline cron you may not fully understand — flag it to Abhinav and let him decide. Auto-deleting risks killing a legitimate infra cron that merely lacked a skill reference.
 4. **Never duplicate a cron.** In Step 4, always check the cron.list snapshot for an existing `Watcher W-N` before adding a new one.
-5. **Never reconcile against assumptions.** Operate on the actual `cron.list` snapshot taken in Step 1, not on what you expect to be there.
+5. **Validate the snapshot, THEN reconcile — never against assumptions, never against an unvalidated read.** Operate on the actual Step-1 `cron.list` snapshot, not on what you expect — but ONLY after it passes the Step 1.5 integrity gate. A snapshot missing this janitor's own cron or the infra crons is a bad READ, not reality; reconciling against it manufactures false orphans (the W-2/W-3 cried-wolf). The old rule "trust the snapshot" was the bug when the snapshot itself was partial.
 6. **Never narrate internals to users.** The only user-facing messages are the targeted Abhinav/creator DMs (shared-toolkit Communication Standards).
 
 ## Workshop mode (agent-memory scope + ⚙ DM marker + journal)
