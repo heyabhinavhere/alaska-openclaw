@@ -26,10 +26,21 @@ def _text() -> str:
     return JANITOR.read_text(encoding="utf-8")
 
 
+def _section(heading: str) -> str:
+    # Return just the named step's block (from its heading to the next "### "), so
+    # an assertion can't false-pass on a word that lives in a DIFFERENT step
+    # (e.g. "adopt" already appears in Step 4 — a Step 6 check must be scoped).
+    text = _text()
+    start = text.find(heading)
+    assert start != -1, f"missing heading: {heading!r}"
+    nxt = text.find("\n### ", start + len(heading))
+    return (text[start:] if nxt == -1 else text[start:nxt]).lower()
+
+
 def test_has_snapshot_integrity_gate():
     # The gate must exist as its own step — the janitor must validate cron.list
     # before reconciling, or a partial read manufactures false orphans.
-    assert "snapshot integrity" in _text().lower(), (
+    assert "snapshot integrity" in _section("### Step 1.5:"), (
         "missing the snapshot-integrity gate (Step 1.5) — a partial cron.list read "
         "would still produce false orphan alarms"
     )
@@ -39,7 +50,7 @@ def test_gate_uses_self_reference_invariant():
     # The gate must key on the janitor's OWN cron being present in the snapshot:
     # a running janitor whose own cron is absent is looking at a bad READ, not a
     # real cron-store reset.
-    assert "own cron" in _text().lower(), (
+    assert "own cron" in _section("### Step 1.5:"), (
         "the integrity gate must assert the janitor's own cron must appear in a "
         "valid snapshot (the self-reference invariant)"
     )
@@ -47,7 +58,7 @@ def test_gate_uses_self_reference_invariant():
 
 def test_gate_aborts_on_unreliable_snapshot():
     # On an unreliable snapshot the janitor must ABORT — not flag, remove, or add.
-    assert "abort" in _text().lower(), (
+    assert "abort" in _section("### Step 1.5:"), (
         "the integrity gate must ABORT the run on an unreliable snapshot rather "
         "than reconcile against it"
     )
@@ -55,9 +66,10 @@ def test_gate_aborts_on_unreliable_snapshot():
 
 def test_step6_adopts_before_alarming():
     # Step 6 must re-link (adopt) an active watcher whose cron actually exists in
-    # the snapshot, not alarm 'lost cron' — mirrors Step 4's adopt path. This kills
-    # the lost-linkage-misreported-as-lost-cron false alarm.
-    assert "re-link" in _text().lower(), (
+    # the snapshot, not alarm 'lost cron' — mirrors Step 4's adopt path. Scoped to
+    # the Step 6 block so it can't false-pass on Step 4's "Adopt".
+    s6 = _section("### Step 6:")
+    assert "adopt" in s6 and "re-link" in s6, (
         "Step 6 must adopt/re-link an existing cron before flagging it as lost"
     )
 

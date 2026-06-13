@@ -39,7 +39,7 @@ When the snapshot looks unreliable:
 1. **Re-call `cron.list` once** — a transient partial read usually clears on retry.
 2. Still unreliable → **ABORT this run.** Do NOT flag orphans (Step 6), do NOT `cron.remove` (Steps 3/7), do NOT `cron.add` (Step 4 — a present cron would look absent and you'd create a duplicate). Reconciling against a bad read can only do harm.
 3. Journal one builder-scope line to `/data/workspace/workbench/journal/YYYY-MM-DD.md`: `HH:MM — cron.list snapshot unreliable (N crons, own cron <present|absent>) — skipped reconciliation`. Stay **silent** to the team — a transient blip is not worth a DM.
-4. **Escalate to Abhinav ONLY if the snapshot has been unreliable on 3+ consecutive runs** (read your recent journal lines to check). A persistently unreadable cron store is worth a DM (`cron.list has returned an unreliable snapshot for N runs — the cron store may need attention.` + ⚙); a one-night blip is not.
+4. **Escalate to Abhinav ONLY if the snapshot has been unreliable on 3+ consecutive runs.** You run nightly, so the prior runs live in *earlier* day-files — read recent journal lines **across day boundaries** (today + the prior 2 days' `YYYY-MM-DD.md`), not just today's, to count consecutiveness correctly. A persistently unreadable cron store is worth a DM (`cron.list has returned an unreliable snapshot for N runs — the cron store may need attention.` + ⚙); a one-night blip is not.
 
 Proceed to Step 2 only once the snapshot passes this gate.
 
