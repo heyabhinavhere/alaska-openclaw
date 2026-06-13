@@ -1,14 +1,15 @@
-"""user_casefile — `/alaska user <id>`: a beautiful User Case File DOCX.
+"""user_casefile — `!case <id>`: a beautiful User Case File DOCX.
 
 Deterministic generator (NOT LLM-hand-built): it shells the proven
 user-profile-360 `lookup.py` for the structured summary, maps that summary into a
 DocFlow spec, and renders + validates + stores + delivers a DOCX via the generic
-Artifact Service (lib/alaska_artifacts). The /alaska routing skill just invokes
+Artifact Service (lib/alaska_artifacts). The `!case` command-gateway path invokes
 this CLI and relays the result.
 
-Privacy: the case file contains real financial PII. It is delivered to a single
-channel_id (the requester's DM by default — the routing skill resolves it); it is
-never broadcast to a public channel unless explicitly told to.
+Privacy: the case file contains real financial PII. Delivery policy (2026-06-05):
+it is posted to the channel the command was run in (`ctx['channel']`), NOT a DM by
+default — so running `!case` in a shared channel posts PII there. The gateway passes
+the invoking channel; the file is never broadcast beyond that channel.
 
 Pipeline:  lookup.py(user_id) -> summary -> build_casefile_docflow() ->
            render_docx_from_docflow -> validate_docx -> store_artifact ->

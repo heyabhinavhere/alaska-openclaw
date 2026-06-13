@@ -142,7 +142,7 @@ if a block is null, the user just doesn't have that data linked yet; say so
 plainly ("hasn't linked a bank yet") rather than inventing.
 
 **PMF cohort pointer (cross-aware, one line).** After presenting the default profile, check whether the user is in the active PMF cohort:
-`python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db cohort-membership --bon-user-id <id>`. If `membership` is non-null, append one italic line — *"In the PMF launch cohort (stage `<current_stage>`) — `/pmf` for the cohort case file."* Do NOT pull or blend PMF data into this answer; the pointer only signals that deeper cohort context exists behind `/pmf`. If `membership` is null (no active cohort, or not a member), add nothing.
+`python3 /opt/lib/pmf_cohort_os.py --db /data/queue/alaska_pmf.db cohort-membership --bon-user-id <id>`. If `membership` is non-null, append one italic line — *"In the PMF launch cohort (stage `<current_stage>`) — `!pmf` for the cohort case file."* Do NOT pull or blend PMF data into this answer; the pointer only signals that deeper cohort context exists behind `!pmf`. If `membership` is null (no active cohort, or not a member), add nothing.
 
 **Signal source transparency.** Several metric blocks carry a `source` field.
 When a number is *inferred* or *approximate* rather than a clean exact value,
