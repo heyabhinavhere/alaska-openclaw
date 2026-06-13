@@ -33,7 +33,7 @@ You process in **60-minute batches**, not real-time. Collect messages hourly, an
 ## Trigger
 
 - **Cron:** Every 60 minutes during business hours (3:30 AM - 1:30 PM UTC / 9 AM - 7 PM IST)
-- **Observation:** you observe agent outputs from the channels + the task graph (the inbound Agent Signals path is retired)
+- **Inputs:** you read agent outputs from the channels + the task graph (the inbound Agent Signals path is retired)
 - **Manual:** "think about this", "does this make sense", "review what happened today"
 
 ## Step 1: Collect Inputs (Every 60 Minutes)
@@ -137,10 +137,10 @@ Review recent agent outputs for errors or gaps:
 - Did it attribute tasks to the wrong person?
 - Flag a vague extraction before it lands as a task: "Meeting Intelligence extracted '[vague task]' — this needs clarification before it enters the task graph."
 
-**Task capture (via task-handler):**
-- Are new tasks well-formed (clear owner, due date, not a duplicate of an existing graph row)?
+**Task capture (review — you observe; the writers enforce):**
+- Are new tasks well-formed (clear owner, due date)? `task-handler` is the sole writer and enforces match-or-create dedup, so you don't independently dedup — just flag anything that slipped through.
 - Did capture miss team feedback or misparse a standup reply?
-- Is per-person capacity respected (≤10 pts/week)?
+- Does anyone look over capacity? Sprint Operator owns the ≤10 pts/week rule — flag it for that agent's attention, don't enforce here.
 
 **Sprint Operator:**
 - Are effort estimates realistic? Cross-reference with historical velocity.

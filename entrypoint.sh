@@ -93,13 +93,13 @@ find /data/skills -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 _skipped=""
 for entry in /opt/default-skills/* /opt/default-skills/.[!.]*; do
   [ -e "$entry" ] || continue
-  if [ -f "$entry/SKILL.md" ] && grep -qE '^[[:space:]]*deprecated:[[:space:]]*true' "$entry/SKILL.md"; then
+  if [ -f "$entry/SKILL.md" ] && grep -qE '^[[:space:]]*deprecated:[[:space:]]*true[[:space:]]*$' "$entry/SKILL.md"; then
     _skipped="$_skipped $(basename "$entry")"
     continue
   fi
   cp -r "$entry" /data/skills/
 done
-echo "[alaska] Skills mirror-synced from git to /data/skills/ ($(ls /data/skills | wc -l | tr -d ' ') present; skipped deprecated:${_skipped:- none})"
+echo "[alaska] Skills mirror-synced from git to /data/skills/ ($(find /data/skills -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ') present; skipped deprecated:${_skipped:- none})"
 
 # Workspace persistence (Issue H fix).
 # The workspace now lives on the PERSISTENT /data volume so runtime STATE
