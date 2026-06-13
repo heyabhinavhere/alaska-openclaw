@@ -111,7 +111,7 @@ Read `/data/skills/amplitude-analyst/SKILL.md` and `/data/skills/customerio-ops/
 - If the meeting discusses a metric ("DAU is recovering"), verify against Amplitude: query the actual DAU and confirm or correct
 - If the meeting discusses campaign performance ("push is working better"), check Customer.io delivery metrics
 - Include verified metrics in DAILY_STATE.md `Metrics` section: "Meeting said DAU recovering. Amplitude confirms: 7→9→12 (Apr 24-27)."
-- If a deploy/release is mentioned, signal Thinker via Agent Signals for deploy→metric impact analysis
+- If a deploy/release is mentioned, note it in the meeting summary — the Thinker's hourly observation reads the channels and will correlate deploy→metric impact (no Agent Signal needed; that path is retired)
 
 **Implicit signals:**
 - What should have been discussed but wasn't?
@@ -147,9 +147,9 @@ Keep the file under ~200 lines. Trim "What Changed" entries older than 2 weeks.
 
 NOW extract tasks/decisions/blockers — but contextually:
 - **Only act on NEWLY decided work** — not rehashed items from previous meetings.
-- **If something is already in DAILY_STATE.md per-person section, UPDATE it** — don't create a duplicate.
-- **If a feature was deprioritized, note it** in the relevant person's section — don't create new entries for it.
-- **If scope changed, adjust existing entries** — don't pile on.
+- **If the work is already an active task in the graph, UPDATE that task via task-handler** — don't create a duplicate.
+- **If a feature was deprioritized, route a status change via task-handler (→ `dropped`)** — don't create new entries for it.
+- **If scope changed, update the existing task via task-handler** — don't pile on.
 - **Respect capacity:** don't track more than 10 points worth of committed work per person per week.
 
 ### Task vs Subtask — DO NOT bloat

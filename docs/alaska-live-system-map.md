@@ -64,7 +64,7 @@ All enabled, all `delivery.mode = none` (agents post via explicit `action=send`;
 
 **`intent_inbox` is fed by the Thinker's hourly `users.conversations` sweep** of all 12 channels + DMs + MPIMs (711 rows, growing).
 
-**So standup replies (#daily-standup) flow:** Thinker sweep → `intent_inbox` → classifier → (if ≥0.85 + resolved owner) task-handler → task graph. They are **NOT** structured-parsed (the standup grammar is dormant) and do **NOT** reach `DAILY_STATE.md`. Terse status updates that don't clear the ≥0.85 gate are classified as observations and go no further.
+**So standup replies (#daily-standup) flow (post-cutover):** Standup-Reply Parser cron (`0 3,16 UTC`) → task-handler → task graph → `generate_daily_state.py` → `DAILY_STATE.md`. The Thinker's hourly sweep also observes the raw reply (`intent_inbox` → classifier → graph at ≥0.85), but the Standup-Reply Parser is the **authoritative structured path**. Terse updates that clear neither path go no further.
 
 ---
 

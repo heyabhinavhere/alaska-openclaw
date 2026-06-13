@@ -55,7 +55,7 @@ See `/root/.openclaw/workspace/TOOLS.md` for full API access patterns (Customer.
 - User metrics question → Amplitude (Real Users filter mandatory).
 - Messaging delivery question → Customer.io.
 - Code activity question → GitHub.
-- Decision/blocker/meeting note question → Notion.
+- Blocker question → the task graph (`blockers` on `/data/queue/alaska.db`) / DAILY_STATE. Decision / meeting-note question → DAILY_STATE "Active Decisions" + recent #project-management summaries (Notion Decision Log / Meeting Notes are historical archive only).
 - **Always combine Amplitude + Customer.io for per-user questions** — they cover different surface areas.
 
 ---
