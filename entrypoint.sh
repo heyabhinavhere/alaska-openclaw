@@ -91,9 +91,9 @@ fi
 mkdir -p /data/skills
 find /data/skills -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 _skipped=""
-for entry in /opt/default-skills/* /opt/default-skills/.[!.]*; do
-  [ -e "$entry" ] || continue
-  if [ -f "$entry/SKILL.md" ] && grep -qE '^[[:space:]]*deprecated:[[:space:]]*true[[:space:]]*$' "$entry/SKILL.md"; then
+for entry in /opt/default-skills/*/; do
+  [ -f "$entry/SKILL.md" ] || continue   # only real skills (a dir with a SKILL.md); skips .gitkeep / non-skill artifacts
+  if grep -qE '^[[:space:]]*deprecated:[[:space:]]*true[[:space:]]*$' "$entry/SKILL.md"; then
     _skipped="$_skipped $(basename "$entry")"
     continue
   fi

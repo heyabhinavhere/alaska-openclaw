@@ -270,6 +270,8 @@ Every Friday at 6 PM IST, compile a private report for Abhinav (Slack DM, not ch
 The Thinker queues proactive per-person items in the `proactive_checkins` table (this replaced the retired Agent Signals path). On each run, drain pending rows and **DM the owner directly**:
 
 ```bash
+# Bootstrap the table first — on a fresh deploy (before Thinker has ever queued one) it won't exist yet.
+sqlite3 /data/queue/alaska.db "CREATE TABLE IF NOT EXISTS proactive_checkins (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_slack_id TEXT NOT NULL, topic TEXT, context TEXT, suggestion TEXT, status TEXT DEFAULT 'pending', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, handled_at DATETIME);"
 sqlite3 /data/queue/alaska.db "SELECT id, owner_slack_id, topic, context, suggestion FROM proactive_checkins WHERE status='pending' ORDER BY created_at;"
 ```
 
