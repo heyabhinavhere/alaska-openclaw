@@ -247,8 +247,8 @@ Schema (for reference only): Task Name (title), Status (select: Backlog/Not star
 ### 2. Team Roster
 Name, Role, Email, Slack Handle, Slack ID, **Notion User ID** (new in v2.2 — UUID, used for Owner-type field writes), Skills, Available (checkbox), Notes
 
-### 3. Agent Signals
-Signal (title), From Agent, To Agent, Type (handoff/alert/query/status), Status (pending/acknowledged/resolved), Details, Signal ID
+### 3. Agent Signals — RETIRED
+The cross-agent coordination DB is no longer used. Agents coordinate via the SQLite task graph + thin crons (see shared-toolkit §5). Treat as read-only history.
 
 ### 4. Changelog
 What Shipped (title), Category (feature/fix/improvement/infrastructure), Sprint, Ship Date, Shipped By, Description, Ship ID
@@ -262,8 +262,8 @@ Blocker (title), Owner, Status (Active/Resolved), Blocking (relation to Sprint B
 ### 7. Decision Log
 Decision (title), Category, Made By, Context, Affects, Status (Active/Superseded/Reversed), Decision ID
 
-### 8. Proposals
-Proposal (title), Proposed By, Status (Pending/Confirmed/Rejected/Modified), Proposed Tasks, Scope Changes, Team Feedback, Confirmation Deadline, Proposal ID
+### 8. Proposals — RETIRED
+Fed only by the deprecated `proposal-loop`. New work now routes through `task-handler` into the task graph (status `pending_acceptance` for confirm-before-commit). Treat as read-only history.
 
 ### 9. Meeting Notes
 Meeting (title), Date, Type (standup/planning/review/ad-hoc), Summary, Attendees, Decisions, Action Items, Blockers Raised, Open Questions, Meeting ID

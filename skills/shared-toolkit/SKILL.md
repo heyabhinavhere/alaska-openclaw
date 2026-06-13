@@ -463,7 +463,7 @@ Queue to SQLite outbox FIRST, then send, then mark sent. Critical messages must 
 
 ### Retry
 - Retry after 5 minutes, max 5 retries
-- If Slack is down for 30+ minutes: use WhatsApp backup for P0 alerts only (see whatsapp-send skill)
+- If Slack is down for 30+ minutes: keep the message queued in the SQLite outbox and keep retrying — it delivers when Slack recovers. (Do NOT use WhatsApp: `whatsapp-send` is deprecated and its token is expired.)
 
 ### Channel Routing
 
@@ -478,40 +478,11 @@ Post to the correct channel. Never post nudges or individual performance data to
 
 ---
 
-## 3. reportHealth — Agent Heartbeat Protocol
+## 3. Health & observability (no self-reported heartbeats)
 
-Every agent reports its status after completing each work cycle.
+Agent health is observed from the platform, not self-reported: each cron's `lastRunStatus` / `consecutiveErrors` on the OpenClaw dashboard, plus the **Daily Cost Report** DM to Abhinav. (The old Notion "Agent Signals heartbeat" path — the `report-health` skill — was **deprecated 2026-06-05**; do NOT write heartbeats anywhere.)
 
-### How to Report
-
-Write a heartbeat to the Agent Signals database in Notion:
-- **Signal:** `<agent_name> heartbeat`
-- **From Agent:** `<agent_name>`
-- **To Agent:** (empty for heartbeats)
-- **Type:** `status`
-- **Status:** one of the health statuses below
-- **Details:** what happened, what was produced, any errors, duration
-
-Queue to outbox first (target: `notion`), then write via MCP.
-
-### Health Statuses
-
-| Status | Meaning |
-|---|---|
-| `healthy` | Completed successfully |
-| `degraded` | Completed with warnings (partial data, skipped items) |
-| `error` | Failed, needs investigation |
-| `silent` | No heartbeat received (detected by monitor, not self-reported) |
-
-### Alert Threshold
-
-If any agent is silent for >30 minutes during business hours (9 AM – 7 PM IST), post to `#alaska-alerts`:
-```
-*Agent Health Alert*
-[agent_name] has not reported in [X] minutes.
-Last known status: [status] at [time]
-Impact: [what this agent does that isn't happening]
-```
+If a run finishes degraded or with errors, surface it the normal way — a concise note in your output, or a DM to Abhinav for anything that needs attention — never a heartbeat row.
 
 ---
 
@@ -547,11 +518,10 @@ sqlite3 /data/queue/alaska.db "INSERT INTO token_usage (agent, input_tokens, out
 | Daily Pulse | $4 | $3.20 |
 | Risk Radar | $4 | $3.20 |
 | Slack Commands | $3 | $2.40 |
-| Proposal Loop | $3 | $2.40 |
 | Doc Keeper | $2 | $1.60 |
 | Sprint Operator | $2 | $1.60 |
 | Pre-Call Brief | $1 | $0.80 |
-| **Total** | **$45** | **$36** |
+| **Total** | **$42** | **$33.60** |
 
 ### Budget Queries
 
@@ -598,43 +568,11 @@ sqlite3 /data/queue/alaska.db "SELECT agent, ROUND(SUM(estimated_cost), 2) as co
 
 ---
 
-## 5. Agent Signal Handoff Pattern
+## 5. Agent coordination — the Agent Signals path is RETIRED
 
-All agent-to-agent communication goes through the **Agent Signals** database in Notion. Never use direct messaging between agents.
+There is no Notion "Agent Signals" whiteboard anymore. Agents coordinate through the **SQLite task graph** (`tasks` / `blockers` / `person_status` on `/data/queue/alaska.db`, written via `task-handler`) plus thin "run the SKILL" crons — **the graph IS the handoff.** A producer writes to the graph; the readers (Daily Pulse, Follow-Through, Risk Radar, pre-call briefs, Doc Keeper's DONE-scan) pick it up on their own schedule. Do NOT write to a Notion Agent Signals DB, and do NOT improvise direct agent-to-agent messaging.
 
-### Sending a Signal
-
-Write to Agent Signals:
-- **Signal:** descriptive title (e.g., "Meeting processed: [name]", "Proposal #P-[id] confirmed")
-- **From Agent:** sender agent name
-- **To Agent:** target agent name (or "All" for broadcast)
-- **Type:** `handoff` / `alert` / `query` / `status`
-- **Status:** always start as `pending`
-- **Details:** JSON with structured data relevant to the signal
-
-Queue to outbox first (target: `notion`), then write via MCP.
-
-### Signal Types
-
-| Type | Meaning | Example |
-|---|---|---|
-| `handoff` | "I'm done, your turn" — includes work product | Meeting Intelligence → Proposal Loop |
-| `alert` | "Something needs attention" — no work product | Risk Radar → Sprint Operator |
-| `query` | "I need information from you" — expects response | Thinker → any agent |
-| `status` | Heartbeat or status update — informational | Any agent → heartbeat |
-
-### Receiving Signals
-
-On each invocation, check for pending signals:
-1. Read Agent Signals where `To Agent = <myName>` AND `Status = pending`
-2. Process each signal
-3. Update Status to `acknowledged`
-4. After full resolution, update to `resolved`
-
-### Rules
-- Never process the same signal twice — check Status before processing
-- Always include enough context in Details that the receiving agent can act without additional lookups
-- Queue the signal write to outbox before sending via Notion MCP
+(History: the Agent Signals coordination DB was retired with the cutover; `report-health` and `proposal-loop`, which fed it, are deprecated.)
 
 ---
 
@@ -688,7 +626,7 @@ These are internal steps. Only post final outputs, questions, and actionable inf
 
 **Slack down:**
 - Save messages to SQLite outbox. Continue with Notion writes and data processing.
-- Retry on next run. If down 30+ min → WhatsApp backup for P0 alerts only.
+- Retry on next run. If down 30+ min → keep retrying from the outbox (messages deliver when Slack recovers). No WhatsApp fallback — `whatsapp-send` is deprecated/expired.
 
 **Fireflies API error:**
 - Log the error, skip this transcript. Mark as `failed` in `processed_meetings`.
@@ -709,7 +647,7 @@ These are internal steps. Only post final outputs, questions, and actionable inf
 | Failure | Retry After | Max Retries | Fallback |
 |---|---|---|---|
 | Notion API | Next agent run (~30 min) | 3 | Alert Abhinav, keep in queue |
-| Slack API | 5 minutes | 5 | WhatsApp backup for critical |
+| Slack API | 5 minutes | 5 | Keep in SQLite outbox; delivers on recovery |
 | Fireflies API | Next cron (~30 min) | 3 | Skip transcript, alert |
 | LLM extraction | Immediate | 1 | Save raw, flag for manual review |
 
@@ -795,7 +733,7 @@ Distinguish "someone mentioned it" from "someone committed to it." Only commitme
 When quality-checking other agents, verify they follow these patterns:
 - Are writes going through the outbox queue first?
 - Are Slack messages using correct mrkdwn formatting?
-- Are Agent Signals following the standard handoff pattern?
+- Is coordination going through the task graph (not a retired Agent Signals / direct-message path)?
 - Are select field values using exact existing options?
 - Is token usage being logged after LLM calls?
 - Are budget caps being respected?
