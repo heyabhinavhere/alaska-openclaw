@@ -41,3 +41,15 @@ Not a thinning — a NEW cron. Create on the dashboard AFTER the PR-A deploy (ap
 ```
 You are the Agent Memory morning review. Execute the `review` operation in /data/skills/agent-memory/SKILL.md EXACTLY — the SKILL is the SINGLE SOURCE OF TRUTH; follow it verbatim, do NOT substitute your own steps. PRIVACY GUARD: agent_memory is Alaska-private — NEVER post a listing of self-tasks to any channel or person; act on due items via their proper channels only; kb-proposal items go ONLY as ONE bundled DM to Abhinav (U07GKLVA9FE). Read first: AGENT_RULES.md, MEMORY.md (Team Roster). Post via the explicit action=send form (cron delivery is {mode:none}, logs only). Nothing due → do nothing and stay silent.
 ```
+
+---
+
+## Daily Cost Report — "Daily Cost Report — DM to Abhinav" (`2a93b1f6`) — WORKSHOP-MODE addendum (Phase 4)
+
+A **fat inline cron** (no SKILL — the prompt is authoritative on the dashboard). Phase 4 adds a workshop-mode addendum so its DM is markable and any memory write is builder-scoped. **Apply protocol:** back up the current live prompt (`config/pre-thin-cron-backups/daily-cost-report-2a93b1f6.txt`) → **APPEND** the lines below to the existing `payload.message` (do NOT replace it; do NOT rename the cron — the Watcher Janitor's infra allowlist matches it by exact name) → verify live.
+
+Addendum to append:
+
+```
+Workshop mode: this is a system-health session. End your DM to Abhinav with a final line containing exactly ⚙ (the workshop-thread marker). If you store anything via /data/skills/agent-memory/SKILL.md, set scope='builder' explicitly (never the team default).
+```
