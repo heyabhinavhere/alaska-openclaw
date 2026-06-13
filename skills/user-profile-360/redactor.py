@@ -28,6 +28,7 @@ here first is the belt-and-suspenders.
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any
 
 # Keys removed wherever they appear, at any depth, in any section. Case and
@@ -54,6 +55,23 @@ def _deep_strip(obj: Any) -> Any:
         }
     if isinstance(obj, list):
         return [_deep_strip(x) for x in obj]
+    return obj
+
+
+_SSN_VALUE_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+
+
+def _mask_ssn_values(obj: Any) -> Any:
+    """Defense-in-depth: mask dash-formatted SSNs (NNN-NN-NNNN) found in string
+    VALUES anywhere — so a backend key-rename can't slip an SSN past the
+    key-based strip. Only the distinctive dashed form is matched (never a bare
+    9-digit number), to avoid masking account/routing numbers or dates."""
+    if isinstance(obj, dict):
+        return {k: _mask_ssn_values(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_mask_ssn_values(x) for x in obj]
+    if isinstance(obj, str):
+        return _SSN_VALUE_RE.sub(lambda m: "***-**-" + m.group(0)[-4:], obj)
     return obj
 
 
@@ -136,6 +154,9 @@ def redact_section(section_name: str, data: Any) -> Any:
     cleaned = _deep_strip(copy.deepcopy(data))
     # 2. Mask account identifiers everywhere.
     cleaned = _mask_account_ids(cleaned)
+    # 2.5 Value-shaped SSN safety net — catches a dash-formatted SSN that slipped
+    #     under a renamed key (the key-based strip only knows current key names).
+    cleaned = _mask_ssn_values(cleaned)
     # 3. Section-specific structural transforms (address, phone).
     handler = _SECTION_HANDLERS.get(section_name)
     if handler is not None and isinstance(cleaned, dict):

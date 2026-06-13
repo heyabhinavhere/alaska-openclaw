@@ -104,6 +104,24 @@ def test_does_not_mutate_input():
     assert raw["profile_details"]["ssn"] == "123"  # original untouched
 
 
+def test_value_shaped_ssn_masked_even_under_unknown_key():
+    # An SSN that slipped under a key NOT in ALWAYS_DROP_KEYS must still be masked
+    # by the value-shaped safety net (dash form only).
+    raw = {"notes": "borrower SSN on file: 123-45-6789", "renamed_field": "987-65-4321"}
+    out = redactor.redact_section("credit_report", raw)
+    assert "123-45-6789" not in out["notes"] and "***-**-6789" in out["notes"]
+    assert out["renamed_field"] == "***-**-4321"
+
+
+def test_value_ssn_net_does_not_touch_dates_or_account_numbers():
+    # Must NOT over-redact: dates (YYYY-MM-DD) and bare 9-digit numbers are not SSNs.
+    raw = {"opened": "2026-06-13", "routing": "123456789", "amount": "1234.56"}
+    out = redactor.redact_section("credit_report", raw)
+    assert out["opened"] == "2026-06-13"
+    assert out["routing"] == "123456789"
+    assert out["amount"] == "1234.56"
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:
