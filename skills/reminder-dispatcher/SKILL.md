@@ -40,13 +40,14 @@ Parse `payload` as JSON. Dispatch by `action_type`:
 
 Payload shape: `{"message": "...", "linked_task_id": "T-N" or null}`
 
-1. If `recipient_slack_id` is set: send a Slack DM to that person.
+1. **Stale-work guard (parity with `surface_task`/`escalate`/`auto_followup`, which all do this):** if `linked_task_id` is set, look it up — if the task is `done` or `dropped`, **skip the send** (the work is already finished; the reminder is stale) and mark the action `fired` with a note (`remind_skipped: task already done/dropped`). Only continue when there is no linked task, or the linked task is still open.
+2. If `recipient_slack_id` is set: send a Slack DM to that person.
    Reply format (one line, no narration):
    ```
    _Reminder you set [time ago]:_ <message text>
    ```
    If `linked_task_id` is set, append on a second line: `Linked: T-N — <current title>`.
-2. If `recipient_channel_id` is set instead: post to that channel. Use only when the original schedule explicitly targeted a channel.
+3. If `recipient_channel_id` is set instead: post to that channel. Use only when the original schedule explicitly targeted a channel.
 
 #### `surface_task`
 
