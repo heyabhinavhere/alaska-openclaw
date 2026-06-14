@@ -84,7 +84,7 @@ Slack IDs / channel IDs are alphanumeric and safe to interpolate directly, match
 
 ### remember — store a self-task, note, or reference (INSERT)
 
-**When to use:** a teammate says "remember this," "show X whenever someone asks about Y," or "keep this handy" (→ `kind='reference'`, or `'note'` for a looser observation); OR Alaska makes her own follow-up commitment — "I'll follow up with Sandeep," "I should check the deploy tomorrow" (→ `kind='self_task'`, with an optional `due_at` if a time was implied).
+**When to use:** a teammate says "remember this," "show X whenever someone asks about Y," or "keep this handy" (→ `kind='reference'`, or `'note'` for a looser observation); OR Alaska makes her own follow-up commitment — "I'll follow up with Sandeep," "I should check the deploy tomorrow" (→ `kind='self_task'`, with an optional `due_at` if a time was implied). **A self-reminder ("remind me to X tomorrow", "I should review Y in the morning") IS a `self_task` with a `due_at` — the morning `review` fires it. NEVER hand-build a cron / systemEvent for a self-reminder: it bypasses this store, so it can't be reconciled against finished work and fires stale forever (the `cb320e7c` bug — a daily "review Nilesh's docs" cron that kept firing after the review had already shipped).**
 
 **Recall before you remember (dedup).** Each session is fresh — you may have stored this fact before. Run `recall` with the would-be cue's main keyword first: an open row already states the same fact → do NOT insert a duplicate; your new version revises it → run the supersede flow (under `archive`) instead.
 
@@ -171,6 +171,7 @@ sqlite3 -cmd ".timeout 30000" /data/queue/alaska.db "PRAGMA foreign_keys=ON; \
 
 Then work the list, item by item:
 
+- **Already handled? Reconcile FIRST, before doing anything.** For each self_task, check whether the work it represents is already done — the linked or topic-matching task is `done`/`dropped` in the graph, or you already delivered it (e.g. the review you set out to write is already posted in the thread). If so, `complete` the self_task and move on — do NOT re-do it or re-fire its reminder. (This is the `cb320e7c` failure: a "write up the review of Nilesh's docs" self-task whose reminder fired stale every morning because the review had already shipped and the task was never closed.)
 - **Due or overdue** (`due_at <= now`): DO the follow-up now, through its proper channel (the relay, the check, the DM it represents), then `complete` it. Genuinely can't act on it today → re-date it (`UPDATE agent_memory SET due_at='<new ISO>' WHERE mem_id='M-N';`) — never silently drop a commitment.
 - **KB proposals** (`recall_cue LIKE '%kb-proposal%'`): bundle ALL of them into ONE DM to Abhinav — "KB suggestion(s): …" — never one DM per item. Leave each row open until he rules; `complete` on accept or reject.
 - **Undated and stale** (open > 7 days, no `due_at`): still relevant → keep it open; overtaken by events → `complete` or `archive` it, with judgment.
